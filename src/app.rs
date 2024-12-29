@@ -2,7 +2,6 @@
 use eframe::epaint::Color32; // For defining color constants
 use std::collections::HashMap; // For managing workbench items by ID
 use std::fs; // For reading and writing files
-use serde_json; // For JSON serialization/deserialization
 use egui_file::FileDialog; // For handling file dialogs
 
 // Define color constants for UI elements
