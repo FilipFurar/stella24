@@ -2,6 +2,9 @@ on: [push, pull_request, workflow_dispatch]
 
 name: CI
 
+permissions:
+  contents: write
+
 env:
   RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
