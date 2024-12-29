@@ -4,7 +4,6 @@ use std::collections::HashMap; // For managing workbench items by ID
 use std::fs; // For reading and writing files
 use serde_json; // For JSON serialization/deserialization
 use egui_file::FileDialog; // For handling file dialogs
-use serde_json::from_str; // For JSON parsing
 
 // Define color constants for UI elements
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
