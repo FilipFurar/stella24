@@ -1,15 +1,21 @@
+use eframe::epaint::Color32;
+const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
+const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
+const PINK: Color32 = Color32::from_rgb(194, 73, 125);
+const YELLOW: Color32 = Color32::from_rgb(193, 202, 82);
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
+pub struct AppStella {
     // Example stuff:
     label: String,
-
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
 }
 
-impl Default for TemplateApp {
+
+impl Default for AppStella {
     fn default() -> Self {
         Self {
             // Example stuff:
@@ -19,7 +25,9 @@ impl Default for TemplateApp {
     }
 }
 
-impl TemplateApp {
+
+
+impl AppStella {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -35,12 +43,7 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
-    /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
+impl eframe::App for AppStella {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
@@ -54,18 +57,38 @@ impl eframe::App for TemplateApp {
                 let is_web = cfg!(target_arch = "wasm32");
                 if !is_web {
                     ui.menu_button("File", |ui| {
+                        if ui.button("New").clicked() {
+
+                        }
+                        if ui.button("Open").clicked() {
+
+                        }
+                        if ui.button("Save").clicked() {
+
+                        }
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
-                    ui.add_space(16.0);
                 }
-
+                ui.separator();
                 egui::widgets::global_theme_preference_buttons(ui);
             });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                if ui.add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE))).clicked() {
+                    println!("Table");
+                }
+                if ui.add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN))).clicked() {
+                    println!("Domain");
+                }
+                if ui.add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK))).clicked() {
+                    println!("Connector");
+                }
+            });
+            ui.separator();
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("eframe template");
 
@@ -91,6 +114,11 @@ impl eframe::App for TemplateApp {
                 egui::warn_if_debug_build(ui);
             });
         });
+    }
+
+    /// Called by the frame work to save state before shutdown.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
     }
 }
 
