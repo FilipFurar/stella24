@@ -1,8 +1,8 @@
 // Import necessary modules and dependencies
 use eframe::epaint::Color32; // For defining color constants
+use egui_file::FileDialog;
 use std::collections::HashMap; // For managing workbench items by ID
-use std::fs; // For reading and writing files
-use egui_file::FileDialog; // For handling file dialogs
+use std::fs; // For reading and writing files // For handling file dialogs
 
 // Define color constants for UI elements
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
@@ -141,7 +141,8 @@ impl AppStella {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
             let mut app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-            app.next_id = app.workbench_items
+            app.next_id = app
+                .workbench_items
                 .keys()
                 .max()
                 .map_or(1, |max_id| max_id + 1);
@@ -169,7 +170,8 @@ impl AppStella {
         if let Ok(json) = fs::read_to_string(path) {
             if let Ok(state) = serde_json::from_str::<SavedState>(&json) {
                 self.workbench_items = state.workbench_items;
-                self.next_id = self.workbench_items
+                self.next_id = self
+                    .workbench_items
                     .keys()
                     .max()
                     .map_or(1, |max_id| max_id + 1);
@@ -199,13 +201,12 @@ impl eframe::App for AppStella {
                         dialog.open();
                         self.save_dialog = Some(dialog);
                     }
-                    if !is_web {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close); // Close the app
-                        }
+                    if !is_web && ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        // Close the app
                     }
                 });
-                
+
                 ui.separator();
                 egui::widgets::global_theme_preference_buttons(ui); // Add UI theme preferences
             });
@@ -234,27 +235,36 @@ impl eframe::App for AppStella {
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
             ui.add_space(3.0);
             egui::menu::bar(ui, |ui| {
-                if ui.add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE))).clicked() {
+                if ui
+                    .add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE)))
+                    .clicked()
+                {
                     self.workbench_items.insert(
                         self.next_id,
                         WorkbenchItemType::Table(Table {
                             id: self.next_id,
                             title: "test".parse().unwrap(),
-                        })
+                        }),
                     );
                     self.next_id += 1;
                 }
-                if ui.add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN))).clicked() {
+                if ui
+                    .add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN)))
+                    .clicked()
+                {
                     self.workbench_items.insert(
                         self.next_id,
-                        WorkbenchItemType::Domain(Domain { id: self.next_id })
+                        WorkbenchItemType::Domain(Domain { id: self.next_id }),
                     );
                     self.next_id += 1;
                 }
-                if ui.add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK))).clicked() {
+                if ui
+                    .add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK)))
+                    .clicked()
+                {
                     self.workbench_items.insert(
                         self.next_id,
-                        WorkbenchItemType::Connector(Connector { id: self.next_id })
+                        WorkbenchItemType::Connector(Connector { id: self.next_id }),
                     );
                     self.next_id += 1;
                 }
