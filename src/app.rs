@@ -185,7 +185,6 @@ impl eframe::App for AppStella {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
                     ui.menu_button("File", |ui| {
                         if ui.button("New").clicked() {
                             *self = Self::default(); // Reset the application
@@ -200,11 +199,13 @@ impl eframe::App for AppStella {
                             dialog.open();
                             self.save_dialog = Some(dialog);
                         }
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close); // Close the app
+                        if !is_web {
+                            if ui.button("Quit").clicked() {
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close); // Close the app
+                            }
                         }
                     });
-                }
+                
                 ui.separator();
                 egui::widgets::global_theme_preference_buttons(ui); // Add UI theme preferences
             });
