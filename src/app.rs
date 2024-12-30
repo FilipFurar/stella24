@@ -201,11 +201,9 @@ impl eframe::App for AppStella {
                         dialog.open();
                         self.save_dialog = Some(dialog);
                     }
-                    if !is_web {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                            // Close the app
-                        }
+                    if !is_web && ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        // Close the app
                     }
                 });
 
