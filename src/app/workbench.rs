@@ -28,7 +28,7 @@ pub struct Table {
 // Domain struct representing a domain workbench item
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Domain {
-    pub id: usize, // Unique ID of the domain
+    pub id: usize,            // Unique ID of the domain
     pub(crate) title: String, // Title of the domain
 }
 
@@ -36,6 +36,6 @@ pub struct Domain {
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Connector {
     pub id: usize, // Unique ID of the connector
-    /*pub first_point: WorkbenchItemType,
-    pub second_point: WorkbenchItemType,*/
+                   /*pub first_point: WorkbenchItemType,
+                   pub second_point: WorkbenchItemType,*/
 }

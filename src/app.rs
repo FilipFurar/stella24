@@ -1,8 +1,8 @@
 // Import necessary modules and dependencies
+use crate::app::workbench::{Connector, Domain, Table, WorkbenchItemType};
 use eframe::epaint::Color32; // For defining color constants
 use egui_file::FileDialog;
 use std::fs;
-use crate::app::workbench::{Connector, Domain, Table, WorkbenchItemType};
 // For reading and writing files // For handling file dialogs
 
 // Define color constants for UI elements
@@ -11,7 +11,6 @@ const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
 mod workbench;
-
 
 // Struct for saving/loading the application state
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -140,33 +139,30 @@ impl eframe::App for AppStella {
                     .add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE)))
                     .clicked()
                 {
-                    self.workbench_items.push(
-                        WorkbenchItemType::Table(Table {
-                            id: self.next_id,
-                            title: "test".parse().unwrap(),
-                        }),
-                    );
+                    self.workbench_items.push(WorkbenchItemType::Table(Table {
+                        id: self.next_id,
+                        title: "test".parse().unwrap(),
+                    }));
                     self.next_id += 1;
                 }
                 if ui
                     .add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN)))
                     .clicked()
                 {
-                    self.workbench_items.push(
-                        WorkbenchItemType::Domain(Domain { 
-                            id: self.next_id,
-                            title: "test".parse().unwrap(),
-                        })
-                    );
+                    self.workbench_items.push(WorkbenchItemType::Domain(Domain {
+                        id: self.next_id,
+                        title: "test".parse().unwrap(),
+                    }));
                     self.next_id += 1;
                 }
                 if ui
                     .add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-                    self.workbench_items.push(
-                        WorkbenchItemType::Connector(Box::from(Connector { id: self.next_id, /*first_point: (), second_point: () */})),
-                    );
+                    self.workbench_items
+                        .push(WorkbenchItemType::Connector(Box::from(Connector {
+                            id: self.next_id, /*first_point: (), second_point: () */
+                        })));
                     self.next_id += 1;
                 }
             });
@@ -176,7 +172,7 @@ impl eframe::App for AppStella {
         // Central panel for displaying workbench items
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
-            
+
             for item in self.workbench_items.iter() {
                 ui.label(format!("{}", item.display_name()));
             }
