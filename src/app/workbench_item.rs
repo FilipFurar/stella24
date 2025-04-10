@@ -16,6 +16,13 @@ impl WorkbenchItemType {
             WorkbenchItemType::Connector(c) => c.id.to_string(),
         }
     }
+    pub fn set_title(self, title: String) {
+        match self {
+            WorkbenchItemType::Table(mut t) => t.title = title,
+            WorkbenchItemType::Domain(mut d) => d.title = title,
+            WorkbenchItemType::Connector(mut c) => c.id = c.id,
+        }
+    }
 }
 
 // Table struct representing a table workbench item

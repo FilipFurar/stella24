@@ -1,16 +1,17 @@
 // Import necessary modules and dependencies
-use crate::app::workbench::{Connector, Domain, Table, WorkbenchItemType};
+use crate::app::workbench_item::{Connector, Domain, Table, WorkbenchItemType};
 use eframe::epaint::Color32; // For defining color constants
 use egui_file::FileDialog;
 // For reading and writing files // For handling file dialogs
 use std::fs;
+use gethostname::gethostname;
 
 // Define color constants for UI elements
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-mod workbench;
+mod workbench_item;
 
 // Struct for saving/loading the application state
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -109,6 +110,11 @@ impl eframe::App for AppStella {
 
                 ui.separator();
                 egui::widgets::global_theme_preference_buttons(ui); // Add UI theme preferences
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
+                    let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
+                    ui.label(text);
+                })
             });
         });
 
@@ -141,7 +147,7 @@ impl eframe::App for AppStella {
                 {
                     self.workbench_items.push(WorkbenchItemType::Table(Table {
                         id: self.next_id,
-                        title: "test".parse().unwrap(),
+                        title: "Table".to_string(),
                     }));
                     self.next_id += 1;
                 }
@@ -151,7 +157,7 @@ impl eframe::App for AppStella {
                 {
                     self.workbench_items.push(WorkbenchItemType::Domain(Domain {
                         id: self.next_id,
-                        title: "test".parse().unwrap(),
+                        title: "Domain".to_string(),
                     }));
                     self.next_id += 1;
                 }
@@ -174,7 +180,8 @@ impl eframe::App for AppStella {
             ui.heading("Workbench");
 
             for item in self.workbench_items.iter() {
-                ui.label(item.display_name());
+                let mut item_name = item.display_name();
+                let response = ui.add(egui::TextEdit::singleline(&mut item_name));
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
