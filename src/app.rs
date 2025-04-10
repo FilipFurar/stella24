@@ -1,122 +1,30 @@
 // Import necessary modules and dependencies
+use crate::app::workbench::{Connector, Domain, Table, WorkbenchItemType};
 use eframe::epaint::Color32; // For defining color constants
 use egui_file::FileDialog;
-use std::collections::HashMap; // For managing workbench items by ID
-use std::fs; // For reading and writing files // For handling file dialogs
+// For reading and writing files // For handling file dialogs
+use std::fs;
 
 // Define color constants for UI elements
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-// Trait defining shared behavior for all workbench items
-pub trait WorkbenchItem {
-    // Get the unique ID of the item
-    fn get_id(&self) -> i32;
-
-    // Get the type name of the item
-    fn get_type_name(&self) -> &str;
-
-    // Default method to display item name as "Type ID"
-    fn display_name(&self) -> String {
-        format!("{} {}", self.get_type_name(), self.get_id())
-    }
-}
-
-// Table struct representing a table workbench item
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub struct Table {
-    pub id: i32,
-    title: String, // Title of the table
-}
-
-// Implement the WorkbenchItem trait for Table
-impl WorkbenchItem for Table {
-    fn get_id(&self) -> i32 {
-        self.id
-    }
-
-    fn get_type_name(&self) -> &str {
-        self.title.as_str()
-    }
-}
-
-// Domain struct representing a domain workbench item
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub struct Domain {
-    pub id: i32, // Unique ID of the domain
-}
-
-// Implement the WorkbenchItem trait for Domain
-impl WorkbenchItem for Domain {
-    fn get_id(&self) -> i32 {
-        self.id
-    }
-
-    fn get_type_name(&self) -> &str {
-        "Domain"
-    }
-}
-
-// Connector struct representing a connector workbench item
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub struct Connector {
-    pub id: i32, // Unique ID of the connector
-}
-
-// Implement the WorkbenchItem trait for Connector
-impl WorkbenchItem for Connector {
-    fn get_id(&self) -> i32 {
-        self.id
-    }
-
-    fn get_type_name(&self) -> &str {
-        "Connector"
-    }
-}
-
-// Enum wrapping all possible workbench item types
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub enum WorkbenchItemType {
-    Table(Table),
-    Domain(Domain),
-    Connector(Connector),
-}
-
-// Implement shared functionality for WorkbenchItemType
-impl WorkbenchItemType {
-    // Get display name for the item based on its type
-    pub fn display_name(&self) -> String {
-        match self {
-            WorkbenchItemType::Table(t) => t.display_name(),
-            WorkbenchItemType::Domain(d) => d.display_name(),
-            WorkbenchItemType::Connector(c) => c.display_name(),
-        }
-    }
-
-    // Get the unique ID of the item
-    pub fn get_id(&self) -> i32 {
-        match self {
-            WorkbenchItemType::Table(t) => t.get_id(),
-            WorkbenchItemType::Domain(d) => d.get_id(),
-            WorkbenchItemType::Connector(c) => c.get_id(),
-        }
-    }
-}
+mod workbench;
 
 // Struct for saving/loading the application state
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct SavedState {
-    pub workbench_items: HashMap<i32, WorkbenchItemType>, // Mapping of IDs to workbench items
+    pub workbench_items: Vec<WorkbenchItemType>, // Mapping of IDs to workbench items
 }
 
 // Main application struct
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // Provides default values for fields
 pub struct AppStella {
-    pub workbench_items: HashMap<i32, WorkbenchItemType>, // Current workbench items
+    pub workbench_items: Vec<WorkbenchItemType>, // Current workbench items
     #[serde(skip)] // Fields skipped during serialization
-    pub next_id: i32, // ID to assign to the next created item
+    pub next_id: usize, // ID to assign to the next created item
     #[serde(skip)]
     pub save_dialog: Option<FileDialog>, // Save file dialog
     #[serde(skip)]
@@ -127,7 +35,7 @@ pub struct AppStella {
 impl Default for AppStella {
     fn default() -> Self {
         Self {
-            workbench_items: HashMap::new(),
+            workbench_items: Vec::new(),
             next_id: 1, // Start with ID 1
             save_dialog: None,
             open_dialog: None,
@@ -140,12 +48,8 @@ impl AppStella {
     // Create a new AppStella instance, restoring from storage if available
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
-            let mut app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-            app.next_id = app
-                .workbench_items
-                .keys()
-                .max()
-                .map_or(1, |max_id| max_id + 1);
+            let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            //app.next_id = app.workbench_items.len() - 1;
             app
         } else {
             Default::default()
@@ -170,11 +74,7 @@ impl AppStella {
         if let Ok(json) = fs::read_to_string(path) {
             if let Ok(state) = serde_json::from_str::<SavedState>(&json) {
                 self.workbench_items = state.workbench_items;
-                self.next_id = self
-                    .workbench_items
-                    .keys()
-                    .max()
-                    .map_or(1, |max_id| max_id + 1);
+                self.next_id = self.workbench_items.len() - 1;
             }
         }
     }
@@ -239,33 +139,30 @@ impl eframe::App for AppStella {
                     .add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE)))
                     .clicked()
                 {
-                    self.workbench_items.insert(
-                        self.next_id,
-                        WorkbenchItemType::Table(Table {
-                            id: self.next_id,
-                            title: "test".parse().unwrap(),
-                        }),
-                    );
+                    self.workbench_items.push(WorkbenchItemType::Table(Table {
+                        id: self.next_id,
+                        title: "test".parse().unwrap(),
+                    }));
                     self.next_id += 1;
                 }
                 if ui
                     .add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN)))
                     .clicked()
                 {
-                    self.workbench_items.insert(
-                        self.next_id,
-                        WorkbenchItemType::Domain(Domain { id: self.next_id }),
-                    );
+                    self.workbench_items.push(WorkbenchItemType::Domain(Domain {
+                        id: self.next_id,
+                        title: "test".parse().unwrap(),
+                    }));
                     self.next_id += 1;
                 }
                 if ui
                     .add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-                    self.workbench_items.insert(
-                        self.next_id,
-                        WorkbenchItemType::Connector(Connector { id: self.next_id }),
-                    );
+                    self.workbench_items
+                        .push(WorkbenchItemType::Connector(Box::from(Connector {
+                            id: self.next_id, /*first_point: (), second_point: () */
+                        })));
                     self.next_id += 1;
                 }
             });
@@ -276,11 +173,7 @@ impl eframe::App for AppStella {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
 
-            // Sort and display workbench items by ID
-            let mut items: Vec<(&i32, &WorkbenchItemType)> = self.workbench_items.iter().collect();
-            items.sort_by_key(|&(id, _)| *id);
-
-            for (_, item) in items {
+            for item in self.workbench_items.iter() {
                 ui.label(item.display_name());
             }
 
