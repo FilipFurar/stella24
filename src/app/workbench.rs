@@ -1,5 +1,3 @@
-use egui::PaintCallback;
-
 // Enum wrapping all possible workbench item types
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub enum WorkbenchItemType {
