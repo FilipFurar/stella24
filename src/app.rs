@@ -2,8 +2,8 @@
 use crate::app::workbench::{Connector, Domain, Table, WorkbenchItemType};
 use eframe::epaint::Color32; // For defining color constants
 use egui_file::FileDialog;
-use std::fs;
 // For reading and writing files // For handling file dialogs
+use std::fs;
 
 // Define color constants for UI elements
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
@@ -174,7 +174,7 @@ impl eframe::App for AppStella {
             ui.heading("Workbench");
 
             for item in self.workbench_items.iter() {
-                ui.label(format!("{}", item.display_name()));
+                ui.label(format!("{}", item.display_name().to_string()));
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
