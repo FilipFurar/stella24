@@ -174,7 +174,7 @@ impl eframe::App for AppStella {
             ui.heading("Workbench");
 
             for item in self.workbench_items.iter() {
-                ui.label(format!("{}", item.display_name().to_string()));
+                ui.label(item.display_name());
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
