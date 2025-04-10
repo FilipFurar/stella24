@@ -2,107 +2,17 @@
 use eframe::epaint::Color32; // For defining color constants
 use egui_file::FileDialog;
 use std::collections::HashMap; // For managing workbench items by ID
-use std::fs; // For reading and writing files // For handling file dialogs
+use std::fs;
+use crate::app::workbench::{Connector, Domain, Table, WorkbenchItemType};
+// For reading and writing files // For handling file dialogs
 
 // Define color constants for UI elements
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-// Trait defining shared behavior for all workbench items
-pub trait WorkbenchItem {
-    // Get the unique ID of the item
-    fn get_id(&self) -> i32;
+mod workbench;
 
-    // Get the type name of the item
-    fn get_type_name(&self) -> &str;
-
-    // Default method to display item name as "Type ID"
-    fn display_name(&self) -> String {
-        format!("{} {}", self.get_type_name(), self.get_id())
-    }
-}
-
-// Table struct representing a table workbench item
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub struct Table {
-    pub id: i32,
-    title: String, // Title of the table
-}
-
-// Implement the WorkbenchItem trait for Table
-impl WorkbenchItem for Table {
-    fn get_id(&self) -> i32 {
-        self.id
-    }
-
-    fn get_type_name(&self) -> &str {
-        self.title.as_str()
-    }
-}
-
-// Domain struct representing a domain workbench item
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub struct Domain {
-    pub id: i32, // Unique ID of the domain
-}
-
-// Implement the WorkbenchItem trait for Domain
-impl WorkbenchItem for Domain {
-    fn get_id(&self) -> i32 {
-        self.id
-    }
-
-    fn get_type_name(&self) -> &str {
-        "Domain"
-    }
-}
-
-// Connector struct representing a connector workbench item
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub struct Connector {
-    pub id: i32, // Unique ID of the connector
-}
-
-// Implement the WorkbenchItem trait for Connector
-impl WorkbenchItem for Connector {
-    fn get_id(&self) -> i32 {
-        self.id
-    }
-
-    fn get_type_name(&self) -> &str {
-        "Connector"
-    }
-}
-
-// Enum wrapping all possible workbench item types
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
-pub enum WorkbenchItemType {
-    Table(Table),
-    Domain(Domain),
-    Connector(Connector),
-}
-
-// Implement shared functionality for WorkbenchItemType
-impl WorkbenchItemType {
-    // Get display name for the item based on its type
-    pub fn display_name(&self) -> String {
-        match self {
-            WorkbenchItemType::Table(t) => t.display_name(),
-            WorkbenchItemType::Domain(d) => d.display_name(),
-            WorkbenchItemType::Connector(c) => c.display_name(),
-        }
-    }
-
-    // Get the unique ID of the item
-    pub fn get_id(&self) -> i32 {
-        match self {
-            WorkbenchItemType::Table(t) => t.get_id(),
-            WorkbenchItemType::Domain(d) => d.get_id(),
-            WorkbenchItemType::Connector(c) => c.get_id(),
-        }
-    }
-}
 
 // Struct for saving/loading the application state
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -254,7 +164,10 @@ impl eframe::App for AppStella {
                 {
                     self.workbench_items.insert(
                         self.next_id,
-                        WorkbenchItemType::Domain(Domain { id: self.next_id }),
+                        WorkbenchItemType::Domain(Domain { 
+                            id: self.next_id,
+                            title: "test".parse().unwrap(),
+                        })
                     );
                     self.next_id += 1;
                 }
@@ -264,7 +177,7 @@ impl eframe::App for AppStella {
                 {
                     self.workbench_items.insert(
                         self.next_id,
-                        WorkbenchItemType::Connector(Connector { id: self.next_id }),
+                        WorkbenchItemType::Connector(Box::from(Connector { id: self.next_id, /*first_point: (), second_point: () */})),
                     );
                     self.next_id += 1;
                 }
