@@ -1,6 +1,5 @@
 # stella24
 
-[![dependency status](https://deps.rs/repo/github/FilipFurar/stella24/status.svg)](https://deps.rs/repo/github/FilipFurar/stella24)
 [![Build Status](https://github.com/FilipFurar/stella24/workflows/CI/badge.svg)](https://github.com/FilipFurar/stella24/actions?workflow=CI)
 
 This is a template repo for [eframe](https://github.com/emilk/egui/tree/master/crates/eframe), a framework for writing apps using [egui](https://github.com/emilk/egui/).
