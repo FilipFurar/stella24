@@ -21,24 +21,21 @@ impl WorkbenchItemType {
 // Table struct representing a table workbench item
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Table {
-    #[serde(skip)]
-    pub id: i32,
+    pub id: usize,
     pub(crate) title: String, // Title of the table
 }
 
 // Domain struct representing a domain workbench item
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Domain {
-    #[serde(skip)]
-    pub id: i32, // Unique ID of the domain
+    pub id: usize, // Unique ID of the domain
     pub(crate) title: String, // Title of the domain
 }
 
 // Connector struct representing a connector workbench item
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Connector {
-    #[serde(skip)]
-    pub id: i32, // Unique ID of the connector
+    pub id: usize, // Unique ID of the connector
     /*pub first_point: WorkbenchItemType,
     pub second_point: WorkbenchItemType,*/
 }
