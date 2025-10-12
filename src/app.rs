@@ -181,7 +181,7 @@ impl eframe::App for AppStella {
 
             for item in self.workbench_items.iter() {
                 let mut item_name = item.display_name();
-                let response = ui.add(egui::TextEdit::singleline(&mut item_name));
+                let _response = ui.add(egui::TextEdit::singleline(&mut item_name));
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
