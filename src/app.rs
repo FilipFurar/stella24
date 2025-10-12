@@ -1,9 +1,4 @@
-// Import necessary modules and dependencies
-use crate::app::workbench_item::{Connector, Domain, Table, WorkbenchItemType};
-use eframe::epaint::Color32; // For defining color constants
-use egui_file::FileDialog;
-// For reading and writing files // For handling file dialogs
-use std::fs;
+use eframe::epaint::Color32;
 use gethostname::gethostname;
 
 // Define color constants for UI elements
@@ -11,35 +6,19 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-mod workbench_item;
-
-// Struct for saving/loading the application state
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct SavedState {
-    pub workbench_items: Vec<WorkbenchItemType>, // Mapping of IDs to workbench items
-}
 
 // Main application struct
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // Provides default values for fields
 pub struct AppStella {
-    pub workbench_items: Vec<WorkbenchItemType>, // Current workbench items
-    #[serde(skip)] // Fields skipped during serialization
-    pub next_id: usize, // ID to assign to the next created item
-    #[serde(skip)]
-    pub save_dialog: Option<FileDialog>, // Save file dialog
-    #[serde(skip)]
-    pub open_dialog: Option<FileDialog>, // Open file dialog
+
 }
 
 // Default implementation for AppStella
 impl Default for AppStella {
     fn default() -> Self {
         Self {
-            workbench_items: Vec::new(),
-            next_id: 1, // Start with ID 1
-            save_dialog: None,
-            open_dialog: None,
+
         }
     }
 }
@@ -50,33 +29,9 @@ impl AppStella {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
             let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-            //app.next_id = app.workbench_items.len() - 1;
             app
         } else {
             Default::default()
-        }
-    }
-
-    // Save the current application state to a file
-    pub fn handle_save(&mut self, path: std::path::PathBuf) {
-        let state = SavedState {
-            workbench_items: self.workbench_items.clone(),
-        };
-
-        if let Ok(json) = serde_json::to_string_pretty(&state) {
-            if let Err(err) = fs::write(&path, json) {
-                eprintln!("Error saving file: {}", err);
-            }
-        }
-    }
-
-    // Load application state from a file
-    pub fn handle_open(&mut self, path: std::path::PathBuf) {
-        if let Ok(json) = fs::read_to_string(path) {
-            if let Ok(state) = serde_json::from_str::<SavedState>(&json) {
-                self.workbench_items = state.workbench_items;
-                self.next_id = self.workbench_items.len() - 1;
-            }
         }
     }
 }
@@ -89,19 +44,6 @@ impl eframe::App for AppStella {
             egui::menu::bar(ui, |ui| {
                 let is_web = cfg!(target_arch = "wasm32");
                 ui.menu_button("File", |ui| {
-                    if ui.button("New").clicked() {
-                        *self = Self::default(); // Reset the application
-                    }
-                    if ui.button("Open").clicked() {
-                        let mut dialog = FileDialog::open_file(None);
-                        dialog.open();
-                        self.open_dialog = Some(dialog);
-                    }
-                    if ui.button("Save").clicked() {
-                        let mut dialog = FileDialog::save_file(None);
-                        dialog.open();
-                        self.save_dialog = Some(dialog);
-                    }
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         // Close the app
@@ -118,25 +60,6 @@ impl eframe::App for AppStella {
             });
         });
 
-        // Save dialog handling
-        if let Some(dialog) = &mut self.save_dialog {
-            if dialog.show(ctx).selected() {
-                if let Some(path) = dialog.path() {
-                    let path_clone = path.to_path_buf(); // Avoid mutably borrowing `self`
-                    self.handle_save(path_clone);
-                }
-                self.save_dialog = None;
-            }
-        } else if let Some(dialog) = &mut self.open_dialog {
-            if dialog.show(ctx).selected() {
-                if let Some(path) = dialog.path() {
-                    let path_clone = path.to_path_buf(); // Avoid mutably borrowing `self`
-                    self.handle_open(path_clone);
-                }
-                self.open_dialog = None;
-            }
-        }
-
         // Workbench menu for adding items
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
             ui.add_space(3.0);
@@ -145,31 +68,16 @@ impl eframe::App for AppStella {
                     .add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE)))
                     .clicked()
                 {
-                    self.workbench_items.push(WorkbenchItemType::Table(Table {
-                        id: self.next_id,
-                        title: "Table".to_string(),
-                    }));
-                    self.next_id += 1;
                 }
                 if ui
                     .add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN)))
                     .clicked()
                 {
-                    self.workbench_items.push(WorkbenchItemType::Domain(Domain {
-                        id: self.next_id,
-                        title: "Domain".to_string(),
-                    }));
-                    self.next_id += 1;
                 }
                 if ui
                     .add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-                    self.workbench_items
-                        .push(WorkbenchItemType::Connector(Box::from(Connector {
-                            id: self.next_id, /*first_point: (), second_point: () */
-                        })));
-                    self.next_id += 1;
                 }
             });
             ui.add_space(2.0);
@@ -179,10 +87,6 @@ impl eframe::App for AppStella {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
 
-            for item in self.workbench_items.iter() {
-                let mut item_name = item.display_name();
-                let _response = ui.add(egui::TextEdit::singleline(&mut item_name));
-            }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui); // Display debug warnings if applicable
