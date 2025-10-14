@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use eframe::epaint::Color32;
 use gethostname::gethostname;
 
@@ -5,31 +6,48 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-enum ItemKind {
-    Table,
-    Domain,
-    Connector,
+struct Table<'a> {
+    title: String,
+    fields: Vec<(String, String)>,
+    connections: Vec<&'a Connector>,
 }
 
-pub struct AppStella {
-    items: Vec<ItemKind>,
+struct Domain {
+    title: String,
+    defined_as: String,
 }
 
-impl Default for AppStella {
+struct Connector {
+    connections: (usize, usize),
+}
+
+pub struct AppStella<'a> {
+    tables: Vec<Table<'a>>,
+    domains: Vec<Domain>,
+    connectors: Vec<Connector>,
+}
+
+impl<'a> Default for AppStella<'a> {
     fn default() -> Self {
         Self {
-            items: Vec::new(),
+            tables: vec![Table {title: "ahoj1".to_string(), fields: vec![], connections: vec![]}, Table {
+                title: "ahoj2".to_string(),
+                fields: vec![],
+                connections: vec![],
+            }],
+            domains: vec![],
+            connectors: vec![],
         }
     }
 }
 
-impl AppStella {
+impl<'a> AppStella<'a> {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         Default::default()
     }
 }
 
-impl eframe::App for AppStella {
+impl<'a> eframe::App for AppStella<'a> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -57,19 +75,31 @@ impl eframe::App for AppStella {
                     .add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE)))
                     .clicked()
                 {
-                    self.items.push(ItemKind::Table);
+                    let table = Table {
+                        title: "kkt".to_string(),
+                        fields: vec![],
+                        connections: vec![],
+                    };
+                    self.tables.push(table);
                 }
                 if ui
                     .add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN)))
                     .clicked()
                 {
-                    self.items.push(ItemKind::Domain);
+                    let domain = Domain {
+                        title: "kkt".to_string(),
+                        defined_as: "char(20)".to_string(),
+                    };
+                    self.domains.push(domain);
                 }
                 if ui
                     .add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-                    self.items.push(ItemKind::Connector);
+                    let connector = Connector {
+                        connections: (0, 1),
+                    };
+                    self.connectors.push(connector);
 
                 }
             });
@@ -78,8 +108,19 @@ impl eframe::App for AppStella {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
-            for item in &self.items {
-                ui.label("kkt");
+            for table in &self.tables {
+
+                ui.label(&table.title);
+            }
+            for domain  in &self.domains {
+                ui.label(&domain.title);
+            }
+            for connector in &self.connectors {
+                let (i1, i2) = connector.connections;
+                let t1 = &self.tables[i1];
+                let t2 = &self.tables[i2];
+                let text = t1.title.clone() + &t2.title.clone();
+                ui.label(text.to_string());
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
