@@ -108,7 +108,7 @@ impl<'a> eframe::App for AppStella<'a> {
                     .add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-                    if (self.tables.len() > 1) {
+                    if self.tables.len() > 1 {
                         let connector = Connector {
                             connections: (0, 1),
                         };
@@ -164,19 +164,28 @@ impl<'a> eframe::App for AppStella<'a> {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
-            for table in &mut self.tables {
-
-                ui.label(table.title.to_owned());
+            for (idx, table) in self.tables.iter().enumerate() {
+                let is_selected = matches!(self.current_item, Some(ItemType::Table(i)) if i == idx);
+                if ui.selectable_label(is_selected, &table.title).clicked() {
+                    self.current_item = Some(ItemType::Table(idx));
+                }
             }
-            for domain  in &self.domains {
-                ui.label(&domain.title);
+            for (idx, domain) in self.domains.iter().enumerate() {
+                let is_selected = matches!(self.current_item, Some(ItemType::Domain(i)) if i == idx);
+                if ui.selectable_label(is_selected, &domain.title).clicked() {
+                    self.current_item = Some(ItemType::Domain(idx));
+                }
             }
-            for connector in &self.connectors {
+            for (idx, connector) in self.connectors.iter().enumerate() {
                 let (i1, i2) = connector.connections;
                 let t1 = &self.tables[i1];
                 let t2 = &self.tables[i2];
-                let text = t1.title.clone() + " - " + &t2.title.clone();
-                ui.label(text.to_string());
+                let text = format!("{} - {}", t1.title, t2.title);
+
+                let is_selected = matches!(self.current_item, Some(ItemType::Connector(i)) if i == idx);
+                if ui.selectable_label(is_selected, text).clicked() {
+                    self.current_item = Some(ItemType::Connector(idx));
+                }
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
