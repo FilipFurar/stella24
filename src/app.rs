@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use eframe::epaint::Color32;
+use egui::{vec2, Vec2};
 use gethostname::gethostname;
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
@@ -77,7 +78,7 @@ impl<'a> eframe::App for AppStella<'a> {
             ui.add_space(3.0);
             egui::menu::bar(ui, |ui| {
                 if ui
-                    .add(egui::Button::new("Table").stroke(egui::Stroke::new(1.0, BLUE)))
+                    .add(egui::Button::new("Table").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, BLUE)))
                     .clicked()
                 {
                     let table = Table {
@@ -93,11 +94,11 @@ impl<'a> eframe::App for AppStella<'a> {
 
                 }
                 if ui
-                    .add(egui::Button::new("Domain").stroke(egui::Stroke::new(1.0, GREEN)))
+                    .add(egui::Button::new("Domain").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, GREEN)))
                     .clicked()
                 {
                     let domain = Domain {
-                        title: "kkt".to_string(),
+                        title: "Title".to_string(),
                         defined_as: "char(20)".to_string(),
                     };
                     self.domains.push(domain);
@@ -105,7 +106,7 @@ impl<'a> eframe::App for AppStella<'a> {
                     self.current_item = Some(ItemType::Domain(idx));
                 }
                 if ui
-                    .add(egui::Button::new("Connector").stroke(egui::Stroke::new(1.0, PINK)))
+                    .add(egui::Button::new("Connector").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
                     if self.tables.len() > 1 {
@@ -118,10 +119,10 @@ impl<'a> eframe::App for AppStella<'a> {
                     }
                 }
             });
-            //  ui.add_space(2.0);
+            ui.add_space(2.0);
 
         });
-        egui::SidePanel::left("properties").resizable(true).min_width(200.0f32).max_width(600.0f32).show(ctx, |ui| {
+        egui::SidePanel::left("properties").default_width(400.0).resizable(true).min_width(300.0f32).show(ctx, |ui| {
             ui.heading("Properties");
             match &self.current_item {
                 Some(x) => match x {
@@ -166,15 +167,57 @@ impl<'a> eframe::App for AppStella<'a> {
             ui.heading("Workbench");
             for (idx, table) in self.tables.iter().enumerate() {
                 let is_selected = matches!(self.current_item, Some(ItemType::Table(i)) if i == idx);
-                if ui.selectable_label(is_selected, &table.title).clicked() {
-                    self.current_item = Some(ItemType::Table(idx));
-                }
+                let mut str: String = "table".to_owned();
+                let id_string = idx.to_string();
+                str.push_str(&*id_string);
+                let my_window_id = egui::Id::new(str);
+
+                let title = &table.title;
+                egui::Window::new(title)
+                    .id(my_window_id)
+                    .resizable(true)
+                    .default_size(egui::vec2(300.0, 200.0))
+                    .show(ctx, |ui| {
+                        ui.label("Table");
+
+
+                        for (field_name, field_type) in &table.fields {
+                            ui.horizontal(|ui| {
+                                ui.label(field_name);
+                                ui.label(field_type);
+                            });
+                        }ui.separator();
+                        if (ui.button("Properties").clicked()) {
+                            self.current_item = Some(ItemType::Table(idx));
+                        }
+
+                    });
+
+
             }
             for (idx, domain) in self.domains.iter().enumerate() {
                 let is_selected = matches!(self.current_item, Some(ItemType::Domain(i)) if i == idx);
-                if ui.selectable_label(is_selected, &domain.title).clicked() {
-                    self.current_item = Some(ItemType::Domain(idx));
-                }
+                let mut str: String = "domain".to_owned();
+                let id_string = idx.to_string();
+                str.push_str(&*id_string);
+                let my_window_id = egui::Id::new(str);
+                let title = &domain.title;
+                egui::Window::new(title)
+                    .id(my_window_id)
+                    .resizable(true)
+                    .default_size(egui::vec2(300.0, 200.0))
+                    .show(ctx, |ui| {
+                        ui.label("Domain");
+
+
+                        ui.label(&domain.defined_as);
+                        ui.separator();
+                        if (ui.button("Properties").clicked()) {
+                            self.current_item = Some(ItemType::Domain(idx));
+                        }
+                    });
+
+
             }
             for (idx, connector) in self.connectors.iter().enumerate() {
                 let (i1, i2) = connector.connections;
