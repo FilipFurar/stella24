@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use eframe::epaint::Color32;
 use egui::{vec2, Vec2};
+use egui_cable::prelude::*;
 use gethostname::gethostname;
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
@@ -167,11 +169,8 @@ impl<'a> eframe::App for AppStella<'a> {
             ui.heading("Workbench");
             for (idx, table) in self.tables.iter().enumerate() {
                 let is_selected = matches!(self.current_item, Some(ItemType::Table(i)) if i == idx);
-                let mut str: String = "table".to_owned();
-                let id_string = idx.to_string();
-                str.push_str(&*id_string);
-                let my_window_id = egui::Id::new(str);
-
+                let my_window_id_str : String = format!("table{}", idx);
+                let my_window_id = egui::Id::new(&my_window_id_str);
                 let title = &table.title;
                 egui::Window::new(title)
                     .id(my_window_id)
@@ -186,8 +185,15 @@ impl<'a> eframe::App for AppStella<'a> {
                                 ui.label(field_name);
                                 ui.label(field_type);
                             });
-                        }ui.separator();
-                        if (ui.button("Properties").clicked()) {
+
+                        }
+                        ui.separator();
+                        ui.horizontal(|ui| {
+                            ui.add(Port::new(format!("port{}-0", my_window_id_str)));
+                            ui.add(Port::new(format!("port{}-1", my_window_id_str)));
+                        });
+                        ui.separator();
+                        if ui.button("Properties").clicked() {
                             self.current_item = Some(ItemType::Table(idx));
                         }
 
@@ -197,13 +203,10 @@ impl<'a> eframe::App for AppStella<'a> {
             }
             for (idx, domain) in self.domains.iter().enumerate() {
                 let is_selected = matches!(self.current_item, Some(ItemType::Domain(i)) if i == idx);
-                let mut str: String = "domain".to_owned();
-                let id_string = idx.to_string();
-                str.push_str(&*id_string);
-                let my_window_id = egui::Id::new(str);
+                let window_id:egui::Id = format!("domain{}", idx).into();
                 let title = &domain.title;
                 egui::Window::new(title)
-                    .id(my_window_id)
+                    .id(window_id)
                     .resizable(true)
                     .default_size(egui::vec2(300.0, 200.0))
                     .show(ctx, |ui| {
@@ -212,7 +215,7 @@ impl<'a> eframe::App for AppStella<'a> {
 
                         ui.label(&domain.defined_as);
                         ui.separator();
-                        if (ui.button("Properties").clicked()) {
+                        if ui.button("Properties").clicked() {
                             self.current_item = Some(ItemType::Domain(idx));
                         }
                     });
