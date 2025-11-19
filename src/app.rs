@@ -88,8 +88,6 @@ impl<'a> eframe::App for AppStella<'a> {
                     };
 
                     self.tables.push(table);
-                    let idx = self.tables.len() - 1;
-
 
                 }
                 if ui
@@ -101,7 +99,6 @@ impl<'a> eframe::App for AppStella<'a> {
                         defined_as: "char(20)".to_string(),
                     };
                     self.domains.push(domain);
-                    let idx = self.domains.len() - 1;
                 }
                 if ui
                     .add(egui::Button::new("Connector").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, PINK)))
@@ -112,7 +109,6 @@ impl<'a> eframe::App for AppStella<'a> {
                             connections: (0, 1),
                         };
                         self.connectors.push(connector);
-                        let idx = self.connectors.len() - 1;
                     }
                 }
             });
@@ -201,13 +197,13 @@ impl<'a> eframe::App for AppStella<'a> {
                     });
 
             }
-            for (idx, connector) in self.connectors.iter().enumerate() {
+            /*for (idx, connector) in self.connectors.iter().enumerate() {
                 let (i1, i2) = connector.connections;
                 let t1 = &self.tables[i1];
                 let t2 = &self.tables[i2];
                 let text = format!("{} - {}", t1.title, t2.title);
 
-            }
+            }*/
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
