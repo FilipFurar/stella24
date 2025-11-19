@@ -13,7 +13,6 @@ pub struct AppStella<'a> {
     tables: Vec<Table<'a>>,
     domains: Vec<Domain>,
     connectors: Vec<Connector>,
-    current_item: Option<ItemType>,
 }
 enum ItemType {
     Table(usize),
@@ -43,7 +42,6 @@ impl<'a> Default for AppStella<'a> {
             tables: vec![],
             domains: vec![],
             connectors: vec![],
-            current_item: None,
         }
     }
 }
@@ -91,7 +89,6 @@ impl<'a> eframe::App for AppStella<'a> {
 
                     self.tables.push(table);
                     let idx = self.tables.len() - 1;
-                    self.current_item = Some(ItemType::Table(idx));
 
 
                 }
@@ -105,7 +102,6 @@ impl<'a> eframe::App for AppStella<'a> {
                     };
                     self.domains.push(domain);
                     let idx = self.domains.len() - 1;
-                    self.current_item = Some(ItemType::Domain(idx));
                 }
                 if ui
                     .add(egui::Button::new("Connector").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, PINK)))
@@ -117,25 +113,16 @@ impl<'a> eframe::App for AppStella<'a> {
                         };
                         self.connectors.push(connector);
                         let idx = self.connectors.len() - 1;
-                        self.current_item = Some(ItemType::Connector(idx));
                     }
                 }
             });
             ui.add_space(2.0);
 
         });
-        egui::SidePanel::left("properties").default_width(400.0).resizable(true).min_width(300.0f32).show(ctx, |ui| {
+        /*egui::SidePanel::left("properties").default_width(400.0).resizable(true).min_width(300.0f32).show(ctx, |ui| {
             ui.heading("Properties");
             match &self.current_item {
                 Some(x) => match x {
-                    ItemType::Table(idx) => {
-                            let table = &mut self.tables[*idx];
-                            ui.text_edit_singleline(&mut table.title);
-                    }
-                    ItemType::Domain(idx) => {
-                        let domain = &mut self.domains[*idx];
-                        ui.text_edit_singleline(&mut domain.title);
-                    }
                     ItemType::Connector(idx) => {
                         let connector = &mut self.connectors[*idx];
                         let (mut i1, mut i2) = connector.connections;
@@ -163,12 +150,11 @@ impl<'a> eframe::App for AppStella<'a> {
                 },
                 None => {}
             }
-        });
+        });*/
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
-            for (idx, table) in self.tables.iter().enumerate() {
-                let is_selected = matches!(self.current_item, Some(ItemType::Table(i)) if i == idx);
+            for (idx, table) in self.tables.iter_mut().enumerate() {
                 let my_window_id_str : String = format!("table{}", idx);
                 let my_window_id = egui::Id::new(&my_window_id_str);
                 let title = &table.title;
@@ -177,32 +163,28 @@ impl<'a> eframe::App for AppStella<'a> {
                     .resizable(true)
                     .default_size(egui::vec2(300.0, 200.0))
                     .show(ctx, |ui| {
-                        ui.label("Table");
-
+                        ui.horizontal(|ui| {
+                            ui.label("Title:");
+                            ui.text_edit_singleline(&mut table.title);
+                        });
 
                         for (field_name, field_type) in &table.fields {
                             ui.horizontal(|ui| {
                                 ui.label(field_name);
                                 ui.label(field_type);
                             });
-
                         }
+
                         ui.separator();
                         ui.horizontal(|ui| {
                             ui.add(Port::new(format!("port{}-0", my_window_id_str)));
                             ui.add(Port::new(format!("port{}-1", my_window_id_str)));
                         });
-                        ui.separator();
-                        if ui.button("Properties").clicked() {
-                            self.current_item = Some(ItemType::Table(idx));
-                        }
-
                     });
 
 
             }
-            for (idx, domain) in self.domains.iter().enumerate() {
-                let is_selected = matches!(self.current_item, Some(ItemType::Domain(i)) if i == idx);
+            for (idx, domain) in self.domains.iter_mut().enumerate() {
                 let window_id:egui::Id = format!("domain{}", idx).into();
                 let title = &domain.title;
                 egui::Window::new(title)
@@ -210,16 +192,13 @@ impl<'a> eframe::App for AppStella<'a> {
                     .resizable(true)
                     .default_size(egui::vec2(300.0, 200.0))
                     .show(ctx, |ui| {
-                        ui.label("Domain");
-
+                        ui.horizontal(|ui| {
+                            ui.label("Title:");
+                            ui.text_edit_singleline(&mut domain.title);
+                        });
 
                         ui.label(&domain.defined_as);
-                        ui.separator();
-                        if ui.button("Properties").clicked() {
-                            self.current_item = Some(ItemType::Domain(idx));
-                        }
                     });
-
 
             }
             for (idx, connector) in self.connectors.iter().enumerate() {
@@ -228,10 +207,6 @@ impl<'a> eframe::App for AppStella<'a> {
                 let t2 = &self.tables[i2];
                 let text = format!("{} - {}", t1.title, t2.title);
 
-                let is_selected = matches!(self.current_item, Some(ItemType::Connector(i)) if i == idx);
-                if ui.selectable_label(is_selected, text).clicked() {
-                    self.current_item = Some(ItemType::Connector(idx));
-                }
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
