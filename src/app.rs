@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use eframe::epaint::Color32;
-use egui::{vec2, Id, Ui, Vec2};
+use egui::{vec2, Align, Id, Ui, Vec2, Widget};
 use egui_cable::prelude::*;
 use gethostname::gethostname;
 
@@ -47,24 +47,29 @@ struct Field {
     data_type: Type,
 }
 
+impl Default for Field {
+    fn default() -> Self {
+        Self {
+            name: "name".to_string(),
+            data_type: Type {
+                data_type: "char".to_string(),
+                params: "".to_string(),
+            },
+        }
+    }
+}
+
 struct Type {
     data_type: String,
-    params: Option<u32>,
+    params: String,
 }
 
 impl Type {
     fn get_type_string(&self) -> String {
         let mut string = self.data_type.clone();
-        match self.params {
-            None => {
-                string
-            }
-            Some(n) => {
-                let param = format!("({})", n);
-                string.push_str(&*param);
-                string
-            }
-        }
+        let param = format!("({})", self.params);
+        string.push_str(&*param);
+        string
     }
 }
 
@@ -88,13 +93,16 @@ impl Default for Table {
 }
 
 impl Table {
-    //fn
 }
 
 trait Node {
     fn title(&self) -> &str;
     fn title_mut(&mut self) -> &mut String;
     fn draw(&mut self, ui: &mut Ui, id: usize);
+
+    fn can_delete(&self) -> bool {
+        true
+    }
 }
 
 impl Node for Table {
@@ -106,12 +114,26 @@ impl Node for Table {
             ui.label("Title:");
             ui.text_edit_singleline(&mut self.title);
         });
+        ui.separator();
+        let mut to_delete: Option<usize> = None;
 
-        for field in &self.fields {
+        for (id, field) in self.fields.iter_mut().enumerate() {
             ui.horizontal(|ui| {
-                ui.label(&field.name);
-                ui.label(&field.data_type.get_type_string());
+                ui.add(egui::TextEdit::singleline(&mut field.name).min_size(Vec2::new(100f32, 20f32)));
+                ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).min_size(Vec2::new(100f32, 20f32)));
+                ui.add(egui::TextEdit::singleline(&mut field.data_type.params).min_size(Vec2::new(100f32, 20f32)));
+                if ui.button("🗑️").clicked() {
+                    to_delete = Some(id);
+                }
             });
+        }
+
+        if let Some(id) = to_delete {
+            self.fields.remove(id);
+        }
+
+        if ui.button("Add").clicked() {
+            self.fields.push(Field::default());
         }
 
         ui.separator();
@@ -131,6 +153,8 @@ impl Node for Domain {
             ui.label("Title:");
             ui.text_edit_singleline(&mut self.title);
         });
+        ui.separator();
+
 
         ui.label(self.defined_as.get_type_string());
     }
@@ -143,13 +167,17 @@ impl Node for Connector {
     fn draw(&mut self, ui: &mut Ui, _id: usize) {
         ui.label(format!("Connects Table {} → Table {}", self.connections.0, self.connections.1));
     }
+
+    fn can_delete(&self) -> bool {
+        false
+    }
 }
 
 impl Default for Domain {
     fn default() -> Self {
         let datatype = Type {
             data_type: "varchar".to_string(),
-            params: Some(5),
+            params: "5".to_string(),
         };
         Self {
             title: "Domain".to_string(),
@@ -165,8 +193,6 @@ impl Default for AppStella {
         }
     }
 }
-
-
 
 impl AppStella {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
@@ -219,52 +245,15 @@ impl eframe::App for AppStella {
                     .add(egui::Button::new("Connector").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-                    /*if self.tables.len() > 1 {
-                        let connector = Connector {
-                            connections: (0, 1),
-                        };
-                        self.connectors.push(connector);
-                    }*/
+
                 }
             });
             ui.add_space(2.0);
 
         });
-        /*egui::SidePanel::left("properties").default_width(400.0).resizable(true).min_width(300.0f32).show(ctx, |ui| {
-            ui.heading("Properties");
-            match &self.current_item {
-                Some(x) => match x {
-                    ItemType::Connector(idx) => {
-                        let connector = &mut self.connectors[*idx];
-                        let (mut i1, mut i2) = connector.connections;
-
-                        ui.horizontal(|ui| {
-                            egui::ComboBox::from_label("From")
-                                .selected_text(self.tables.get(i1).map(|t| t.title.clone()).unwrap_or_default())
-                                .show_ui(ui, |ui| {
-                                    for (table_index, table) in self.tables.iter().enumerate() {
-                                        ui.selectable_value(&mut i1, table_index, &table.title);
-                                    }
-                                });
-
-                            egui::ComboBox::from_label("To")
-                                .selected_text(self.tables.get(i2).map(|t| t.title.clone()).unwrap_or_default())
-                                .show_ui(ui, |ui| {
-                                    for (table_index, table) in self.tables.iter().enumerate() {
-                                        ui.selectable_value(&mut i2, table_index, &table.title);
-                                    }
-                                });
-                        });
-
-                        connector.connections = (i1, i2);
-                    }
-                },
-                None => {}
-            }
-        });*/
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Workbench");
+            let mut to_delete: Option<usize> = None;
 
             for (id, item) in self.items.iter_mut().enumerate() {
                 let window_id = Id::new(id);
@@ -277,15 +266,19 @@ impl eframe::App for AppStella {
                     .default_size(vec2(300.0, 200.0))
                     .show(ctx, |ui| {
                         item.node_mut().draw(ui, id);
+
+                            if item.node().can_delete() {
+                                ui.separator();
+                                if ui.button("Delete").clicked() {
+                                    to_delete = Some(id);
+                                }
+                            }
                     });
             }
-            /*for (idx, connector) in self.connectors.iter().enumerate() {
-                let (i1, i2) = connector.connections;
-                let t1 = &self.tables[i1];
-                let t2 = &self.tables[i2];
-                let text = format!("{} - {}", t1.title, t2.title);
-
-            }*/
+            if let Some(idx) = to_delete {
+                self.items.remove(idx);
+            }
+            ui.heading("Workbench");
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
