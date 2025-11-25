@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
 use eframe::epaint::Color32;
-use egui::{vec2, Align, Id, Ui, Vec2, Widget};
+use egui::{vec2, Id, Ui};
 use egui_cable::prelude::*;
 use gethostname::gethostname;
 
@@ -39,12 +37,13 @@ impl ItemType {
 struct Table {
     title: String,
     fields: Vec<Field>,
-    connectors: Vec<usize>,
+    //connectors: Vec<usize>,
 }
 
 struct Field {
     name: String,
     data_type: Type,
+    nullable: bool,
 }
 
 impl Default for Field {
@@ -55,6 +54,7 @@ impl Default for Field {
                 data_type: "char".to_string(),
                 params: "".to_string(),
             },
+            nullable: true,
         }
     }
 }
@@ -82,12 +82,20 @@ struct Connector {
     connections: (usize, usize),
 }
 
+impl Default for Connector {
+    fn default() -> Self {
+        Self {
+            connections: (0, 0),
+        }
+    }
+}
+
 impl Default for Table {
     fn default() -> Self {
         Self {
             title: "Table".to_string(),
             fields: vec![],
-            connectors: vec![],
+            //connectors: vec![],
         }
     }
 }
@@ -97,9 +105,7 @@ impl Table {
 
 trait Node {
     fn title(&self) -> &str;
-    fn title_mut(&mut self) -> &mut String;
     fn draw(&mut self, ui: &mut Ui, id: usize);
-
     fn can_delete(&self) -> bool {
         true
     }
@@ -107,7 +113,6 @@ trait Node {
 
 impl Node for Table {
     fn title(&self) -> &str { &self.title }
-    fn title_mut(&mut self) -> &mut String { &mut self.title }
 
     fn draw(&mut self, ui: &mut Ui, id: usize) {
         ui.horizontal(|ui| {
@@ -119,9 +124,10 @@ impl Node for Table {
 
         for (id, field) in self.fields.iter_mut().enumerate() {
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut field.name).min_size(Vec2::new(100f32, 20f32)));
-                ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).min_size(Vec2::new(100f32, 20f32)));
-                ui.add(egui::TextEdit::singleline(&mut field.data_type.params).min_size(Vec2::new(100f32, 20f32)));
+                ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
+                ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).desired_width(75.0));
+                ui.add(egui::TextEdit::singleline(&mut field.data_type.params).desired_width(75.0));
+                ui.checkbox(&mut field.nullable, "NULL");
                 if ui.button("🗑️").clicked() {
                     to_delete = Some(id);
                 }
@@ -146,7 +152,6 @@ impl Node for Table {
 
 impl Node for Domain {
     fn title(&self) -> &str { &self.title }
-    fn title_mut(&mut self) -> &mut String { &mut self.title }
 
     fn draw(&mut self, ui: &mut Ui, _id: usize) {
         ui.horizontal(|ui| {
@@ -162,7 +167,6 @@ impl Node for Domain {
 
 impl Node for Connector {
     fn title(&self) -> &str { "Connector" }
-    fn title_mut(&mut self) -> &mut String { panic!("Connectors have no title") }
 
     fn draw(&mut self, ui: &mut Ui, _id: usize) {
         ui.label(format!("Connects Table {} → Table {}", self.connections.0, self.connections.1));
