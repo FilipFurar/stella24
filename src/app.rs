@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use eframe::epaint::Color32;
-use egui::{vec2, Vec2};
+use egui::{vec2, Id, Ui, Vec2};
 use egui_cable::prelude::*;
 use gethostname::gethostname;
 
@@ -9,50 +9,172 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-pub struct AppStella<'a> {
-    tables: Vec<Table<'a>>,
-    domains: Vec<Domain>,
-    connectors: Vec<Connector>,
+pub struct AppStella {
+    items: Vec<ItemType>,
 }
 enum ItemType {
-    Table(usize),
-    Domain(usize),
-    Connector(usize),
+    Table(Table),
+    Domain(Domain),
+    Connector(Connector),
 }
 
-struct Table<'a> {
+impl ItemType {
+    fn node(&self) -> &dyn Node {
+        match self {
+            ItemType::Table(t) => t,
+            ItemType::Domain(d) => d,
+            ItemType::Connector(c) => c,
+        }
+    }
+
+    fn node_mut(&mut self) -> &mut dyn Node {
+        match self {
+            ItemType::Table(t) => t,
+            ItemType::Domain(d) => d,
+            ItemType::Connector(c) => c,
+        }
+    }
+}
+
+struct Table {
     title: String,
-    fields: Vec<(String, String)>,
-    connections: Vec<&'a Connector>,
+    fields: Vec<Field>,
+    connectors: Vec<usize>,
+}
+
+struct Field {
+    name: String,
+    data_type: Type,
+}
+
+struct Type {
+    data_type: String,
+    params: Option<u32>,
+}
+
+impl Type {
+    fn get_type_string(&self) -> String {
+        let mut string = self.data_type.clone();
+        match self.params {
+            None => {
+                string
+            }
+            Some(n) => {
+                let param = format!("({})", n);
+                string.push_str(&*param);
+                string
+            }
+        }
+    }
 }
 
 struct Domain {
     title: String,
-    defined_as: String,
+    defined_as: Type,
 }
 
 struct Connector {
     connections: (usize, usize),
 }
 
-
-impl<'a> Default for AppStella<'a> {
+impl Default for Table {
     fn default() -> Self {
         Self {
-            tables: vec![],
-            domains: vec![],
+            title: "Table".to_string(),
+            fields: vec![],
             connectors: vec![],
         }
     }
 }
 
-impl<'a> AppStella<'a> {
+impl Table {
+    //fn
+}
+
+trait Node {
+    fn title(&self) -> &str;
+    fn title_mut(&mut self) -> &mut String;
+    fn draw(&mut self, ui: &mut Ui, id: usize);
+}
+
+impl Node for Table {
+    fn title(&self) -> &str { &self.title }
+    fn title_mut(&mut self) -> &mut String { &mut self.title }
+
+    fn draw(&mut self, ui: &mut Ui, id: usize) {
+        ui.horizontal(|ui| {
+            ui.label("Title:");
+            ui.text_edit_singleline(&mut self.title);
+        });
+
+        for field in &self.fields {
+            ui.horizontal(|ui| {
+                ui.label(&field.name);
+                ui.label(&field.data_type.get_type_string());
+            });
+        }
+
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.add(Port::new(format!("port{}-0", id)));
+            ui.add(Port::new(format!("port{}-1", id)));
+        });
+    }
+}
+
+impl Node for Domain {
+    fn title(&self) -> &str { &self.title }
+    fn title_mut(&mut self) -> &mut String { &mut self.title }
+
+    fn draw(&mut self, ui: &mut Ui, _id: usize) {
+        ui.horizontal(|ui| {
+            ui.label("Title:");
+            ui.text_edit_singleline(&mut self.title);
+        });
+
+        ui.label(self.defined_as.get_type_string());
+    }
+}
+
+impl Node for Connector {
+    fn title(&self) -> &str { "Connector" }
+    fn title_mut(&mut self) -> &mut String { panic!("Connectors have no title") }
+
+    fn draw(&mut self, ui: &mut Ui, _id: usize) {
+        ui.label(format!("Connects Table {} → Table {}", self.connections.0, self.connections.1));
+    }
+}
+
+impl Default for Domain {
+    fn default() -> Self {
+        let datatype = Type {
+            data_type: "varchar".to_string(),
+            params: Some(5),
+        };
+        Self {
+            title: "Domain".to_string(),
+            defined_as: datatype,
+        }
+    }
+}
+
+impl Default for AppStella {
+    fn default() -> Self {
+        Self {
+            items: vec![],
+        }
+    }
+}
+
+
+
+impl AppStella {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Default::default()
     }
 }
 
-impl<'a> eframe::App for AppStella<'a> {
+impl eframe::App for AppStella {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -81,35 +203,28 @@ impl<'a> eframe::App for AppStella<'a> {
                     .add(egui::Button::new("Table").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, BLUE)))
                     .clicked()
                 {
-                    let table = Table {
-                        title: "Title".to_string(),
-                        fields: vec![],
-                        connections: vec![],
-                    };
+                    let table = Table::default();
 
-                    self.tables.push(table);
+                    self.items.push(ItemType::Table(table));
 
                 }
                 if ui
                     .add(egui::Button::new("Domain").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, GREEN)))
                     .clicked()
                 {
-                    let domain = Domain {
-                        title: "Title".to_string(),
-                        defined_as: "char(20)".to_string(),
-                    };
-                    self.domains.push(domain);
+                    let domain = Domain::default();
+                    self.items.push(ItemType::Domain(domain));
                 }
                 if ui
                     .add(egui::Button::new("Connector").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-                    if self.tables.len() > 1 {
+                    /*if self.tables.len() > 1 {
                         let connector = Connector {
                             connections: (0, 1),
                         };
                         self.connectors.push(connector);
-                    }
+                    }*/
                 }
             });
             ui.add_space(2.0);
@@ -150,52 +265,19 @@ impl<'a> eframe::App for AppStella<'a> {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
-            for (idx, table) in self.tables.iter_mut().enumerate() {
-                let my_window_id_str : String = format!("table{}", idx);
-                let my_window_id = egui::Id::new(&my_window_id_str);
-                let title = &table.title;
-                egui::Window::new(title)
-                    .id(my_window_id)
-                    .resizable(true)
-                    .default_size(egui::vec2(300.0, 200.0))
-                    .show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label("Title:");
-                            ui.text_edit_singleline(&mut table.title);
-                        });
 
-                        for (field_name, field_type) in &table.fields {
-                            ui.horizontal(|ui| {
-                                ui.label(field_name);
-                                ui.label(field_type);
-                            });
-                        }
+            for (id, item) in self.items.iter_mut().enumerate() {
+                let window_id = Id::new(id);
+                let title = item.node().title().to_owned();
 
-                        ui.separator();
-                        ui.horizontal(|ui| {
-                            ui.add(Port::new(format!("port{}-0", my_window_id_str)));
-                            ui.add(Port::new(format!("port{}-1", my_window_id_str)));
-                        });
-                    });
-
-
-            }
-            for (idx, domain) in self.domains.iter_mut().enumerate() {
-                let window_id:egui::Id = format!("domain{}", idx).into();
-                let title = &domain.title;
                 egui::Window::new(title)
                     .id(window_id)
                     .resizable(true)
-                    .default_size(egui::vec2(300.0, 200.0))
+                    .collapsible(false)
+                    .default_size(vec2(300.0, 200.0))
                     .show(ctx, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label("Title:");
-                            ui.text_edit_singleline(&mut domain.title);
-                        });
-
-                        ui.label(&domain.defined_as);
+                        item.node_mut().draw(ui, id);
                     });
-
             }
             /*for (idx, connector) in self.connectors.iter().enumerate() {
                 let (i1, i2) = connector.connections;
