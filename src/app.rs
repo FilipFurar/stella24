@@ -9,6 +9,7 @@ const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
 pub struct AppStella {
     items: Vec<ItemType>,
+    data_types: Vec<Type>,
 }
 enum ItemType {
     Table(Table),
@@ -44,31 +45,43 @@ struct Field {
     name: String,
     data_type: Type,
     nullable: bool,
+    primary_key: bool,
 }
 
 impl Default for Field {
     fn default() -> Self {
         Self {
             name: "name".to_string(),
-            data_type: Type {
-                data_type: "char".to_string(),
-                params: "".to_string(),
-            },
+            data_type: Type::default(),
             nullable: true,
+            primary_key: false,
         }
     }
 }
 
 struct Type {
     data_type: String,
-    params: String,
+    params: Vec<String>,
 }
-
+impl Default for Type {
+    fn default() -> Self {
+        Self {
+            data_type: "varchar".to_string(),
+            params: vec!["5".to_string()],
+        }
+    }
+}
 impl Type {
+    fn new(data_type: String, params: Vec<String>) -> Self {
+        Self {
+            data_type,
+            params,
+        }
+    }
     fn get_type_string(&self) -> String {
-        let mut string = self.data_type.clone();
-        let param = format!("({})", self.params);
-        string.push_str(&*param);
+        let string = self.data_type.clone();
+        //let param = format!("({})", self.param);
+        //string.push_str(&*param);
         string
     }
 }
@@ -100,9 +113,6 @@ impl Default for Table {
     }
 }
 
-impl Table {
-}
-
 trait Node {
     fn title(&self) -> &str;
     fn draw(&mut self, ui: &mut Ui, id: usize);
@@ -121,18 +131,35 @@ impl Node for Table {
         });
         ui.separator();
         let mut to_delete: Option<usize> = None;
+        let mut need_sorting: bool = false;
 
         for (id, field) in self.fields.iter_mut().enumerate() {
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
                 ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).desired_width(75.0));
-                ui.add(egui::TextEdit::singleline(&mut field.data_type.params).desired_width(75.0));
-                ui.checkbox(&mut field.nullable, "NULL");
+                for param in &mut field.data_type.params {
+                    ui.add(egui::TextEdit::singleline(param).desired_width(35.0));
+
+                }
+                if ui.checkbox(&mut field.primary_key, "PK").changed() {
+                    if field.primary_key {
+                        field.nullable = false;
+                    }
+
+                    need_sorting = true;
+                }
+
+                ui.add_enabled_ui(!field.primary_key, |ui| {
+                    ui.checkbox(&mut field.nullable, "NULL");
+                });
                 if ui.button("🗑️").clicked() {
                     to_delete = Some(id);
                 }
             });
         }
+        self.fields
+            .sort_by_key(|f| !f.primary_key);
+
 
         if let Some(id) = to_delete {
             self.fields.remove(id);
@@ -160,8 +187,12 @@ impl Node for Domain {
         });
         ui.separator();
 
-
-        ui.label(self.defined_as.get_type_string());
+        ui.horizontal(|ui| {
+            ui.add(egui::TextEdit::singleline(&mut self.defined_as.data_type).desired_width(75.0));
+            for param in &mut self.defined_as.params {
+                ui.add(egui::TextEdit::singleline(param).desired_width(35.0));
+            }
+        });
     }
 }
 
@@ -179,13 +210,9 @@ impl Node for Connector {
 
 impl Default for Domain {
     fn default() -> Self {
-        let datatype = Type {
-            data_type: "varchar".to_string(),
-            params: "5".to_string(),
-        };
         Self {
             title: "Domain".to_string(),
-            defined_as: datatype,
+            defined_as: Type::default(),
         }
     }
 }
@@ -194,6 +221,7 @@ impl Default for AppStella {
     fn default() -> Self {
         Self {
             items: vec![],
+            data_types: vec![],
         }
     }
 }
