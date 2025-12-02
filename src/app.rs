@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use eframe::epaint::Color32;
 use egui::{vec2, Id, Ui};
 use egui_cable::prelude::*;
@@ -9,7 +10,6 @@ const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
 pub struct AppStella {
     items: Vec<ItemType>,
-    data_types: Vec<Type>,
 }
 enum ItemType {
     Table(Table),
@@ -35,6 +35,25 @@ impl ItemType {
     }
 }
 
+struct DataTypeDef {
+    name: &'static str,
+    param_count: usize,
+}
+
+struct FieldType {
+    base: usize,
+    params: Vec<u32>,
+}
+
+static DATA_TYPES: &[DataTypeDef] = &[
+    DataTypeDef { name: "CHAR", param_count: 0 },
+    DataTypeDef { name: "VARCHAR", param_count: 1 },
+    DataTypeDef { name: "BOOL", param_count: 0 },
+    DataTypeDef { name: "NUMBER", param_count: 2 },
+    DataTypeDef { name: "DATE", param_count: 0 },
+];
+
+
 struct Table {
     title: String,
     fields: Vec<Field>,
@@ -43,7 +62,8 @@ struct Table {
 
 struct Field {
     name: String,
-    data_type: Type,
+    field_type: FieldType,
+    //params: Vec<String>,
     nullable: bool,
     primary_key: bool,
 }
@@ -52,43 +72,19 @@ impl Default for Field {
     fn default() -> Self {
         Self {
             name: "name".to_string(),
-            data_type: Type::default(),
+            field_type: FieldType {
+                base: 1, params: vec![5]
+            },
             nullable: true,
             primary_key: false,
         }
     }
 }
 
-struct Type {
-    data_type: String,
-    params: Vec<String>,
-}
-impl Default for Type {
-    fn default() -> Self {
-        Self {
-            data_type: "varchar".to_string(),
-            params: vec!["5".to_string()],
-        }
-    }
-}
-impl Type {
-    fn new(data_type: String, params: Vec<String>) -> Self {
-        Self {
-            data_type,
-            params,
-        }
-    }
-    fn get_type_string(&self) -> String {
-        let string = self.data_type.clone();
-        //let param = format!("({})", self.param);
-        //string.push_str(&*param);
-        string
-    }
-}
 
 struct Domain {
     title: String,
-    defined_as: Type,
+    field_type: FieldType,
 }
 
 struct Connector {
@@ -136,11 +132,29 @@ impl Node for Table {
         for (id, field) in self.fields.iter_mut().enumerate() {
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
-                ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).desired_width(75.0));
-                for param in &mut field.data_type.params {
-                    ui.add(egui::TextEdit::singleline(param).desired_width(35.0));
+                egui::ComboBox::from_id_salt(format!("table_dt_{id}"))
+                    .selected_text(DATA_TYPES[field.field_type.base].name)
+                    .show_ui(ui, |ui| {
+                        for (i, dt) in DATA_TYPES.iter().enumerate() {
+                            if ui
+                                .selectable_label(field.field_type.base == i, dt.name)
+                                .clicked()
+                            {
+                                field.field_type.base = i;
+                                field.field_type.params = vec![0; dt.param_count];
+                            }
+                        }
+                    });
 
+
+                //ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).desired_width(75.0));
+                for param in &mut field.field_type.params {
+                    ui.add(
+                        egui::DragValue::new(param)
+                            .speed(1)
+                    );
                 }
+
                 if ui.checkbox(&mut field.primary_key, "PK").changed() {
                     if field.primary_key {
                         field.nullable = false;
@@ -188,10 +202,23 @@ impl Node for Domain {
         ui.separator();
 
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.defined_as.data_type).desired_width(75.0));
-            for param in &mut self.defined_as.params {
+            egui::ComboBox::from_id_salt("domain_dt")
+                .selected_text(DATA_TYPES[self.field_type.base].name)
+                .show_ui(ui, |ui| {
+                    for (i, dt) in DATA_TYPES.iter().enumerate() {
+                        if ui
+                            .selectable_label(self.field_type.base == i, dt.name)
+                            .clicked()
+                        {
+                            self.field_type.base = i;
+                            self.field_type.params = vec![0; dt.param_count];
+                        }
+                    }
+                });
+
+            /*for param in &mut self.data_type {
                 ui.add(egui::TextEdit::singleline(param).desired_width(35.0));
-            }
+            }*/
         });
     }
 }
@@ -212,7 +239,10 @@ impl Default for Domain {
     fn default() -> Self {
         Self {
             title: "Domain".to_string(),
-            defined_as: Type::default(),
+            field_type: FieldType {
+                base: 1,           // VARCHAR
+                params: vec![5],
+            },
         }
     }
 }
@@ -221,7 +251,6 @@ impl Default for AppStella {
     fn default() -> Self {
         Self {
             items: vec![],
-            data_types: vec![],
         }
     }
 }
@@ -277,7 +306,6 @@ impl eframe::App for AppStella {
                     .add(egui::Button::new("Connector").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, PINK)))
                     .clicked()
                 {
-
                 }
             });
             ui.add_space(2.0);
