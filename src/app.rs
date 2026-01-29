@@ -1,5 +1,6 @@
 use egui::{vec2, Color32, Id, Ui};
 use gethostname::gethostname;
+//use egui_phosphor_icons::{add_fonts, icons, Icon};
 
 use crate::model::{
     item::ItemType,
@@ -41,6 +42,12 @@ impl AppStella {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Default::default()
     }
+
+    /*fn setup_fonts(ctx: &egui::Context) {
+        let mut fonts = egui::FontDefinitions::default();
+        add_fonts(&mut fonts);
+        ctx.set_fonts(fonts);
+    }*/
 
     fn draw_workbench_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
@@ -134,6 +141,4 @@ impl eframe::App for AppStella {
 
         self.draw_workbench(ctx);
     }
-
-
 }
