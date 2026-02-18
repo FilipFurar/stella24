@@ -1,10 +1,10 @@
-use super::{connector::Connector, domain::Domain, table::Table};
+use super::{/*connector::Connector,*/ domain::Domain, table::Table};
 use crate::ui::node::Node;
 
 pub enum ItemType {
     Table(Table),
     Domain(Domain),
-    Connector(Connector),
+    //Connector(Connector),
 }
 
 impl ItemType {
@@ -12,7 +12,7 @@ impl ItemType {
         match self {
             ItemType::Table(t) => t,
             ItemType::Domain(d) => d,
-            ItemType::Connector(c) => c,
+            //ItemType::Connector(c) => c,
         }
     }
 
@@ -20,7 +20,7 @@ impl ItemType {
         match self {
             ItemType::Table(t) => t,
             ItemType::Domain(d) => d,
-            ItemType::Connector(c) => c,
+            //ItemType::Connector(c) => c,
         }
     }
 }

@@ -3,7 +3,7 @@ use crate::model::domain::Domain;
 use crate::model::field::Field;
 use crate::model::table::Table;
 use egui::Ui;
-use egui_cable::port::Port;
+//use egui_cable::port::Port;
 
 pub trait Node {
     fn title(&self) -> &str;
@@ -19,7 +19,7 @@ impl Node for Table {
         &self.title
     }
 
-    fn draw(&mut self, ui: &mut Ui, id: usize) {
+    fn draw(&mut self, ui: &mut Ui, _id: usize) {
         ui.horizontal(|ui| {
             ui.label("Title:");
             ui.text_edit_singleline(&mut self.title);
@@ -77,10 +77,10 @@ impl Node for Table {
         }
 
         ui.separator();
-        ui.horizontal(|ui| {
+        /*ui.horizontal(|ui| {
             ui.add(Port::new(format!("port{}-0", id)));
             ui.add(Port::new(format!("port{}-1", id)));
-        });
+        });*/
     }
 }
 
