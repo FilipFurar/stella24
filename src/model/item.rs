@@ -1,4 +1,4 @@
-use super::{table::Table, domain::Domain, connector::Connector};
+use super::{connector::Connector, domain::Domain, table::Table};
 use crate::ui::node::Node;
 
 pub enum ItemType {
