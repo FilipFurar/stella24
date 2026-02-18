@@ -9,6 +9,7 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct AppStella {
     items: Vec<ItemType>,
 }
@@ -37,8 +38,13 @@ impl Default for AppStella {
 }
 
 impl AppStella {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Default::default()
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        if let Some(storage) = cc.storage {
+            let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            app
+        } else {
+            Default::default()
+        }
     }
 
     /*fn setup_fonts(ctx: &egui::Context) {
