@@ -2,12 +2,7 @@ use egui::{vec2, Color32, Id, Ui};
 use gethostname::gethostname;
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
-use crate::model::{
-    item::ItemType,
-    table::Table,
-    domain::Domain,
-    connector::Connector,
-};
+use crate::model::{connector::Connector, domain::Domain, item::ItemType, table::Table};
 use crate::ui::node::Node;
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
@@ -19,10 +14,15 @@ pub struct AppStella {
 }
 
 impl Node for Connector {
-    fn title(&self) -> &str { "Connector" }
+    fn title(&self) -> &str {
+        "Connector"
+    }
 
     fn draw(&mut self, ui: &mut Ui, _id: usize) {
-        ui.label(format!("Connects Table {} → Table {}", self.connections.0, self.connections.1));
+        ui.label(format!(
+            "Connects Table {} → Table {}",
+            self.connections.0, self.connections.1
+        ));
     }
 
     fn can_delete(&self) -> bool {
@@ -32,9 +32,7 @@ impl Node for Connector {
 
 impl Default for AppStella {
     fn default() -> Self {
-        Self {
-            items: vec![],
-        }
+        Self { items: vec![] }
     }
 }
 
@@ -54,26 +52,36 @@ impl AppStella {
             ui.add_space(3.0);
             egui::menu::bar(ui, |ui| {
                 if ui
-                    .add(egui::Button::new("Table").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, BLUE)))
+                    .add(
+                        egui::Button::new("Table")
+                            .min_size(vec2(120.0, 25.0))
+                            .stroke(egui::Stroke::new(1.0, BLUE)),
+                    )
                     .clicked()
                 {
                     let table = Table::default();
 
                     self.items.push(ItemType::Table(table));
-
                 }
                 if ui
-                    .add(egui::Button::new("Domain").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, GREEN)))
+                    .add(
+                        egui::Button::new("Domain")
+                            .min_size(vec2(120.0, 25.0))
+                            .stroke(egui::Stroke::new(1.0, GREEN)),
+                    )
                     .clicked()
                 {
                     let domain = Domain::default();
                     self.items.push(ItemType::Domain(domain));
                 }
                 if ui
-                    .add(egui::Button::new("Connector").min_size(vec2(120.0, 25.0)).stroke(egui::Stroke::new(1.0, PINK)))
+                    .add(
+                        egui::Button::new("Connector")
+                            .min_size(vec2(120.0, 25.0))
+                            .stroke(egui::Stroke::new(1.0, PINK)),
+                    )
                     .clicked()
-                {
-                }
+                {}
             });
             ui.add_space(2.0);
         });
@@ -135,7 +143,6 @@ impl eframe::App for AppStella {
                 })
             });
         });
-
 
         self.draw_workbench_menu(ctx);
 

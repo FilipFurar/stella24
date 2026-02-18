@@ -1,9 +1,9 @@
-use egui::Ui;
-use egui_cable::port::Port;
 use crate::model::datatype::DATA_TYPES;
 use crate::model::domain::Domain;
 use crate::model::field::Field;
 use crate::model::table::Table;
+use egui::Ui;
+use egui_cable::port::Port;
 
 pub trait Node {
     fn title(&self) -> &str;
@@ -15,7 +15,9 @@ pub trait Node {
 }
 
 impl Node for Table {
-    fn title(&self) -> &str { &self.title }
+    fn title(&self) -> &str {
+        &self.title
+    }
 
     fn draw(&mut self, ui: &mut Ui, id: usize) {
         ui.horizontal(|ui| {
@@ -43,13 +45,9 @@ impl Node for Table {
                         }
                     });
 
-
                 //ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).desired_width(75.0));
                 for param in &mut field.field_type.params {
-                    ui.add(
-                        egui::DragValue::new(param)
-                            .speed(1)
-                    );
+                    ui.add(egui::DragValue::new(param).speed(1));
                 }
 
                 if ui.checkbox(&mut field.primary_key, "PK").changed() {
@@ -68,9 +66,7 @@ impl Node for Table {
                 }
             });
         }
-        self.fields
-            .sort_by_key(|f| !f.primary_key);
-
+        self.fields.sort_by_key(|f| !f.primary_key);
 
         if let Some(id) = to_delete {
             self.fields.remove(id);
@@ -89,7 +85,9 @@ impl Node for Table {
 }
 
 impl Node for Domain {
-    fn title(&self) -> &str { &self.title }
+    fn title(&self) -> &str {
+        &self.title
+    }
 
     fn draw(&mut self, ui: &mut Ui, _id: usize) {
         ui.horizontal(|ui| {
