@@ -1,4 +1,4 @@
-use egui::{vec2, Color32, Id};
+use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
@@ -41,7 +41,7 @@ impl AppStella {
             let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
             app
         } else {*/
-            Default::default()
+        Default::default()
         //}
     }
 
