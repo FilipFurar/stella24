@@ -1,44 +1,43 @@
-use egui::{vec2, Color32, Id, Ui};
+use std::fs;
+use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
-use crate::model::{connector::Connector, domain::Domain, item::ItemType, table::Table};
-use crate::ui::node::Node;
-
+use crate::model::{/*connector::Connector,*/ domain::Domain, item::ItemType, table::Table};
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
+#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Default)]
 pub struct AppStella {
     items: Vec<ItemType>,
 }
 
-impl Node for Connector {
-    fn title(&self) -> &str {
-        "Connector"
-    }
-
-    fn draw(&mut self, ui: &mut Ui, _id: usize) {
-        ui.label(format!(
-            "Connects Table {} → Table {}",
-            self.connections.0, self.connections.1
-        ));
-    }
-
-    fn can_delete(&self) -> bool {
-        false
-    }
-}
-
-impl Default for AppStella {
-    fn default() -> Self {
-        Self { items: vec![] }
-    }
-}
-
 impl AppStella {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        if let Some(storage) = cc.storage {
+            let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            app
+        } else {
         Default::default()
+        }
+    }
+
+    pub fn handle_save(&mut self, path: std::path::PathBuf) {
+        if let Ok(json) = serde_json::to_string_pretty(&self) {
+            if let Err(err) = fs::write(&path, json) {
+                eprintln!("Error saving file: {}", err);
+            }
+        }
+    }
+
+    pub fn handle_open(&mut self, path: std::path::PathBuf) {
+        if let Ok(json) = fs::read_to_string(path) {
+            if let Ok(state) = serde_json::from_str::<AppStella>(&json) {
+                self.items = state.items;
+            }
+        }
     }
 
     /*fn setup_fonts(ctx: &egui::Context) {
@@ -50,7 +49,7 @@ impl AppStella {
     fn draw_workbench_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
             ui.add_space(3.0);
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 if ui
                     .add(
                         egui::Button::new("Table")
@@ -126,14 +125,13 @@ impl AppStella {
 impl eframe::App for AppStella {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 let is_web = cfg!(target_arch = "wasm32");
                 ui.menu_button("File", |ui| {
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-
                 ui.separator();
                 egui::widgets::global_theme_preference_buttons(ui);
 

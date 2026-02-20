@@ -1,4 +1,4 @@
-pub struct Connector {
+/*pub struct Connector {
     pub connections: (usize, usize),
 }
 
@@ -8,4 +8,4 @@ impl Default for Connector {
             connections: (0, 0),
         }
     }
-}
+}*/

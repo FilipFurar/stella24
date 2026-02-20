@@ -1,4 +1,6 @@
 use super::datatype::FieldType;
+
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Domain {
     pub title: String,
     pub field_type: FieldType,

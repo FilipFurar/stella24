@@ -3,12 +3,11 @@ use crate::model::domain::Domain;
 use crate::model::field::Field;
 use crate::model::table::Table;
 use egui::Ui;
-use egui_cable::port::Port;
+//use egui_cable::port::Port;
 
 pub trait Node {
     fn title(&self) -> &str;
     fn draw(&mut self, ui: &mut Ui, id: usize);
-
     fn can_delete(&self) -> bool {
         true
     }
@@ -19,7 +18,7 @@ impl Node for Table {
         &self.title
     }
 
-    fn draw(&mut self, ui: &mut Ui, id: usize) {
+    fn draw(&mut self, ui: &mut Ui, _id: usize) {
         ui.horizontal(|ui| {
             ui.label("Title:");
             ui.text_edit_singleline(&mut self.title);
@@ -77,10 +76,10 @@ impl Node for Table {
         }
 
         ui.separator();
-        ui.horizontal(|ui| {
+        /*ui.horizontal(|ui| {
             ui.add(Port::new(format!("port{}-0", id)));
             ui.add(Port::new(format!("port{}-1", id)));
-        });
+        });*/
     }
 }
 
@@ -117,3 +116,20 @@ impl Node for Domain {
         });
     }
 }
+
+/*impl Node for Connector {
+    fn title(&self) -> &str {
+        "Connector"
+    }
+
+    fn draw(&mut self, ui: &mut Ui, _id: usize) {
+        ui.label(format!(
+            "Connects Table {} → Table {}",
+            self.connections.0, self.connections.1
+        ));
+    }
+
+    fn can_delete(&self) -> bool {
+        false
+    }
+}*/
