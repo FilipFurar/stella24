@@ -1,3 +1,4 @@
+use std::fs;
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
@@ -13,15 +14,30 @@ pub struct AppStella {
     items: Vec<ItemType>,
 }
 
-
 impl AppStella {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        /*if let Some(storage) = cc.storage {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        if let Some(storage) = cc.storage {
             let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
             app
-        } else {*/
+        } else {
         Default::default()
-        //}
+        }
+    }
+
+    pub fn handle_save(&mut self, path: std::path::PathBuf) {
+        if let Ok(json) = serde_json::to_string_pretty(&self) {
+            if let Err(err) = fs::write(&path, json) {
+                eprintln!("Error saving file: {}", err);
+            }
+        }
+    }
+
+    pub fn handle_open(&mut self, path: std::path::PathBuf) {
+        if let Ok(json) = fs::read_to_string(path) {
+            if let Ok(state) = serde_json::from_str::<AppStella>(&json) {
+                self.items = state.items;
+            }
+        }
     }
 
     /*fn setup_fonts(ctx: &egui::Context) {
@@ -116,7 +132,6 @@ impl eframe::App for AppStella {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-
                 ui.separator();
                 egui::widgets::global_theme_preference_buttons(ui);
 
