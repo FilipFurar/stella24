@@ -1,5 +1,6 @@
 use super::field::Field;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Table {
     pub title: String,
     pub fields: Vec<Field>,

@@ -8,7 +8,6 @@ use egui::Ui;
 pub trait Node {
     fn title(&self) -> &str;
     fn draw(&mut self, ui: &mut Ui, id: usize);
-
     fn can_delete(&self) -> bool {
         true
     }
@@ -117,3 +116,20 @@ impl Node for Domain {
         });
     }
 }
+
+/*impl Node for Connector {
+    fn title(&self) -> &str {
+        "Connector"
+    }
+
+    fn draw(&mut self, ui: &mut Ui, _id: usize) {
+        ui.label(format!(
+            "Connects Table {} → Table {}",
+            self.connections.0, self.connections.1
+        ));
+    }
+
+    fn can_delete(&self) -> bool {
+        false
+    }
+}*/

@@ -1,6 +1,7 @@
 use super::{/*connector::Connector,*/ domain::Domain, table::Table};
 use crate::ui::node::Node;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum ItemType {
     Table(Table),
     Domain(Domain),

@@ -1,5 +1,6 @@
 use super::datatype::FieldType;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Field {
     pub name: String,
     pub field_type: FieldType,

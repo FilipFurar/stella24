@@ -7,33 +7,12 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-//#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Default)]
 pub struct AppStella {
     items: Vec<ItemType>,
 }
 
-/*impl Node for Connector {
-    fn title(&self) -> &str {
-        "Connector"
-    }
-
-    fn draw(&mut self, ui: &mut Ui, _id: usize) {
-        ui.label(format!(
-            "Connects Table {} → Table {}",
-            self.connections.0, self.connections.1
-        ));
-    }
-
-    fn can_delete(&self) -> bool {
-        false
-    }
-}*/
-
-impl Default for AppStella {
-    fn default() -> Self {
-        Self { items: vec![] }
-    }
-}
 
 impl AppStella {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {

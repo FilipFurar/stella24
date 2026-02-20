@@ -3,6 +3,7 @@ pub struct DataTypeDef {
     pub param_count: usize,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct FieldType {
     pub base: usize,
     pub params: Vec<u32>,

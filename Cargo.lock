@@ -2691,6 +2691,8 @@ dependencies = [
  "env_logger",
  "gethostname",
  "log",
+ "serde",
+ "serde_json",
  "wasm-bindgen-futures",
  "web-sys",
 ]
