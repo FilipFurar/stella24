@@ -1,4 +1,4 @@
-use super::datatype::FieldType;
+use super::datatype::{DataType};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Field {
@@ -8,15 +8,21 @@ pub struct Field {
     pub primary_key: bool,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub enum FieldType {
+    Data(DataType),
+    Domain(usize),
+}
+
 impl Default for Field {
     fn default() -> Self {
         Self {
-            name: "name".to_string(),
-            field_type: FieldType {
-                base: 1,
-                params: vec![5],
-            },
-            nullable: true,
+            name: "id".to_string(),
+            field_type: FieldType::Data(DataType {
+                base: 0,
+                params: vec![1],
+            }),
+            nullable: false,
             primary_key: false,
         }
     }

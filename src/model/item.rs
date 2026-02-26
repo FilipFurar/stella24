@@ -1,7 +1,6 @@
-use super::{/*connector::Connector,*/ domain::Domain, table::Table};
-use crate::ui::node::Node;
+//use super::{/*connector::Connector,*/ domain::Domain, table::Table};
 
-#[derive(serde::Serialize, serde::Deserialize)]
+/*#[derive(serde::Serialize, serde::Deserialize)]
 pub enum ItemType {
     Table(Table),
     Domain(Domain),
@@ -24,4 +23,4 @@ impl ItemType {
             //ItemType::Connector(c) => c,
         }
     }
-}
+}*/
