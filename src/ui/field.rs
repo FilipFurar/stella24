@@ -1,6 +1,6 @@
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
-use crate::model::field::{FieldType};
+use crate::model::field::FieldType;
 use egui::Ui;
 
 impl FieldType {
