@@ -1,4 +1,4 @@
-use super::field::{Field};
+use super::field::Field;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Table {
