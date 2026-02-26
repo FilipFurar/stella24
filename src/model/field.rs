@@ -1,4 +1,4 @@
-use super::datatype::{DataType};
+use super::datatype::DataType;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Field {

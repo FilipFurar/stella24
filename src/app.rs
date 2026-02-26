@@ -3,7 +3,7 @@ use gethostname::gethostname;
 use std::fs;
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
-use crate::model::datatype::{DataType};
+use crate::model::datatype::DataType;
 use crate::model::{/*connector::Connector,*/ domain::Domain, table::Table};
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
