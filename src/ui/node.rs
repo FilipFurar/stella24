@@ -1,6 +1,6 @@
 use crate::model::datatype::DATA_TYPES;
 use crate::model::domain::Domain;
-use crate::model::field::Field;
+use crate::model::field::{Field, FieldType};
 use crate::model::table::Table;
 use egui::Ui;
 //use egui_cable::port::Port;
@@ -28,26 +28,13 @@ impl Node for Table {
         let mut need_sorting: bool = false;
 
         for (id, field) in self.fields.iter_mut().enumerate() {
-            ui.horizontal(|ui| {
+            ui.horizontal(|mut ui| {
+                field.field_type.draw(&mut ui, id);
+
                 ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
-                egui::ComboBox::from_id_salt(format!("table_dt_{id}"))
-                    .selected_text(DATA_TYPES[field.field_type.base].name)
-                    .show_ui(ui, |ui| {
-                        for (i, dt) in DATA_TYPES.iter().enumerate() {
-                            if ui
-                                .selectable_label(field.field_type.base == i, dt.name)
-                                .clicked()
-                            {
-                                field.field_type.base = i;
-                                field.field_type.params = vec![0; dt.param_count];
-                            }
-                        }
-                    });
 
                 //ui.add(egui::TextEdit::singleline(&mut field.data_type.data_type).desired_width(75.0));
-                for param in &mut field.field_type.params {
-                    ui.add(egui::DragValue::new(param).speed(1));
-                }
+
 
                 if ui.checkbox(&mut field.primary_key, "PK").changed() {
                     if field.primary_key {
@@ -85,27 +72,27 @@ impl Node for Table {
 
 impl Node for Domain {
     fn title(&self) -> &str {
-        &self.title
+        &self.name
     }
 
     fn draw(&mut self, ui: &mut Ui, _id: usize) {
         ui.horizontal(|ui| {
             ui.label("Title:");
-            ui.text_edit_singleline(&mut self.title);
+            ui.text_edit_singleline(&mut self.name);
         });
         ui.separator();
 
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt("domain_dt")
-                .selected_text(DATA_TYPES[self.field_type.base].name)
+                .selected_text(DATA_TYPES[self.data_type.base].name)
                 .show_ui(ui, |ui| {
                     for (i, dt) in DATA_TYPES.iter().enumerate() {
                         if ui
-                            .selectable_label(self.field_type.base == i, dt.name)
+                            .selectable_label(self.data_type.base == i, dt.name)
                             .clicked()
                         {
-                            self.field_type.base = i;
-                            self.field_type.params = vec![0; dt.param_count];
+                            self.data_type.base = i;
+                            self.data_type.params = vec![0; dt.param_count];
                         }
                     }
                 });

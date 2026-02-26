@@ -12,6 +12,7 @@ const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 #[derive(Default)]
 pub struct AppStella {
     items: Vec<ItemType>,
+    //project_path: std::path::PathBuf,
 }
 
 impl AppStella {
@@ -130,6 +131,18 @@ impl eframe::App for AppStella {
                 ui.menu_button("File", |ui| {
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    if !is_web && ui.button("Open").clicked() {
+                            if let Some(path) = rfd::FileDialog::new().pick_file()
+                        {
+                            self.handle_open(path);
+                        }
+                    }
+                    if !is_web && ui.button("Save").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().save_file()
+                        {
+                            self.handle_save(path);
+                        }
                     }
                 });
                 ui.separator();

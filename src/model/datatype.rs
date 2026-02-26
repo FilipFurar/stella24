@@ -4,7 +4,7 @@ pub struct DataTypeDef {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct FieldType {
+pub struct DataType {
     pub base: usize,
     pub params: Vec<u32>,
 }
