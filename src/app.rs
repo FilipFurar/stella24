@@ -114,7 +114,8 @@ impl AppStella {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
 
-            let mut to_delete: Option<usize> = None;
+            let mut table_to_delete: Option<usize> = None;
+            let mut domain_to_delete: Option<usize> = None;
 
             for (id, table) in self.tables.iter_mut().enumerate() {
                 let window_id = Id::new(id);
@@ -131,7 +132,7 @@ impl AppStella {
                         if table.can_delete() {
                             ui.separator();
                             if ui.button("Delete").clicked() {
-                                to_delete = Some(id);
+                                table_to_delete = Some(id);
                             }
                         }
                     });
@@ -140,7 +141,7 @@ impl AppStella {
             egui::SidePanel::right("domains")
                 .resizable(true)
                 .default_width(260.0)
-                .show(ctx, |mut ui| {
+                .show(ctx, |ui| {
                     ui.heading("Domains");
                     let mut vec = Vec::new();
                     vec.push(Domain {
@@ -151,12 +152,21 @@ impl AppStella {
                         },
                     });
                     for (id, domain) in self.domains.iter_mut().enumerate() {
-                        domain.draw(&mut ui, id);
+                        ui.group(|ui| {
+                            domain.draw(ui, id);
+                            if ui.button("🗑").clicked() {
+                                domain_to_delete = Some(id);
+                            }
+                        });
                     }
                 });
 
-            if let Some(idx) = to_delete {
+            if let Some(idx) = table_to_delete {
                 self.tables.remove(idx);
+            }
+
+            if let Some(idx) = domain_to_delete {
+                self.domains.remove(idx);
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {

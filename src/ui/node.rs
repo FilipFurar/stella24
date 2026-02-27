@@ -66,9 +66,7 @@ impl Table {
 
 impl Domain {
     pub(crate) fn draw(&mut self, ui: &mut Ui, id: usize) {
-        let mut to_delete: Option<usize> = None;
 
-        ui.group(|ui| {
             ui.text_edit_singleline(&mut self.name);
             ui.horizontal(|ui| {
                 ui.label("Type:");
@@ -86,11 +84,6 @@ impl Domain {
                         }
                     });
             });
-
-            if ui.button("🗑").clicked() {
-                to_delete = Some(id);
-            }
-        });
     }
 }
 
