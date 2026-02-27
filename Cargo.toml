@@ -23,10 +23,8 @@ log = "0.4.29"
 #egui_cable = "0.9.0"
 
 # You only need serde if you want app persistence:
-#egui_file = "0.22.1"
 gethostname = "1.0.1"
 serde = { version = "1.0.228", features = ["derive"] }
-typetag = "0.2.21"
 serde_json = "1.0.149"
 rfd = "0.17.2"
 
