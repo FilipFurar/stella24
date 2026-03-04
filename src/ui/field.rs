@@ -1,10 +1,12 @@
+use crate::app::DomainId;
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
 use crate::model::field::FieldType;
 use egui::Ui;
+use slotmap::SlotMap;
 
 impl FieldType {
-    pub(crate) fn draw(&mut self, ui: &mut Ui, id: usize, domains: &[Domain]) {
+    pub(crate) fn draw(&mut self, ui: &mut Ui, id: usize, domains: &SlotMap<DomainId, Domain>) {
         let selected_text = match self {
             FieldType::Data(dt) => DATA_TYPES[dt.base].name.to_string(),
             FieldType::Domain(i) => domains
@@ -27,7 +29,7 @@ impl FieldType {
 
                 if !domains.is_empty() {
                     ui.separator();
-                    for (i, domain) in domains.iter().enumerate() {
+                    for (i, domain) in domains.iter() {
                         if ui.selectable_label(false, &domain.name).clicked() {
                             *self = FieldType::Domain(i);
                         }

@@ -1,4 +1,5 @@
 use super::datatype::DataType;
+use crate::app::DomainId;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Field {
@@ -11,7 +12,7 @@ pub struct Field {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum FieldType {
     Data(DataType),
-    Domain(usize),
+    Domain(DomainId),
 }
 
 impl Default for Field {

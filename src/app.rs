@@ -1,6 +1,8 @@
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
+use slotmap::{Key, SecondaryMap, SlotMap};
 use std::fs;
+
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
 use crate::model::datatype::DataType;
@@ -10,11 +12,13 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
+slotmap::new_key_type! { pub struct TableId; }
+slotmap::new_key_type! { pub struct DomainId; }
+
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct AppStella {
-    tables: Vec<Table>,
-    domains: Vec<Domain>,
-    //project_path: std::path::PathBuf,
+    tables: SlotMap<TableId, Table>,
+    domains: SlotMap<DomainId, Domain>,
 }
 
 impl AppStella {
@@ -85,7 +89,7 @@ impl AppStella {
                 {
                     let table = Table::default();
 
-                    self.tables.push(table);
+                    self.tables.insert(table);
                 }
                 if ui
                     .add(
@@ -96,7 +100,7 @@ impl AppStella {
                     .clicked()
                 {
                     let domain = Domain::default();
-                    self.domains.push(domain);
+                    self.domains.insert(domain);
                 }
                 if ui
                     .add(
@@ -114,10 +118,10 @@ impl AppStella {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
 
-            let mut table_to_delete: Option<usize> = None;
-            let mut domain_to_delete: Option<usize> = None;
+            let mut table_to_delete: Option<TableId> = None;
+            let mut domain_to_delete: Option<DomainId> = None;
 
-            for (id, table) in self.tables.iter_mut().enumerate() {
+            for (id, table) in self.tables.iter_mut() {
                 let window_id = Id::new(id);
                 let title = table.title().to_owned();
 
@@ -151,9 +155,9 @@ impl AppStella {
                             params: vec![1],
                         },
                     });
-                    for (id, domain) in self.domains.iter_mut().enumerate() {
+                    for (id, domain) in self.domains.iter_mut() {
                         ui.group(|ui| {
-                            domain.draw(ui, id);
+                            domain.draw(ui, id.data());
                             if ui.button("🗑").clicked() {
                                 domain_to_delete = Some(id);
                             }

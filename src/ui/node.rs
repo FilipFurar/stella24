@@ -1,8 +1,10 @@
+use crate::app::{DomainId, TableId};
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
 use crate::model::field::Field;
 use crate::model::table::Table;
-use egui::Ui;
+use egui::{Id, Ui};
+use slotmap::{KeyData, SlotMap};
 //use egui_cable::port::Port;
 
 impl Table {
@@ -14,7 +16,7 @@ impl Table {
         true
     }
 
-    pub(crate) fn draw(&mut self, ui: &mut Ui, _id: usize, domain: &[Domain]) {
+    pub(crate) fn draw(&mut self, ui: &mut Ui, _id: TableId, domain: &SlotMap<DomainId, Domain>) {
         ui.horizontal(|ui| {
             ui.label("Title:");
             ui.text_edit_singleline(&mut self.title);
@@ -40,7 +42,7 @@ impl Table {
                     ui.checkbox(&mut field.nullable, "NULL");
                 });
 
-                if ui.button("🗑️").clicked() {
+                if ui.button("🗑").clicked() {
                     to_delete = Some(id);
                 }
             });
@@ -65,12 +67,12 @@ impl Table {
 }
 
 impl Domain {
-    pub(crate) fn draw(&mut self, ui: &mut Ui, id: usize) {
+    pub(crate) fn draw(&mut self, ui: &mut Ui, id: KeyData) {
         ui.text_edit_singleline(&mut self.name);
         ui.horizontal(|ui| {
             ui.label("Type:");
             let selected_text = DATA_TYPES[self.data_type.base].name.to_string();
-            egui::ComboBox::from_id_salt(format!("type_{id}"))
+            egui::ComboBox::from_id_salt(format!("type_{}", id.as_ffi()))
                 .selected_text(selected_text)
                 .show_ui(ui, |ui| {
                     for (i, def) in DATA_TYPES.iter().enumerate() {
