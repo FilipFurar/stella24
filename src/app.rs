@@ -1,23 +1,33 @@
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
+use slotmap::{Key, SlotMap};
 use std::fs;
+
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
-use crate::model::datatype::DataType;
 use crate::model::{/*connector::Connector,*/ domain::Domain, table::Table};
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
+slotmap::new_key_type! {
+/// Unique type for TableIDs (keys)
+pub struct TableId; }
+slotmap::new_key_type! {
+/// Unique type for Domain IDs (keys)
+pub struct DomainId; }
+
+/// Main application struct
+/// Stores tables and domains (for now)
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct AppStella {
-    tables: Vec<Table>,
-    domains: Vec<Domain>,
-    //project_path: std::path::PathBuf,
+    tables: SlotMap<TableId, Table>,
+    domains: SlotMap<DomainId, Domain>,
 }
 
 impl AppStella {
+    /// If we have a state saved in storage, load it, call default constructor otherwise
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
             let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
@@ -27,6 +37,7 @@ impl AppStella {
         }
     }
 
+    /// Save file to disk
     pub fn handle_save(&mut self, path: std::path::PathBuf) {
         if let Ok(json) = serde_json::to_string_pretty(&self) {
             if let Err(err) = fs::write(&path, json) {
@@ -35,6 +46,7 @@ impl AppStella {
         }
     }
 
+    /// Open file on disk
     pub fn handle_open(&mut self, path: std::path::PathBuf) {
         if let Ok(json) = fs::read_to_string(path) {
             if let Ok(state) = serde_json::from_str::<AppStella>(&json) {
@@ -44,6 +56,7 @@ impl AppStella {
         }
     }
 
+    /// Creates a new canvas
     pub fn handle_new(&mut self) {
         /*egui::Window::new("Save the current file?")
         .id(Id::from("new_confirm_save"))
@@ -85,7 +98,7 @@ impl AppStella {
                 {
                     let table = Table::default();
 
-                    self.tables.push(table);
+                    self.tables.insert(table);
                 }
                 if ui
                     .add(
@@ -96,7 +109,7 @@ impl AppStella {
                     .clicked()
                 {
                     let domain = Domain::default();
-                    self.domains.push(domain);
+                    self.domains.insert(domain);
                 }
                 if ui
                     .add(
@@ -110,13 +123,15 @@ impl AppStella {
             ui.add_space(2.0);
         });
     }
+
     fn draw_workbench(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
 
-            let mut to_delete: Option<usize> = None;
+            let mut table_to_delete: Option<TableId> = None;
+            let mut domain_to_delete: Option<DomainId> = None;
 
-            for (id, table) in self.tables.iter_mut().enumerate() {
+            for (id, table) in self.tables.iter_mut() {
                 let window_id = Id::new(id);
                 let title = table.title().to_owned();
 
@@ -131,7 +146,7 @@ impl AppStella {
                         if table.can_delete() {
                             ui.separator();
                             if ui.button("Delete").clicked() {
-                                to_delete = Some(id);
+                                table_to_delete = Some(id);
                             }
                         }
                     });
@@ -140,23 +155,27 @@ impl AppStella {
             egui::SidePanel::right("domains")
                 .resizable(true)
                 .default_width(260.0)
-                .show(ctx, |mut ui| {
+                .show(ctx, |ui| {
                     ui.heading("Domains");
-                    let mut vec = Vec::new();
-                    vec.push(Domain {
-                        name: "".to_string(),
-                        data_type: DataType {
-                            base: 0,
-                            params: vec![1],
-                        },
+
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for (id, domain) in self.domains.iter_mut() {
+                            ui.group(|ui| {
+                                domain.draw(ui, id.data());
+                                if ui.button("🗑").clicked() {
+                                    domain_to_delete = Some(id);
+                                }
+                            });
+                        }
                     });
-                    for (id, domain) in self.domains.iter_mut().enumerate() {
-                        domain.draw(&mut ui, id);
-                    }
                 });
 
-            if let Some(idx) = to_delete {
+            if let Some(idx) = table_to_delete {
                 self.tables.remove(idx);
+            }
+
+            if let Some(idx) = domain_to_delete {
+                self.domains.remove(idx);
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -167,6 +186,7 @@ impl AppStella {
 }
 
 impl eframe::App for AppStella {
+    /// Runs every frame
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {

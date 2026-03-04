@@ -1,10 +1,30 @@
+use crate::app::DomainId;
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
 use crate::model::field::FieldType;
 use egui::Ui;
+use slotmap::SlotMap;
 
+impl DataType {
+    pub fn draw_params(&mut self, ui: &mut Ui) {
+        if !self.params.is_empty() {
+            ui.horizontal(|ui| {
+                ui.label("(");
+
+                for (_i, param) in self.params.iter_mut().enumerate() {
+                    ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
+                }
+
+                ui.label(")");
+            });
+        }
+    }
+}
+
+/// UI display for different FieldTypes
 impl FieldType {
-    pub(crate) fn draw(&mut self, ui: &mut Ui, id: usize, domains: &[Domain]) {
+    /// Draw Field (Built-in or a domain type) and the parameters settings
+    pub fn draw(&mut self, ui: &mut Ui, id: usize, domains: &SlotMap<DomainId, Domain>) {
         let selected_text = match self {
             FieldType::Data(dt) => DATA_TYPES[dt.base].name.to_string(),
             FieldType::Domain(i) => domains
@@ -27,7 +47,7 @@ impl FieldType {
 
                 if !domains.is_empty() {
                     ui.separator();
-                    for (i, domain) in domains.iter().enumerate() {
+                    for (i, domain) in domains.iter() {
                         if ui.selectable_label(false, &domain.name).clicked() {
                             *self = FieldType::Domain(i);
                         }
@@ -36,17 +56,7 @@ impl FieldType {
             });
 
         if let FieldType::Data(dt) = self {
-            if !dt.params.is_empty() {
-                ui.horizontal(|ui| {
-                    ui.label("(");
-
-                    for (_i, param) in dt.params.iter_mut().enumerate() {
-                        ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
-                    }
-
-                    ui.label(")");
-                });
-            }
+            dt.draw_params(ui);
         }
     }
 }

@@ -1,14 +1,21 @@
+/// A struct containing a name and the count of built-in data types, which are defined as static `DATA_TYPES`
 pub struct DataTypeDef {
     pub name: &'static str,
     pub param_count: usize,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+/// Built-in data type
+/// ## Base
+/// The index of the data type in `DATA_TYPES`
+/// ## Params
+/// Parameter values
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct DataType {
     pub base: usize,
     pub params: Vec<u32>,
 }
 
+/// Possible built-in data types
 pub static DATA_TYPES: &[DataTypeDef] = &[
     DataTypeDef {
         name: "CHAR",
