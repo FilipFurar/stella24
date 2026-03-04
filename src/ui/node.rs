@@ -1,7 +1,6 @@
 use crate::app::{DomainId, TableId};
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
-use crate::model::field::Field;
 use crate::model::table::Table;
 use egui::Ui;
 use slotmap::{KeyData, SlotMap};
@@ -29,14 +28,14 @@ impl Table {
         let mut to_delete: Option<usize> = None;
         let mut need_sorting: bool = false;
 
-        for (id, field) in self.fields.iter_mut().enumerate() {
+        for (id, field) in self.fields_mut().iter_mut().enumerate() {
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
 
-                field.field_type.draw(ui, id, domain);
+                field.field_type_mut().draw(ui, id, domain);
 
-                if ui.checkbox(&mut field.primary_key, "PK").changed() {
-                    if field.primary_key {
+                if ui.checkbox(&mut field.primary_key(), "PK").changed() {
+                    if field.primary_key() {
                         field.nullable = false;
                     }
                     need_sorting = true;
@@ -52,14 +51,14 @@ impl Table {
             });
         }
 
-        self.fields.sort_by_key(|f| !f.primary_key);
+        self.sort_by_key();
 
         if let Some(id) = to_delete {
-            self.fields.remove(id);
+            self.remove_field(id);
         }
 
         if ui.button("Add").clicked() {
-            self.fields.push(Field::default());
+            self.new_field()
         }
 
         ui.separator();
