@@ -9,7 +9,7 @@ use slotmap::{KeyData, SlotMap};
 /// UI implementation for tables
 impl Table {
     /// Return the title as string slice
-    pub(crate) fn title(&self) -> &str {
+    pub fn title(&self) -> &str {
         &self.title
     }
 
@@ -89,6 +89,7 @@ impl Domain {
                         }
                     }
                 });
+            self.data_type.draw_params(ui);
         });
     }
 }

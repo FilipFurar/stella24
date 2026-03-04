@@ -2,7 +2,7 @@ use super::datatype::DataType;
 use crate::app::DomainId;
 
 /// Field is one row in your table
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct Field {
     /// Field name
     pub name: String,
@@ -46,9 +46,11 @@ impl Field {
 }
 
 /// The possible row options
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum FieldType {
+    /// Built-in data type
     Data(DataType),
+    /// Domain type
     Domain(DomainId),
 }
 

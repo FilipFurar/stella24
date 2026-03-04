@@ -1,7 +1,7 @@
 use super::field::Field;
 
 /// SQL Table
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct Table {
     /// Title (name) of the database
     pub title: String,
