@@ -5,7 +5,6 @@ use std::fs;
 
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
-use crate::model::datatype::DataType;
 use crate::model::{/*connector::Connector,*/ domain::Domain, table::Table};
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
@@ -158,22 +157,17 @@ impl AppStella {
                 .default_width(260.0)
                 .show(ctx, |ui| {
                     ui.heading("Domains");
-                    let mut vec = Vec::new();
-                    vec.push(Domain {
-                        name: "".to_string(),
-                        data_type: DataType {
-                            base: 0,
-                            params: vec![1],
-                        },
+
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for (id, domain) in self.domains.iter_mut() {
+                            ui.group(|ui| {
+                                domain.draw(ui, id.data());
+                                if ui.button("🗑").clicked() {
+                                    domain_to_delete = Some(id);
+                                }
+                            });
+                        }
                     });
-                    for (id, domain) in self.domains.iter_mut() {
-                        ui.group(|ui| {
-                            domain.draw(ui, id.data());
-                            if ui.button("🗑").clicked() {
-                                domain_to_delete = Some(id);
-                            }
-                        });
-                    }
                 });
 
             if let Some(idx) = table_to_delete {
