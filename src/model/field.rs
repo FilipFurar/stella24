@@ -1,6 +1,7 @@
 use super::datatype::DataType;
 use crate::app::DomainId;
 
+/// Field is one row in your table
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Field {
     pub name: String,
@@ -9,6 +10,7 @@ pub struct Field {
     pub primary_key: bool,
 }
 
+/// The possible row options
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum FieldType {
     Data(DataType),

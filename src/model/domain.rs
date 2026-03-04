@@ -1,5 +1,6 @@
 use super::datatype::DataType;
 
+/// SQL Domain
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Domain {
     pub name: String,

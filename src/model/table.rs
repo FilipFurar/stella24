@@ -1,8 +1,11 @@
 use super::field::Field;
 
+/// SQL Table
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Table {
+    /// Title (name) of the database
     pub title: String,
+    /// Table rows
     pub fields: Vec<Field>,
 }
 

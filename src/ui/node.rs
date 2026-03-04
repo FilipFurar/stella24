@@ -3,20 +3,24 @@ use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
 use crate::model::field::Field;
 use crate::model::table::Table;
-use egui::{Id, Ui};
+use egui::Ui;
 use slotmap::{KeyData, SlotMap};
 //use egui_cable::port::Port;
 
+/// UI implementation for tables
 impl Table {
+    /// Return the title as string slice
     pub(crate) fn title(&self) -> &str {
         &self.title
     }
 
-    pub(crate) fn can_delete(&self) -> bool {
+    /// Returns true if table can be deleted
+    pub fn can_delete(&self) -> bool {
         true
     }
 
-    pub(crate) fn draw(&mut self, ui: &mut Ui, _id: TableId, domain: &SlotMap<DomainId, Domain>) {
+    /// Draw the Table contents in Workbench
+    pub fn draw(&mut self, ui: &mut Ui, _id: TableId, domain: &SlotMap<DomainId, Domain>) {
         ui.horizontal(|ui| {
             ui.label("Title:");
             ui.text_edit_singleline(&mut self.title);
@@ -66,8 +70,10 @@ impl Table {
     }
 }
 
+/// UI implementation for domains
 impl Domain {
-    pub(crate) fn draw(&mut self, ui: &mut Ui, id: KeyData) {
+    /// Draw domain's contents in Workbench
+    pub fn draw(&mut self, ui: &mut Ui, id: KeyData) {
         ui.text_edit_singleline(&mut self.name);
         ui.horizontal(|ui| {
             ui.label("Type:");

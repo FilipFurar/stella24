@@ -4,9 +4,10 @@ use crate::model::domain::Domain;
 use crate::model::field::FieldType;
 use egui::Ui;
 use slotmap::SlotMap;
-
+/// UI display for different FieldTypes
 impl FieldType {
-    pub(crate) fn draw(&mut self, ui: &mut Ui, id: usize, domains: &SlotMap<DomainId, Domain>) {
+    /// Draw Field (Built-in or a domain type) and the parameters settings
+    pub fn draw(&mut self, ui: &mut Ui, id: usize, domains: &SlotMap<DomainId, Domain>) {
         let selected_text = match self {
             FieldType::Data(dt) => DATA_TYPES[dt.base].name.to_string(),
             FieldType::Domain(i) => domains

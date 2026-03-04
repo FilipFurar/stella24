@@ -1,6 +1,6 @@
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
-use slotmap::{Key, SecondaryMap, SlotMap};
+use slotmap::{Key, SlotMap};
 use std::fs;
 
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
@@ -12,9 +12,15 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
-slotmap::new_key_type! { pub struct TableId; }
-slotmap::new_key_type! { pub struct DomainId; }
+slotmap::new_key_type! {
+/// Unique type for TableIDs (keys)
+pub struct TableId; }
+slotmap::new_key_type! {
+/// Unique type for Domain IDs (keys)
+pub struct DomainId; }
 
+/// Main application struct
+/// Stores tables and domains (for now)
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct AppStella {
     tables: SlotMap<TableId, Table>,
@@ -22,6 +28,7 @@ pub struct AppStella {
 }
 
 impl AppStella {
+    /// If we have a state saved in storage, load it, call default constructor otherwise
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
             let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
@@ -31,6 +38,7 @@ impl AppStella {
         }
     }
 
+    /// Save file to disk
     pub fn handle_save(&mut self, path: std::path::PathBuf) {
         if let Ok(json) = serde_json::to_string_pretty(&self) {
             if let Err(err) = fs::write(&path, json) {
@@ -39,6 +47,7 @@ impl AppStella {
         }
     }
 
+    /// Open file on disk
     pub fn handle_open(&mut self, path: std::path::PathBuf) {
         if let Ok(json) = fs::read_to_string(path) {
             if let Ok(state) = serde_json::from_str::<AppStella>(&json) {
@@ -48,6 +57,7 @@ impl AppStella {
         }
     }
 
+    /// Creates a new canvas
     pub fn handle_new(&mut self) {
         /*egui::Window::new("Save the current file?")
         .id(Id::from("new_confirm_save"))
@@ -114,6 +124,7 @@ impl AppStella {
             ui.add_space(2.0);
         });
     }
+
     fn draw_workbench(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
@@ -181,6 +192,7 @@ impl AppStella {
 }
 
 impl eframe::App for AppStella {
+    /// Runs every frame
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
