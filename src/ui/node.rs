@@ -1,4 +1,4 @@
-use crate::app::{DomainId, TableId};
+use crate::app::{DomainId, FieldId, TableId};
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
 use crate::model::table::Table;
@@ -25,25 +25,42 @@ impl Table {
             ui.text_edit_singleline(&mut self.title);
         });
         ui.separator();
-        let mut to_delete: Option<usize> = None;
-        let mut need_sorting: bool = false;
+        let mut to_delete: Option<FieldId> = None;
+        let mut to_pk: Option<FieldId> = None;
+        let mut to_fields: Option<FieldId> = None;
 
-        for (id, field) in self.fields_mut().iter_mut().enumerate() {
+        for (id, pk) in self.pk_mut() {
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut pk.name).desired_width(75.0));
+
+                pk.field_type_mut().draw(ui, id, domain);
+
+                let mut pk: bool = true;
+                if ui.checkbox(&mut pk, "PK").changed() {
+                    if !pk {
+                        to_fields = Some(id);
+                    }
+                }
+
+                if ui.button("🗑").clicked() {
+                    to_delete = Some(id);
+                }
+            });
+        }
+        for (id, field) in self.fields_mut() {
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
 
                 field.field_type_mut().draw(ui, id, domain);
 
-                if ui.checkbox(&mut field.primary_key(), "PK").changed() {
-                    if field.primary_key() {
-                        field.nullable = false;
+                let mut pk: bool = false;
+                if ui.checkbox(&mut pk, "PK").changed() {
+                    if pk {
+                        to_pk = Some(id);
                     }
-                    need_sorting = true;
                 }
 
-                ui.add_enabled_ui(!field.primary_key, |ui| {
-                    ui.checkbox(&mut field.nullable, "NULL");
-                });
+                ui.checkbox(&mut field.nullable, "NULL");
 
                 if ui.button("🗑").clicked() {
                     to_delete = Some(id);
@@ -51,10 +68,16 @@ impl Table {
             });
         }
 
-        self.sort_by_key();
-
         if let Some(id) = to_delete {
             self.remove_field(id);
+        }
+
+        if let Some(id) = to_fields {
+            self.remove_from_pk(id);
+        }
+
+        if let Some(id) = to_pk {
+            self.add_to_pk(id);
         }
 
         if ui.button("Add").clicked() {

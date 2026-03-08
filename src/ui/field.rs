@@ -1,9 +1,9 @@
-use crate::app::DomainId;
+use crate::app::{DomainId, FieldId};
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
 use crate::model::field::FieldType;
 use egui::Ui;
-use slotmap::SlotMap;
+use slotmap::{Key, SlotMap};
 
 impl DataType {
     pub fn draw_params(&mut self, ui: &mut Ui) {
@@ -24,7 +24,7 @@ impl DataType {
 /// UI display for different FieldTypes
 impl FieldType {
     /// Draw Field (Built-in or a domain type) and the parameters settings
-    pub fn draw(&mut self, ui: &mut Ui, id: usize, domains: &SlotMap<DomainId, Domain>) {
+    pub fn draw(&mut self, ui: &mut Ui, id: FieldId, domains: &SlotMap<DomainId, Domain>) {
         let selected_text = match self {
             FieldType::Data(dt) => DATA_TYPES[dt.base].name.to_string(),
             FieldType::Domain(i) => domains
@@ -33,7 +33,7 @@ impl FieldType {
                 .unwrap_or("Invalid domain".into()),
         };
 
-        egui::ComboBox::from_id_salt(format!("type_{id}"))
+        egui::ComboBox::from_id_salt(format!("type_{}", id.data().as_ffi()))
             .selected_text(selected_text)
             .show_ui(ui, |ui| {
                 for (i, def) in DATA_TYPES.iter().enumerate() {

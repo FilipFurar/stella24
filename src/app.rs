@@ -17,6 +17,10 @@ pub struct TableId; }
 slotmap::new_key_type! {
 /// Unique type for Domain IDs (keys)
 pub struct DomainId; }
+slotmap::new_key_type! {
+    /// Unique type for FieldId keys
+    pub struct FieldId;
+}
 
 /// Main application struct
 /// Stores tables and domains (for now)
@@ -24,6 +28,15 @@ pub struct DomainId; }
 pub struct AppStella {
     tables: SlotMap<TableId, Table>,
     domains: SlotMap<DomainId, Domain>,
+}
+
+impl AppStella {
+    pub fn tables(&self) -> &SlotMap<TableId, Table> {
+        &self.tables
+    }
+    pub fn domains(&self) -> &SlotMap<DomainId, Domain> {
+        &self.domains
+    }
 }
 
 impl AppStella {
@@ -76,6 +89,15 @@ impl AppStella {
         self.domains.clear();
         /*}
         });*/
+    }
+
+    pub fn export_html(&self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("HTML", &["html"])
+            .save_file()
+        {
+            self.to_html(path.to_str().unwrap());
+        }
     }
 
     /*fn setup_fonts(ctx: &egui::Context) {
@@ -204,6 +226,9 @@ impl eframe::App for AppStella {
                         if let Some(path) = rfd::FileDialog::new().save_file() {
                             self.handle_save(path);
                         }
+                    }
+                    if ui.button("Export HTML").clicked() {
+                        self.export_html();
                     }
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);

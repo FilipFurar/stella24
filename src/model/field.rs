@@ -10,8 +10,6 @@ pub struct Field {
     pub field_type: FieldType,
     /// Can be NULL?
     pub nullable: bool,
-    /// Is it a primary key?
-    pub primary_key: bool,
 }
 
 impl Field {
@@ -31,18 +29,24 @@ impl Field {
         self.nullable
     }
 
-    pub fn primary_key(&self) -> bool {
-        self.primary_key
-    }
 }
 
 impl Field {
+    pub fn default_primary_key() -> Self {
+        Self {
+            name: "id".to_string(),
+            field_type: FieldType::Data(DataType {
+                base: 3,
+                params: vec![1, 0],
+            }),
+            nullable: false,
+        }
+    }
+
     pub fn set_null(&mut self, value: bool) {
         self.nullable = value;
     }
-    pub fn set_primary_key(&mut self, value: bool) {
-        self.primary_key = value;
-    }
+
 }
 
 /// The possible row options
@@ -63,7 +67,6 @@ impl Default for Field {
                 params: vec![1],
             }),
             nullable: false,
-            primary_key: false,
         }
     }
 }
