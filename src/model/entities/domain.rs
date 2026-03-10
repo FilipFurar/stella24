@@ -1,4 +1,4 @@
-use super::datatype::DataType;
+use super::super::datatype::DataType;
 
 /// SQL Domain
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

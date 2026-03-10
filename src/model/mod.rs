@@ -1,5 +1,5 @@
 pub mod connector;
 pub mod datatype;
-pub mod domain;
+pub mod constraints;
+pub mod entities;
 pub mod field;
-pub mod table;

@@ -1,22 +1,27 @@
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
-use slotmap::{Key, SlotMap};
+use slotmap::{SlotMap};
 use std::fs;
 
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
-use crate::model::{/*connector::Connector,*/ domain::Domain, table::Table};
-
+use crate::model::{/*connector::Connector,*/ entities::domain::Domain, entities::table::Table};
+mod utils;
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
-const PINK: Color32 = Color32::from_rgb(194, 73, 125);
+const RED: Color32 = Color32::from_rgb(194, 73, 125);
+
+
 
 slotmap::new_key_type! {
-/// Unique type for TableIDs (keys)
-pub struct TableId; }
+    /// Unique type for TableIDs (keys)
+    pub struct TableId;
+}
+
 slotmap::new_key_type! {
 /// Unique type for Domain IDs (keys)
-pub struct DomainId; }
+    pub struct DomainId;
+}
 
 /// Main application struct
 /// Stores tables and domains (for now)
@@ -24,6 +29,15 @@ pub struct DomainId; }
 pub struct AppStella {
     tables: SlotMap<TableId, Table>,
     domains: SlotMap<DomainId, Domain>,
+}
+
+impl AppStella {
+    pub fn tables(&self) -> &SlotMap<TableId, Table> {
+        &self.tables
+    }
+    pub fn domains(&self) -> &SlotMap<DomainId, Domain> {
+        &self.domains
+    }
 }
 
 impl AppStella {
@@ -78,6 +92,15 @@ impl AppStella {
         });*/
     }
 
+    pub fn export_html(&self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("HTML", &["html"])
+            .save_file()
+        {
+            self.to_html(path.to_str().unwrap());
+        }
+    }
+
     /*fn setup_fonts(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
         add_fonts(&mut fonts);
@@ -115,7 +138,7 @@ impl AppStella {
                     .add(
                         egui::Button::new("Connector")
                             .min_size(vec2(120.0, 25.0))
-                            .stroke(egui::Stroke::new(1.0, PINK)),
+                            .stroke(egui::Stroke::new(1.0, RED)),
                     )
                     .clicked()
                 {}
@@ -131,9 +154,14 @@ impl AppStella {
             let mut table_to_delete: Option<TableId> = None;
             let mut domain_to_delete: Option<DomainId> = None;
 
-            for (id, table) in self.tables.iter_mut() {
+            let table_keys: Vec<TableId> = self.tables.keys().collect();
+            let domains = &self.domains;
+
+            for id in table_keys {
                 let window_id = Id::new(id);
-                let title = table.title().to_owned();
+                let title = self.tables[id].title().to_owned();
+
+                let mut should_delete = false;
 
                 egui::Window::new(title)
                     .id(window_id)
@@ -141,15 +169,21 @@ impl AppStella {
                     .collapsible(false)
                     .default_size(vec2(300.0, 200.0))
                     .show(ctx, |ui| {
-                        table.draw(ui, id, &self.domains);
+                        let tables: *const SlotMap<TableId, Table> = &self.tables;
+                        let table = &mut self.tables[id];
+                        table.draw(ui, id, domains, unsafe { &*tables });
 
                         if table.can_delete() {
                             ui.separator();
                             if ui.button("Delete").clicked() {
-                                table_to_delete = Some(id);
+                                should_delete = true;
                             }
                         }
                     });
+
+                if should_delete {
+                    table_to_delete = Some(id);
+                }
             }
 
             egui::SidePanel::right("domains")
@@ -161,7 +195,7 @@ impl AppStella {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for (id, domain) in self.domains.iter_mut() {
                             ui.group(|ui| {
-                                domain.draw(ui, id.data());
+                                domain.draw(ui, id);
                                 if ui.button("🗑").clicked() {
                                     domain_to_delete = Some(id);
                                 }
@@ -204,6 +238,9 @@ impl eframe::App for AppStella {
                         if let Some(path) = rfd::FileDialog::new().save_file() {
                             self.handle_save(path);
                         }
+                    }
+                    if ui.button("Export HTML").clicked() {
+                        self.export_html();
                     }
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);

@@ -1,5 +1,11 @@
-use super::datatype::DataType;
+use crate::model::datatype::DataType;
 use crate::app::DomainId;
+use crate::model::constraints::foreign_key::ForeignKey;
+
+slotmap::new_key_type! {
+    /// Unique type for FieldId keys
+    pub struct FieldId;
+}
 
 /// Field is one row in your table
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -10,8 +16,6 @@ pub struct Field {
     pub field_type: FieldType,
     /// Can be NULL?
     pub nullable: bool,
-    /// Is it a primary key?
-    pub primary_key: bool,
 }
 
 impl Field {
@@ -31,18 +35,24 @@ impl Field {
         self.nullable
     }
 
-    pub fn primary_key(&self) -> bool {
-        self.primary_key
-    }
 }
 
 impl Field {
+    pub fn default_primary_key() -> Self {
+        Self {
+            name: "id".to_string(),
+            field_type: FieldType::Data(DataType {
+                base: 3,
+                params: vec![1, 0],
+            }),
+            nullable: false,
+        }
+    }
+
     pub fn set_null(&mut self, value: bool) {
         self.nullable = value;
     }
-    pub fn set_primary_key(&mut self, value: bool) {
-        self.primary_key = value;
-    }
+
 }
 
 /// The possible row options
@@ -52,6 +62,8 @@ pub enum FieldType {
     Data(DataType),
     /// Domain type
     Domain(DomainId),
+    /// Foreign key constraint
+    ForeignKey(ForeignKey),
 }
 
 impl Default for Field {
@@ -63,7 +75,6 @@ impl Default for Field {
                 params: vec![1],
             }),
             nullable: false,
-            primary_key: false,
         }
     }
 }

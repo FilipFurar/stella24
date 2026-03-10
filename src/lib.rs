@@ -10,6 +10,7 @@ pub mod app;
 /// Contains all backend logic
 pub mod model;
 
+pub mod html_export;
 /// # UI module
 /// Contains UI logic and drawing
 pub mod ui;
