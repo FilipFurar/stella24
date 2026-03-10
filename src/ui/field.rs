@@ -1,7 +1,7 @@
 use crate::app::{DomainId, FieldId};
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
-use crate::model::field::FieldType;
+use crate::model::constraints::field::FieldType;
 use egui::Ui;
 use slotmap::{Key, SlotMap};
 
@@ -12,7 +12,8 @@ impl DataType {
                 ui.label("(");
 
                 for (_i, param) in self.params.iter_mut().enumerate() {
-                    ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
+
+                        ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
                 }
 
                 ui.label(")");

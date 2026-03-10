@@ -1,4 +1,4 @@
-use super::datatype::DataType;
+use super::super::datatype::DataType;
 use crate::app::DomainId;
 
 /// Field is one row in your table

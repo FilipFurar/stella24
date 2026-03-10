@@ -1,6 +1,6 @@
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
-use slotmap::{Key, SlotMap};
+use slotmap::{SlotMap};
 use std::fs;
 
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
@@ -12,11 +12,15 @@ const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const PINK: Color32 = Color32::from_rgb(194, 73, 125);
 
 slotmap::new_key_type! {
-/// Unique type for TableIDs (keys)
-pub struct TableId; }
+    /// Unique type for TableIDs (keys)
+    pub struct TableId;
+}
+
 slotmap::new_key_type! {
 /// Unique type for Domain IDs (keys)
-pub struct DomainId; }
+    pub struct DomainId;
+}
+
 slotmap::new_key_type! {
     /// Unique type for FieldId keys
     pub struct FieldId;
@@ -178,12 +182,13 @@ impl AppStella {
                 .resizable(true)
                 .default_width(260.0)
                 .show(ctx, |ui| {
+
                     ui.heading("Domains");
 
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for (id, domain) in self.domains.iter_mut() {
                             ui.group(|ui| {
-                                domain.draw(ui, id.data());
+                                domain.draw(ui, id);
                                 if ui.button("🗑").clicked() {
                                     domain_to_delete = Some(id);
                                 }
