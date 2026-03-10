@@ -1,4 +1,4 @@
-use stella24::model::field::Field;
+use stella24::model::constraints::field::Field;
 use stella24::model::table::Table;
 
 #[test]
