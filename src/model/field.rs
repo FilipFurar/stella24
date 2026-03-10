@@ -1,5 +1,11 @@
-use super::super::datatype::DataType;
+use crate::model::datatype::DataType;
 use crate::app::DomainId;
+use crate::model::constraints::foreign_key::ForeignKey;
+
+slotmap::new_key_type! {
+    /// Unique type for FieldId keys
+    pub struct FieldId;
+}
 
 /// Field is one row in your table
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -56,6 +62,8 @@ pub enum FieldType {
     Data(DataType),
     /// Domain type
     Domain(DomainId),
+    /// Foreign key constraint
+    ForeignKey(ForeignKey),
 }
 
 impl Default for Field {

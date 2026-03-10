@@ -1,5 +1,3 @@
-/// UI logic for a database row
-pub mod field;
-
 /// UI logic for nodes
-pub mod node;
+pub mod constraints;
+pub mod entities;

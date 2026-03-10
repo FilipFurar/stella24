@@ -1,5 +1,5 @@
-use stella24::model::constraints::field::Field;
-use stella24::model::table::Table;
+use stella24::model::field::Field;
+use stella24::model::entities::table::Table;
 
 #[test]
 fn rename_table() {

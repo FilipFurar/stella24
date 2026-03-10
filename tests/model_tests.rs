@@ -1,7 +1,7 @@
 use stella24::model::datatype::DATA_TYPES;
-use stella24::model::domain::Domain;
-use stella24::model::constraints::field::Field;
-use stella24::model::table::Table;
+use stella24::model::entities::domain::Domain;
+use stella24::model::field::Field;
+use stella24::model::entities::table::Table;
 
 #[test]
 fn table_fields() {

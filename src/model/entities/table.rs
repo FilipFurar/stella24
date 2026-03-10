@@ -1,6 +1,6 @@
 use slotmap::SlotMap;
-use crate::app::{FieldId, TableId};
-use super::constraints::field::Field;
+use crate::model::constraints::foreign_key::ForeignKey;
+use crate::model::field::{Field, FieldId, FieldType};
 
 /// SQL Table
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -15,12 +15,22 @@ pub struct Table {
     pk: SlotMap<FieldId, Field>,
 
     /// Foreign keys
-    fks: Vec<TableId>,
+    fks: SlotMap<FieldId, Field>,
 }
+
 
 impl Table {
     pub fn new_field(&mut self) {
         self.attributes.insert(Field::default());
+    }
+
+    pub fn new_fk(&mut self) {
+        let field = Field {
+            name: "".to_string(),
+            field_type: FieldType::ForeignKey(ForeignKey::default()),
+            nullable: false,
+        };
+        self.fks.insert(field);
     }
 
     pub fn add_field(&mut self, field: Field) {
@@ -31,7 +41,10 @@ impl Table {
         if let None =self.attributes.remove(id) {
             self.pk.remove(id);
         }
+    }
 
+    pub fn remove_fk(&mut self, id: FieldId) {
+        self.fks.remove(id);
     }
 
     pub fn fields(&self) -> &SlotMap<FieldId, Field> {
@@ -69,6 +82,22 @@ impl Table {
             panic!("field not found");
         }
     }
+
+    pub fn fk_to_pk(&mut self, field: Field) {
+        self.pk.insert(field);
+    }
+
+    pub fn remove_fk_from_pk(&mut self, field_id: FieldId) {
+        self.pk.remove(field_id);
+    }
+
+    pub fn fks(&self) -> &SlotMap<FieldId, Field> {
+        &self.fks
+    }
+
+    pub fn fks_mut(&mut self) -> &mut SlotMap<FieldId, Field> {
+        &mut self.fks
+    }
 }
 
 impl Default for Table {
@@ -77,7 +106,7 @@ impl Default for Table {
             title: "Table".to_string(),
             attributes: SlotMap::with_key(),
             pk: SlotMap::with_key(),
-            fks: vec![],
+            fks: SlotMap::with_key(),
         }
     }
 }
