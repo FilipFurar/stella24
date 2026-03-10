@@ -4,7 +4,7 @@ use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::domain::Domain;
 use crate::model::table::Table;
 use egui::Ui;
-use slotmap::{Key, KeyData, SlotMap};
+use slotmap::{Key, SlotMap};
 //use egui_cable::port::Port;
 
 const RED: Color32 = Color32::from_rgb(200, 10, 70);
