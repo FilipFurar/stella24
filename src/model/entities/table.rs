@@ -38,8 +38,8 @@ impl Table {
     }
 
     pub fn remove_field(&mut self, id: FieldId) {
-        if let None =self.attributes.remove(id) {
-            self.pk.remove(id);
+        if let None =self.attributes.remove(id) && let None = self.fks.remove(id) && let None = self.pk.remove(id) {
+            panic!("ID not found")
         }
     }
 
@@ -61,10 +61,9 @@ impl Table {
 
     /// Adds field to primary key, automatically tries to remove it from attributes
     pub fn add_to_pk(&mut self, field_id: FieldId) {
-        if self.pk.contains_key(field_id) {
-            panic!("id already in use");
-        }
         if let Some(removed_field) = self.attributes.remove(field_id) {
+            self.pk.insert(removed_field);
+        } else if let Some(removed_field) = self.fks.remove(field_id) {
             self.pk.insert(removed_field);
         } else {
             panic!("field not found");
@@ -72,24 +71,37 @@ impl Table {
     }
 
     pub fn remove_from_pk(&mut self, field_id: FieldId) {
-        if self.attributes.contains_key(field_id) {
-            panic!("id already in use");
-        }
-
         if let Some(removed_field) = self.pk.remove(field_id) {
-            self.attributes.insert(removed_field);
+            match removed_field.field_type {
+                FieldType::Data(_) => {self.attributes.insert(removed_field);}
+                FieldType::Domain(_) => {self.attributes.insert(removed_field);}
+                FieldType::ForeignKey(_) => {self.fks.insert(removed_field);}
+            }
         } else {
             panic!("field not found");
         }
     }
 
+
     pub fn fk_to_pk(&mut self, field: Field) {
         self.pk.insert(field);
     }
 
-    pub fn remove_fk_from_pk(&mut self, field_id: FieldId) {
-        self.pk.remove(field_id);
+    pub fn fk_id_to_pk(&mut self, field_id: FieldId) {
+        if let Some(field) = self.fks.remove(field_id) {
+            self.pk.insert(field);
+        } else if let Some(field) = self.pk.remove(field_id) {
+            self.fks.insert(field);
+        } else {
+            panic!("pozor");
+        }
     }
+
+    /*pub fn remove_fk_from_pk(&mut self, field_id: FieldId) {
+        if let Some(field) = self.pk.remove(field_id) {
+            self.fks.insert(field);
+        }
+    }*/
 
     pub fn fks(&self) -> &SlotMap<FieldId, Field> {
         &self.fks

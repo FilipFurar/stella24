@@ -36,7 +36,6 @@ impl Table {
         });
         ui.separator();
         let mut to_delete: Option<FieldId> = None;
-        let mut delete_fk: Option<FieldId> = None;
         let mut to_pk: Option<FieldId> = None;
         let mut to_fields: Option<FieldId> = None;
 
@@ -73,9 +72,13 @@ impl Table {
                             ui.add(egui::TextEdit::singleline(&mut fk.name).desired_width(75.0));
 
                             fk.field_type_mut().draw(ui, id, domain, tables);
+                            let mut pk = false;
+                            if ui.checkbox(&mut pk, "PK").changed() {
+                                to_pk = Some(id);
+                            }
 
                             if ui.button("🗑").clicked() {
-                                delete_fk = Some(id);
+                                to_delete = Some(id);
                             }
                         });
                     }
@@ -110,16 +113,14 @@ impl Table {
         if let Some(id) = to_delete {
             self.remove_field(id);
         }
-
-        if let Some(id) = delete_fk {
-            self.remove_fk(id);
-        }
+        
 
         if let Some(id) = to_fields {
             self.remove_from_pk(id);
         } else if let Some(id) = to_pk {
             self.add_to_pk(id);
         }
+        
 
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
