@@ -1,8 +1,8 @@
 use eframe::epaint::Color32;
-use egui::{RichText, Ui};
+use egui::{RichText, Stroke, Ui};
 use slotmap::SlotMap;
 use crate::app::{DomainId, TableId};
-use crate::model::field::FieldId;
+use crate::model::field::{FieldId, FieldType};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 
@@ -36,10 +36,44 @@ impl Table {
         });
         ui.separator();
         let mut to_delete: Option<FieldId> = None;
-        let mut to_pk: Option<FieldId> = None;
-        let mut to_fields: Option<FieldId> = None;
 
-        if self.pk().len() > 0 {
+        for (id, field) in self.fields_mut() {
+            let mut stroke = Color32::DARK_GRAY;
+            if let FieldType::ForeignKey(_fk) = field.field_type() {
+                stroke = BLUE;
+            }
+            if field.pk() {
+                stroke = RED;
+            }
+
+            egui::Frame::group(ui.style())
+                .stroke(Stroke::new(1.0, stroke))
+                .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+
+                            ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
+
+                            field.field_type_mut().draw(ui, id, domain, tables);
+
+                            if field.field_type().is_nullable_supported() && !field.pk() {
+                                ui.checkbox(&mut field.nullable(), "NULL");
+                            } else {
+                                field.set_null(false);
+                            }
+
+                            let mut pk = field.pk();
+                            if ui.checkbox(&mut pk, RichText::new("PK").color(RED).strong()).changed() {
+                                field.set_pk(pk);
+                            }
+
+                            if ui.button("🗑").clicked() {
+                                to_delete = Some(id);
+                            }
+                        });
+                });
+        }
+
+        /*if self.pks().len() > 0 {
             egui::Frame::group(ui.style())
                 .stroke(egui::Stroke::new(1.0, RED))
                 .show(ui, |ui| {
@@ -100,7 +134,7 @@ impl Table {
                                 }
                             }
 
-                            ui.checkbox(&mut field.nullable, "NULL");
+                            ui.checkbox(&mut field.nullable(), "NULL");
 
                             if ui.button("🗑").clicked() {
                                 to_delete = Some(id);
@@ -108,19 +142,11 @@ impl Table {
                         });
                     }
                 });
-        }
+        }*/
 
         if let Some(id) = to_delete {
             self.remove_field(id);
         }
-        
-
-        if let Some(id) = to_fields {
-            self.remove_from_pk(id);
-        } else if let Some(id) = to_pk {
-            self.add_to_pk(id);
-        }
-        
 
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {

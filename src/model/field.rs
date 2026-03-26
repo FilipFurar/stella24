@@ -11,14 +11,24 @@ slotmap::new_key_type! {
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct Field {
     /// Field name
-    pub name: String,
+    pub(crate) name: String,
     /// Type of Field
-    pub field_type: FieldType,
+    field_type: FieldType,
     /// Can be NULL?
-    pub nullable: bool,
+    nullable: bool,
+    /// Is a primary key
+    primary_key: bool,
 }
 
 impl Field {
+    pub fn default_fk() -> Self {
+        Self {
+            name: "".to_string(),
+            field_type: FieldType::ForeignKey(ForeignKey::default()),
+            nullable: false,
+            primary_key: false,
+        }
+    }
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -34,6 +44,25 @@ impl Field {
     pub fn nullable(&self) -> bool {
         self.nullable
     }
+    
+    pub fn set_pk(&mut self, val: bool) {
+        self.primary_key = val;
+    }
+
+    pub fn pk(&self) -> bool {
+        self.primary_key
+    }
+
+    pub fn fk(&self) -> bool {
+        if let FieldType::ForeignKey(_fk) = &self.field_type {
+            return true
+        }
+        false
+    }
+
+    pub fn set_type(&mut self, new_type: FieldType) {
+        self.field_type = new_type;
+    }
 
 }
 
@@ -46,6 +75,7 @@ impl Field {
                 params: vec![1, 0],
             }),
             nullable: false,
+            primary_key: true,
         }
     }
 
@@ -66,6 +96,13 @@ pub enum FieldType {
     ForeignKey(ForeignKey),
 }
 
+impl FieldType {
+    /// Can this FieldType be NULL?
+    pub fn is_nullable_supported(&self) -> bool {
+        matches!(self, FieldType::Data(_) | FieldType::Domain(_))
+    }
+}
+
 impl Default for Field {
     fn default() -> Self {
         Self {
@@ -75,6 +112,7 @@ impl Default for Field {
                 params: vec![1],
             }),
             nullable: false,
+            primary_key: false,
         }
     }
 }

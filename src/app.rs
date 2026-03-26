@@ -11,8 +11,6 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 
-
-
 slotmap::new_key_type! {
     /// Unique type for TableIDs (keys)
     pub struct TableId;
