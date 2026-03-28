@@ -2,7 +2,8 @@ use eframe::epaint::Color32;
 use egui::{RichText, Stroke, Ui};
 use slotmap::SlotMap;
 use crate::app::{DomainId, TableId};
-use crate::model::field::{FieldId, AttributeType};
+use crate::model::constraints::constraint::PrimaryKey;
+use crate::model::field::{AttrId, AttributeType};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 
@@ -10,19 +11,15 @@ const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 
-/// UI implementation for tables
 impl Table {
-    /// Return the title as string slice
     pub fn title(&self) -> &str {
         &self.title
     }
 
-    /// Returns true if table can be deleted
     pub fn can_delete(&self) -> bool {
         true
     }
 
-    /// Draw the Table contents in Workbench
     pub fn draw(
         &mut self,
         ui: &mut Ui,
@@ -35,114 +32,59 @@ impl Table {
             ui.text_edit_singleline(&mut self.title);
         });
         ui.separator();
-        let mut to_delete: Option<FieldId> = None;
 
-        for (id, field) in self.fields_mut() {
-            let mut stroke = Color32::DARK_GRAY;
-            if let AttributeType::ForeignKey(_fk) = field.field_type() {
-                stroke = BLUE;
-            }
-            if field.pk() {
-                stroke = RED;
-            }
+        let mut to_delete: Option<AttrId> = None;
+        let mut pk_changes: Vec<(AttrId, bool)> = vec![];
+
+        for (id, attr) in self.attributes_mut() {
+            let stroke = Color32::DARK_GRAY;
 
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, stroke))
                 .show(ui, |ui| {
-                        ui.horizontal(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut attr.name).desired_width(75.0));
 
-                            ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
+                        attr.attribute_type_mut().draw(ui, id, domain);
 
-                            field.field_type_mut().draw(ui, id, domain, tables);
+                        let mut is_pk = attr.pk;
+                        if ui.checkbox(&mut is_pk, "PK").changed() {
+                            attr.pk = is_pk;
+                            pk_changes.push((id, is_pk));
+                        }
 
-                            if field.field_type().is_nullable_supported() && !field.pk() {
-                                ui.checkbox(&mut field.nullable(), "NULL");
-                            } else {
-                                field.set_null(false);
-                            }
-
-                            let mut pk = field.pk();
-                            if ui.checkbox(&mut pk, RichText::new("PK").color(RED).strong()).changed() {
-                                field.set_pk(pk);
-                            }
-
-                            if ui.button("🗑").clicked() {
-                                to_delete = Some(id);
-                            }
-                        });
+                        if ui.button("🗑").clicked() {
+                            to_delete = Some(id);
+                        }
+                    });
                 });
         }
 
-        /*if self.pks().len() > 0 {
-            egui::Frame::group(ui.style())
-                .stroke(egui::Stroke::new(1.0, RED))
-                .show(ui, |ui| {
-                    for (id, pk) in self.pk_mut() {
-                        ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(&mut pk.name).desired_width(75.0));
+        for (id, added) in pk_changes {
+            if added {
+                self.pk.attributes.insert(id);
+            } else {
+                self.pk.attributes.remove(&id);
+            }
+        }
 
-                            pk.field_type_mut().draw(ui, id, domain, tables);
-                            let mut pk: bool = true;
-                            if ui.checkbox(&mut pk, RichText::new("PK").color(RED).strong()).changed() {
-                                if !pk {
-                                    to_fields = Some(id);
+        if self.pk.attributes.len() > 0 {
+            egui::Frame::group(ui.style())
+                .stroke(Stroke::new(1.0, RED))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut self.pk.name).desired_width(75.0));
+
+                        ui.horizontal(|ui| {
+                            for att in &self.pk.attributes {
+                                if let Some(a) = self.attributes.get(*att) {
+                                    ui.label(&a.name);
                                 }
                             }
-
-                            if ui.button("🗑").clicked() {
-                                to_delete = Some(id);
-                            }
                         });
-                    }
+                    });
                 });
         }
-
-        if self.fks().len() > 0 {
-            egui::Frame::group(ui.style())
-                .stroke(egui::Stroke::new(1.0, BLUE))
-                .show(ui, |ui| {
-                    for (id, fk) in &mut self.fks_mut().iter_mut() {
-                        ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(&mut fk.name).desired_width(75.0));
-
-                            fk.field_type_mut().draw(ui, id, domain, tables);
-                            let mut pk = false;
-                            if ui.checkbox(&mut pk, "PK").changed() {
-                                to_pk = Some(id);
-                            }
-
-                            if ui.button("🗑").clicked() {
-                                to_delete = Some(id);
-                            }
-                        });
-                    }
-                });
-        }
-
-        if self.fields().len() > 0 {
-            egui::Frame::group(ui.style())
-                .show(ui, |ui| {
-                    for (id, field) in self.fields_mut() {
-                        ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(&mut field.name).desired_width(75.0));
-
-                            field.field_type_mut().draw(ui, id, domain, tables);
-                            let mut pk: bool = false;
-                            if ui.checkbox(&mut pk, "PK").changed() {
-                                if pk {
-                                    to_pk = Some(id);
-                                }
-                            }
-
-                            ui.checkbox(&mut field.nullable(), "NULL");
-
-                            if ui.button("🗑").clicked() {
-                                to_delete = Some(id);
-                            }
-                        });
-                    }
-                });
-        }*/
 
         if let Some(id) = to_delete {
             self.remove_field(id);
@@ -151,6 +93,9 @@ impl Table {
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
                 self.new_field();
+            }
+            if ui.button("Add PK").clicked() {
+                self.change_pk(PrimaryKey::new());
             }
             if ui.button("Add FK").clicked() {
                 self.new_fk();

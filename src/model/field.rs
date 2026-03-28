@@ -4,7 +4,7 @@ use crate::model::constraints::foreign_key::ForeignKey;
 
 slotmap::new_key_type! {
     /// Unique type for FieldId keys
-    pub struct FieldId;
+    pub struct AttrId;
 }
 
 /// Field is one row in your table
@@ -12,8 +12,11 @@ slotmap::new_key_type! {
 pub struct Attribute {
     /// Field name
     pub name: String,
+    
     /// Type of Field
-    field_type: AttributeType, 
+    attribute_type: AttributeType,
+    
+    pub pk: bool,
 }
 
 impl Attribute {
@@ -22,16 +25,16 @@ impl Attribute {
     }
 
     pub fn field_type(&self) -> &AttributeType {
-        &self.field_type
+        &self.attribute_type
     }
 
-    pub fn field_type_mut(&mut self) -> &mut AttributeType {
-        &mut self.field_type
+    pub fn attribute_type_mut(&mut self) -> &mut AttributeType {
+        &mut self.attribute_type
     }
     
 
     pub fn set_type(&mut self, new_type: AttributeType) {
-        self.field_type = new_type;
+        self.attribute_type = new_type;
     }
 
 }
@@ -40,10 +43,11 @@ impl Attribute {
     pub fn default_primary_key() -> Self {
         Self {
             name: "id".to_string(),
-            field_type: AttributeType::Data(DataType {
+            attribute_type: AttributeType::Data(DataType {
                 base: 3,
                 params: vec![1, 0],
             }),
+            pk: true,
         }
     }
 }
@@ -68,10 +72,11 @@ impl Default for Attribute {
     fn default() -> Self {
         Self {
             name: "id".to_string(),
-            field_type: AttributeType::Data(DataType {
+            attribute_type: AttributeType::Data(DataType {
                 base: 0,
                 params: vec![1],
             }),
+            pk: false,
         }
     }
 }

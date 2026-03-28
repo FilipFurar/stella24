@@ -1,5 +1,6 @@
 use slotmap::SlotMap;
-use crate::model::field::{Attribute, FieldId};
+use crate::model::constraints::constraint::{ForeignKey, NotNull, PkId, PrimaryKey, Unique};
+use crate::model::field::{Attribute, AttrId};
 
 /// SQL Table
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -8,9 +9,15 @@ pub struct Table {
     pub title: String,
 
     /// Table rows
-    attributes: SlotMap<FieldId, Attribute>,
+    pub attributes: SlotMap<AttrId, Attribute>,
     
-    pk: 
+    pub pk: PrimaryKey,
+
+    fks: Vec<ForeignKey>,
+
+    uniques: Vec<Unique>,
+
+    not_nulls: Vec<NotNull>,
 }
 
 
@@ -19,59 +26,47 @@ impl Table {
         self.attributes.insert(Attribute::default());
     }
 
-    pub fn new_fk(&mut self) {
-        let field = Attribute::default_fk();
-        self.attributes.insert(field);
-    }
 
     pub fn add_field(&mut self, field: Attribute) {
         self.attributes.insert(field);
     }
 
-    pub fn remove_field(&mut self, id: FieldId) {
+    pub fn remove_field(&mut self, id: AttrId) {
         if let None =self.attributes.remove(id) {
             panic!("ID not found")
         }
     }
 
-    pub fn fields(&self) -> &SlotMap<FieldId, Attribute> {
+    pub fn fields(&self) -> &SlotMap<AttrId, Attribute> {
         &self.attributes
     }
 
-    pub fn fields_mut(&mut self) -> &mut SlotMap<FieldId, Attribute> {
+    pub fn attributes_mut(&mut self) -> &mut SlotMap<AttrId, Attribute> {
         &mut self.attributes
     }
 
-    pub fn pks(&self) -> impl Iterator<Item = (FieldId, &Attribute)> {
-        self.attributes
-            .iter()
-            .filter(|(_, field)| field.pk())
+    pub fn new_fk(&mut self) {
+        self.fks.push(ForeignKey::new());
     }
 
-    pub fn pks_mut(&mut self) -> impl Iterator<Item = (FieldId, &mut Attribute)> {
-        self.attributes
-            .iter_mut()
-            .filter(|(_, field)| field.pk())
+    pub fn change_pk(&mut self, pk: PrimaryKey) {
+        self.pk = pk;
     }
 
-    /// Adds field to primary key, automatically tries to remove it from attributes
-    pub fn add_to_pk(&mut self, field_id: FieldId) {
-        if let Some(attr) = self.fields_mut().get_mut(field_id) {
-            attr.set_pk(true);
+    pub fn add_pk(&mut self, pk: AttrId) {
+        self.pk.attributes.insert(pk);
+        if let Some(pkey) = self.attributes.get_mut(pk) {
+            pkey.pk = true;
         }
     }
 
-    pub fn remove_from_pk(&mut self, field_id: FieldId) {
-        if let Some(attr) = self.attributes.get_mut(field_id) {
-            attr.set_pk(false);
+    pub fn remove_pk(&mut self, pk_id: AttrId) -> bool {
+        let p = self.pk.attributes.remove(&pk_id);
+        if let Some(attr) = self.attributes.get_mut(pk_id) {
+            attr.pk = false;
         }
+        p
     }
-
-    /*pub fn remove_fk_from_pk(&mut self, field_id: FieldId) {
-        if let Some(field) = self.pk.remove(field_id) {
-            self.fks.insert(field);
-        }
-    }*/
 }
 
 impl Default for Table {
@@ -79,6 +74,10 @@ impl Default for Table {
         Self {
             title: "Table".to_string(),
             attributes: SlotMap::with_key(),
+            pk: PrimaryKey::new(),
+            fks: vec![],
+            uniques: vec![],
+            not_nulls: vec![],
         }
     }
 }

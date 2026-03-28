@@ -1,10 +1,10 @@
 use crate::app::TableId;
-use crate::model::field::FieldId;
+use crate::model::field::AttrId;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct ForeignKey {
     references_table: Option<TableId>,
-    references_field: Option<FieldId>,
+    references_field: Option<AttrId>,
 }
 
 impl ForeignKey {
@@ -12,7 +12,7 @@ impl ForeignKey {
         self.references_table
     }
 
-    pub fn referenced_field(&self) -> Option<FieldId> {
+    pub fn referenced_field(&self) -> Option<AttrId> {
         self.references_field
     }
 
@@ -20,7 +20,7 @@ impl ForeignKey {
         self.references_table = Some(table);
     }
 
-    pub fn set_referenced_field(&mut self, field: FieldId) {
+    pub fn set_referenced_field(&mut self, field: AttrId) {
         self.references_field = Some(field);
     }
 }
@@ -35,7 +35,7 @@ impl Default for ForeignKey {
 }
 
 impl ForeignKey {
-    pub fn new(references_table: TableId, references_field: FieldId) -> Self {
+    pub fn new(references_table: TableId, references_field: AttrId) -> Self {
         Self {
             references_table: Some(references_table),
             references_field: Some(references_field),
