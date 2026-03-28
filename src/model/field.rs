@@ -9,110 +9,69 @@ slotmap::new_key_type! {
 
 /// Field is one row in your table
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct Field {
+pub struct Attribute {
     /// Field name
-    pub(crate) name: String,
+    pub name: String,
     /// Type of Field
-    field_type: FieldType,
-    /// Can be NULL?
-    nullable: bool,
-    /// Is a primary key
-    primary_key: bool,
+    field_type: AttributeType, 
 }
 
-impl Field {
-    pub fn default_fk() -> Self {
-        Self {
-            name: "".to_string(),
-            field_type: FieldType::ForeignKey(ForeignKey::default()),
-            nullable: false,
-            primary_key: false,
-        }
-    }
+impl Attribute {
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn field_type(&self) -> &FieldType {
+    pub fn field_type(&self) -> &AttributeType {
         &self.field_type
     }
 
-    pub fn field_type_mut(&mut self) -> &mut FieldType {
+    pub fn field_type_mut(&mut self) -> &mut AttributeType {
         &mut self.field_type
     }
-
-    pub fn nullable(&self) -> bool {
-        self.nullable
-    }
     
-    pub fn set_pk(&mut self, val: bool) {
-        self.primary_key = val;
-    }
 
-    pub fn pk(&self) -> bool {
-        self.primary_key
-    }
-
-    pub fn fk(&self) -> bool {
-        if let FieldType::ForeignKey(_fk) = &self.field_type {
-            return true
-        }
-        false
-    }
-
-    pub fn set_type(&mut self, new_type: FieldType) {
+    pub fn set_type(&mut self, new_type: AttributeType) {
         self.field_type = new_type;
     }
 
 }
 
-impl Field {
+impl Attribute {
     pub fn default_primary_key() -> Self {
         Self {
             name: "id".to_string(),
-            field_type: FieldType::Data(DataType {
+            field_type: AttributeType::Data(DataType {
                 base: 3,
                 params: vec![1, 0],
             }),
-            nullable: false,
-            primary_key: true,
         }
     }
-
-    pub fn set_null(&mut self, value: bool) {
-        self.nullable = value;
-    }
-
 }
 
 /// The possible row options
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub enum FieldType {
+pub enum AttributeType {
     /// Built-in data type
     Data(DataType),
     /// Domain type
     Domain(DomainId),
-    /// Foreign key constraint
-    ForeignKey(ForeignKey),
 }
 
-impl FieldType {
+impl AttributeType {
     /// Can this FieldType be NULL?
     pub fn is_nullable_supported(&self) -> bool {
-        matches!(self, FieldType::Data(_) | FieldType::Domain(_))
+        matches!(self, AttributeType::Data(_) | AttributeType::Domain(_))
     }
 }
 
-impl Default for Field {
+impl Default for Attribute {
     fn default() -> Self {
         Self {
             name: "id".to_string(),
-            field_type: FieldType::Data(DataType {
+            field_type: AttributeType::Data(DataType {
                 base: 0,
                 params: vec![1],
             }),
-            nullable: false,
-            primary_key: false,
         }
     }
 }

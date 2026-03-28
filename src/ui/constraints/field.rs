@@ -4,7 +4,7 @@ use crate::app::{DomainId, TableId};
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
-use crate::model::field::{FieldId, FieldType};
+use crate::model::field::{FieldId, AttributeType};
 use egui::Ui;
 use slotmap::{SlotMap};
 
@@ -27,7 +27,7 @@ impl DataType {
     }
 }
 
-impl FieldType {
+impl AttributeType {
     pub fn draw(
         &mut self,
         ui: &mut Ui,
@@ -37,7 +37,7 @@ impl FieldType {
     ) {
         let mut fk_selection: Option<(Option<TableId>, Option<FieldId>)> = None;
         
-        if let FieldType::ForeignKey(fk) = self {
+        if let AttributeType::ForeignKey(fk) = self {
             let selected_table = fk.referenced_table()
                 .and_then(|tid| tables.get(tid))
                 .map(|t| t.title.clone())
@@ -93,7 +93,7 @@ impl FieldType {
         }
 
         if let Some((table, field)) = fk_selection {
-            if let FieldType::ForeignKey(fk) = self {
+            if let AttributeType::ForeignKey(fk) = self {
                 if let Some(t) = table {
                     fk.set_referenced_table(t);
                 }
@@ -103,14 +103,14 @@ impl FieldType {
             }
         }
 
-        if !matches!(self, FieldType::ForeignKey(_)) {
+        if !matches!(self, AttributeType::ForeignKey(_)) {
             let selected_text = match self {
-                FieldType::Data(dt) => DATA_TYPES[dt.base].name.to_string(),
-                FieldType::Domain(i) => domains
+                AttributeType::Data(dt) => DATA_TYPES[dt.base].name.to_string(),
+                AttributeType::Domain(i) => domains
                     .get(*i)
                     .map(|d| d.name.clone())
                     .unwrap_or("Invalid domain".into()),
-                FieldType::ForeignKey(_) => unreachable!(),
+                AttributeType::ForeignKey(_) => unreachable!(),
             };
 
             ui.push_id("combo_type", |ui| {
@@ -119,7 +119,7 @@ impl FieldType {
                     .show_ui(ui, |ui| {
                         for (i, def) in DATA_TYPES.iter().enumerate() {
                             if ui.selectable_label(false, def.name).clicked() {
-                                *self = FieldType::Data(DataType {
+                                *self = AttributeType::Data(DataType {
                                     base: i,
                                     params: vec![0; def.param_count],
                                 });
@@ -130,7 +130,7 @@ impl FieldType {
                             ui.separator();
                             for (i, domain) in domains.iter() {
                                 if ui.selectable_label(false, &domain.name).clicked() {
-                                    *self = FieldType::Domain(i);
+                                    *self = AttributeType::Domain(i);
                                 }
                             }
                         }
@@ -138,7 +138,7 @@ impl FieldType {
             });
 
 
-            if let FieldType::Data(dt) = self {
+            if let AttributeType::Data(dt) = self {
                 dt.draw_params(ui);
             }
         }

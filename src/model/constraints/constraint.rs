@@ -1,3 +1,3 @@
-pub trait Constraint {
-
+pub struct PrimaryKey {
+    
 }

@@ -2,7 +2,7 @@ use eframe::epaint::Color32;
 use egui::{RichText, Stroke, Ui};
 use slotmap::SlotMap;
 use crate::app::{DomainId, TableId};
-use crate::model::field::{FieldId, FieldType};
+use crate::model::field::{FieldId, AttributeType};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 
@@ -39,7 +39,7 @@ impl Table {
 
         for (id, field) in self.fields_mut() {
             let mut stroke = Color32::DARK_GRAY;
-            if let FieldType::ForeignKey(_fk) = field.field_type() {
+            if let AttributeType::ForeignKey(_fk) = field.field_type() {
                 stroke = BLUE;
             }
             if field.pk() {

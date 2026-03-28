@@ -1,5 +1,5 @@
 use slotmap::SlotMap;
-use crate::model::field::{Field, FieldId};
+use crate::model::field::{Attribute, FieldId};
 
 /// SQL Table
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -8,21 +8,23 @@ pub struct Table {
     pub title: String,
 
     /// Table rows
-    attributes: SlotMap<FieldId, Field>,
+    attributes: SlotMap<FieldId, Attribute>,
+    
+    pk: 
 }
 
 
 impl Table {
     pub fn new_field(&mut self) {
-        self.attributes.insert(Field::default());
+        self.attributes.insert(Attribute::default());
     }
 
     pub fn new_fk(&mut self) {
-        let field = Field::default_fk();
+        let field = Attribute::default_fk();
         self.attributes.insert(field);
     }
 
-    pub fn add_field(&mut self, field: Field) {
+    pub fn add_field(&mut self, field: Attribute) {
         self.attributes.insert(field);
     }
 
@@ -32,21 +34,21 @@ impl Table {
         }
     }
 
-    pub fn fields(&self) -> &SlotMap<FieldId, Field> {
+    pub fn fields(&self) -> &SlotMap<FieldId, Attribute> {
         &self.attributes
     }
 
-    pub fn fields_mut(&mut self) -> &mut SlotMap<FieldId, Field> {
+    pub fn fields_mut(&mut self) -> &mut SlotMap<FieldId, Attribute> {
         &mut self.attributes
     }
 
-    pub fn pks(&self) -> impl Iterator<Item = (FieldId, &Field)> {
+    pub fn pks(&self) -> impl Iterator<Item = (FieldId, &Attribute)> {
         self.attributes
             .iter()
             .filter(|(_, field)| field.pk())
     }
 
-    pub fn pks_mut(&mut self) -> impl Iterator<Item = (FieldId, &mut Field)> {
+    pub fn pks_mut(&mut self) -> impl Iterator<Item = (FieldId, &mut Attribute)> {
         self.attributes
             .iter_mut()
             .filter(|(_, field)| field.pk())
