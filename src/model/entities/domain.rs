@@ -1,3 +1,5 @@
+// model/entities/domain.rs
+
 use super::super::datatype::DataType;
 
 /// SQL Domain

@@ -1,8 +1,11 @@
+// ui/entities/table.rs
+
 use eframe::epaint::Color32;
 use egui::{RichText, Stroke, Ui};
-use slotmap::SlotMap;
+use slotmap::{Key, SlotMap};
 use crate::app::{DomainId, TableId};
 use crate::model::constraints::constraint::PrimaryKey;
+use crate::model::datatype::{DataType, DATA_TYPES};
 use crate::model::field::{AttrId, AttributeType};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
@@ -20,44 +23,55 @@ impl Table {
         true
     }
 
-    pub fn draw(
-        &mut self,
-        ui: &mut Ui,
-        _id: TableId,
-        domain: &SlotMap<DomainId, Domain>,
-        tables: &SlotMap<TableId, Table>,
-    ) {
-        ui.horizontal(|ui| {
-            ui.label("Title:");
-            ui.text_edit_singleline(&mut self.title);
-        });
-        ui.separator();
+    fn draw_pks(&mut self, ui: &mut Ui) {
+        if self.pk.attributes.len() > 0 {
+            egui::Frame::group(ui.style())
+                .stroke(Stroke::new(1.0, RED))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Label::new(egui::RichText::new("🔑").color(RED)));
+
+                        ui.add(egui::TextEdit::singleline(&mut self.pk.name).desired_width(75.0));
+
+                    });
+                    for att in &self.pk.attributes {
+                        if let Some(a) = self.attributes.get(*att) {
+                            ui.label(RichText::new(&a.name).color(RED).strong());
+                        }
+                    }
+                });
+        }
+    }
+
+    fn draw_fks(&mut self, ui: &mut Ui, tables: &SlotMap<TableId, Table>) {
+        if self.fks.len() > 0 {
+            for (i, fk) in &mut self.fks {
+                egui::Frame::group(ui.style())
+                    .stroke(Stroke::new(1.0, BLUE))
+                    .show(ui, |ui|{
+                        //fk.display(ui, tables);
+                    });
+            }
+        }
+    }
+
+    fn draw_attributes(&mut self, ui: &mut Ui,
+                       current_id: TableId,
+                       domains: &SlotMap<DomainId, Domain>,
+                       tables: &SlotMap<TableId, Table>) {
 
         let mut to_delete: Option<AttrId> = None;
         let mut pk_changes: Vec<(AttrId, bool)> = vec![];
 
         for (id, attr) in self.attributes_mut() {
-            let stroke = Color32::DARK_GRAY;
+            let changes = attr.draw_attribute(ui, id, domains, tables, current_id);
 
-            egui::Frame::group(ui.style())
-                .stroke(Stroke::new(1.0, stroke))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut attr.name).desired_width(75.0));
-
-                        attr.attribute_type_mut().draw(ui, id, domain);
-
-                        let mut is_pk = attr.pk;
-                        if ui.checkbox(&mut is_pk, "PK").changed() {
-                            attr.pk = is_pk;
-                            pk_changes.push((id, is_pk));
-                        }
-
-                        if ui.button("🗑").clicked() {
-                            to_delete = Some(id);
-                        }
-                    });
-                });
+            if let Some((id, added)) = changes.pk_change {
+                pk_changes.push((id, added));
+            }
+            if let Some(id) = changes.delete {
+                to_delete = Some(id);
+            }
         }
 
         for (id, added) in pk_changes {
@@ -68,37 +82,36 @@ impl Table {
             }
         }
 
-        if self.pk.attributes.len() > 0 {
-            egui::Frame::group(ui.style())
-                .stroke(Stroke::new(1.0, RED))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut self.pk.name).desired_width(75.0));
-
-                        ui.horizontal(|ui| {
-                            for att in &self.pk.attributes {
-                                if let Some(a) = self.attributes.get(*att) {
-                                    ui.label(&a.name);
-                                }
-                            }
-                        });
-                    });
-                });
-        }
-
         if let Some(id) = to_delete {
             self.remove_field(id);
         }
+    }
+
+    pub fn draw(
+        &mut self,
+        ui: &mut Ui,
+        current_id: TableId,
+        domains: &SlotMap<DomainId, Domain>,
+        tables: &SlotMap<TableId, Table>,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label("Title:");
+            ui.text_edit_singleline(&mut self.title);
+        });
+        ui.separator();
+
+        self.draw_attributes(ui, current_id, domains, tables);
+
+        self.draw_pks(ui);
+        self.draw_fks(ui, tables);
 
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
                 self.new_field();
             }
-            if ui.button("Add PK").clicked() {
-                self.change_pk(PrimaryKey::new());
-            }
+
             if ui.button("Add FK").clicked() {
-                self.new_fk();
+                //self.new_fk();
             }
         });
 

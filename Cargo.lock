@@ -1014,6 +1014,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_node_graph2"
+version = "0.7.0"
+dependencies = [
+ "egui",
+ "slotmap",
+ "smallvec",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "emath"
 version = "0.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2804,6 +2814,7 @@ dependencies = [
  "askama",
  "eframe",
  "egui",
+ "egui_node_graph2",
  "env_logger",
  "gethostname",
  "log",

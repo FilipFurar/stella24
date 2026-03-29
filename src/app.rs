@@ -1,12 +1,18 @@
+// app.rs
+
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
 use slotmap::{SlotMap};
 use std::fs;
-
+//use crate::app::command::{Command, CommandHistory};
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
 
 use crate::model::{/*connector::Connector,*/ entities::domain::Domain, entities::table::Table};
-mod utils;
+use crate::model::constraints::constraint::ForeignKey;
+use crate::model::field::{Attribute, AttributeType};
+
+mod command;
+
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
@@ -27,6 +33,12 @@ slotmap::new_key_type! {
 pub struct AppStella {
     tables: SlotMap<TableId, Table>,
     domains: SlotMap<DomainId, Domain>,
+
+    /*#[serde(skip)]
+    command_queue: Vec<Command>,
+
+    #[serde(skip)]
+    history: CommandHistory,*/
 }
 
 impl AppStella {
@@ -48,6 +60,121 @@ impl AppStella {
             Default::default()
         }
     }
+    /*
+    /// UI calls this to queue mutations
+    pub fn dispatch(&mut self, cmd: Command) {
+        self.command_queue.push(cmd);
+    }
+
+    /// Call this once per frame before rendering
+    pub fn flush_commands(&mut self) {
+        for cmd in self.command_queue.drain(..) {
+            self.execute(&cmd);
+            self.history.undo_stack.push(cmd); // For undo support
+        }
+    }
+
+    fn execute(&mut self, cmd: &Command) {
+        match cmd {
+            Command::CreateTable { title } => {
+                let table = Table {
+                    title: title.clone(),
+                    ..Default::default()
+                };
+                self.tables.insert(table);
+            }
+
+            Command::DeleteTable(id) => {
+                self.tables.remove(*id);
+                // Cleanup: remove related FKs in other tables?
+            }
+
+            Command::RenameTable { id, new_title } => {
+                if let Some(table) = self.tables.get_mut(*id) {
+                    table.title = new_title.clone();
+                }
+            }
+
+            Command::CreateAttribute { table, name, attr_type } => {
+                if let Some(t) = self.tables.get_mut(*table) {
+                    let attr = Attribute {
+                        name: name.clone(),
+                        attribute_type: *attr_type.clone(),
+                        pk: false,
+                    };
+                    t.attributes.insert(attr);
+                }
+            }
+
+            Command::SetAttributeType { table, attr, new_type } => {
+                if let Some(t) = self.tables.get_mut(*table) {
+                    if let Some(a) = t.attributes.get_mut(*attr) {
+                        a.set_type(*new_type.clone());
+                    }
+                }
+            }
+
+            Command::AddToPrimaryKey { table, attr } => {
+                if let Some(t) = self.tables.get_mut(*table) {
+                    t.pk.attributes.insert(*attr);
+                    if let Some(a) = t.attributes.get_mut(*attr) {
+                        a.pk = true;
+                        a.nullable = false; // PK implies NOT NULL
+                    }
+                }
+            }
+
+            Command::RemoveFromPrimaryKey { table, attr } => {
+                if let Some(t) = self.tables.get_mut(*table) {
+                    t.pk.attributes.remove(attr);
+                    if let Some(a) = t.attributes.get_mut(*attr) {
+                        a.pk = false;
+                    }
+                }
+            }
+
+            Command::CreateForeignKey { table, name, attr, references } => {
+                if let Some(t) = self.tables.get_mut(*table) {
+                    let fk = ForeignKey {
+                        name: name.clone(),
+                        references: Some(*references),
+                    };
+                    t.fks.insert(fk);
+                    // Mark the attribute as FK type
+                    if let Some(a) = t.attributes.get_mut(*attr) {
+                        a.attribute_type = AttributeType::ForeignKey(fk.clone());
+                    }
+                }
+            }
+
+            _ => {} // Handle other commands...
+        }
+
+    }
+
+    pub fn undo(&mut self) {
+        if let Some(cmd) = self.history.undo_stack.pop() {
+            // Execute inverse command
+            self.execute_inverse(&cmd);
+            self.history.redo_stack.push(cmd);
+        }
+    }
+
+    fn execute_inverse(&mut self, cmd: &Command) {
+        // Match on command and do the opposite
+        match cmd {
+            Command::CreateTable { .. } => {
+                // Would need to store ID in command to undo
+            }
+            Command::AddToPrimaryKey { table, attr } => {
+                self.execute(&Command::RemoveFromPrimaryKey {
+                    table: *table,
+                    attr: *attr
+                });
+            }
+            _ => {}
+        }
+    }*/
 
     /// Save file to disk
     pub fn handle_save(&mut self, path: std::path::PathBuf) {
@@ -166,10 +293,10 @@ impl AppStella {
                     .resizable(true)
                     .collapsible(false)
                     .default_size(vec2(300.0, 200.0))
-                    .show(ctx, |ui| {
+                    .show(ctx, |ui| unsafe {
                         let tables: *const SlotMap<TableId, Table> = &self.tables;
                         let table = &mut self.tables[id];
-                        table.draw(ui, id, domains, unsafe { &*tables });
+                        table.draw(ui, id, domains, &*tables);
 
                         if table.can_delete() {
                             ui.separator();

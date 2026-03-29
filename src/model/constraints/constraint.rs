@@ -1,11 +1,11 @@
+// model/constraints/constraints.rs
 use std::collections::HashSet;
 use slotmap::SlotMap;
 use crate::app::TableId;
 use crate::model::field::AttrId;
 
 slotmap::new_key_type! {
-    /// Unique type for Primary Key keys
-    pub struct PkId;
+    pub struct FkId;
 }
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct PrimaryKey {
@@ -14,8 +14,8 @@ pub struct PrimaryKey {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct ForeignKey {
-    name: String,
-    references: Option<TableId>,
+    pub name: String,
+    pub references: Option<TableId>,
 }
 
 slotmap::new_key_type! {
@@ -58,7 +58,7 @@ impl PrimaryKey {
 impl ForeignKey {
     pub fn new() -> Self {
         Self {
-            name: "".to_string(),
+            name: "ref_".to_string(),
             references: None,
         }
     }

@@ -1,5 +1,6 @@
+// model/entities/table.rs
 use slotmap::SlotMap;
-use crate::model::constraints::constraint::{ForeignKey, NotNull, PkId, PrimaryKey, Unique};
+use crate::model::constraints::constraint::{ForeignKey, NotNull, FkId, PrimaryKey, Unique};
 use crate::model::field::{Attribute, AttrId};
 
 /// SQL Table
@@ -13,7 +14,7 @@ pub struct Table {
     
     pub pk: PrimaryKey,
 
-    fks: Vec<ForeignKey>,
+    pub fks: SlotMap<FkId, AttrId>,
 
     uniques: Vec<Unique>,
 
@@ -45,9 +46,6 @@ impl Table {
         &mut self.attributes
     }
 
-    pub fn new_fk(&mut self) {
-        self.fks.push(ForeignKey::new());
-    }
 
     pub fn change_pk(&mut self, pk: PrimaryKey) {
         self.pk = pk;
@@ -75,7 +73,7 @@ impl Default for Table {
             title: "Table".to_string(),
             attributes: SlotMap::with_key(),
             pk: PrimaryKey::new(),
-            fks: vec![],
+            fks: SlotMap::with_key(),
             uniques: vec![],
             not_nulls: vec![],
         }

@@ -1,3 +1,5 @@
+// ui/entities/domain.rs
+
 use egui::Ui;
 use slotmap::Key;
 use crate::app::DomainId;
