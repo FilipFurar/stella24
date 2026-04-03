@@ -11,8 +11,7 @@ pub struct DataTypeDef {
 /// The index of the data type in `DATA_TYPES`
 /// ## Params
 /// Parameter values
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-#[derive(Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct DataType {
     pub base: usize,
     pub params: Vec<u32>,

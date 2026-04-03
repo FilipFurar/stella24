@@ -1,10 +1,10 @@
 // ui/entities/domain.rs
 
+use crate::app::DomainId;
+use crate::model::datatype::{DATA_TYPES, DataType};
+use crate::model::entities::domain::Domain;
 use egui::Ui;
 use slotmap::Key;
-use crate::app::DomainId;
-use crate::model::datatype::{DataType, DATA_TYPES};
-use crate::model::entities::domain::Domain;
 
 /// UI implementation for domains
 impl Domain {

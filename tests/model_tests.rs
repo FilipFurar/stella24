@@ -1,6 +1,6 @@
+use stella24::model::attribute::Attribute;
 use stella24::model::datatype::DATA_TYPES;
 use stella24::model::entities::domain::Domain;
-use stella24::model::field::Attribute;
 use stella24::model::entities::table::Table;
 
 #[test]

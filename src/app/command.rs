@@ -1,6 +1,6 @@
 use crate::app::{DomainId, TableId};
+use crate::model::attribute::{AttrId, AttributeType};
 use crate::model::datatype::DataType;
-use crate::model::field::{AttrId, AttributeType};
 /*
 #[derive(Clone, Debug)]
 pub enum Command {

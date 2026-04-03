@@ -1,8 +1,9 @@
-// model/field.rs
+// model/attribute
 
-use crate::model::datatype::DataType;
 use crate::app::DomainId;
-use crate::model::constraints::constraint::ForeignKey;
+use crate::model::constraints::constraint::{FkId, ForeignKey};
+use crate::model::datatype::DataType;
+use crate::model::entities::table::Table;
 
 slotmap::new_key_type! {
     /// Unique type for FieldId keys
@@ -20,7 +21,7 @@ pub struct Attribute {
 
     pub pk: bool,
 
-    pub nullable: bool
+    pub nullable: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +30,6 @@ pub enum AttributeCategory {
     Domain,
     ForeignKey,
 }
-
 
 impl Attribute {
     pub fn name(&self) -> &str {
@@ -47,7 +47,6 @@ impl Attribute {
     pub fn set_type(&mut self, new_type: AttributeType) {
         self.attribute_type = new_type;
     }
-
 }
 
 impl Attribute {
@@ -64,17 +63,17 @@ impl Attribute {
     }
 }
 
-/// The possible row options
+/// The possible column options
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum AttributeType {
     /// Built-in data type
     Logical(DataType),
     /// Domain type
     Domain(DomainId),
-    /// Foreign key
-    ForeignKey(ForeignKey),
+    /// Foreign key, this is a single attribute, that is a part of a foreign key constraint
+    /// AttrId - the ID of the attribute that this FK attribute corresponds to
+    ForeignKeyAttribute(AttrId),
 }
-
 
 impl Default for Attribute {
     fn default() -> Self {

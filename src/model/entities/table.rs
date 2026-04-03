@@ -1,7 +1,9 @@
+use egui::{Id, Modal};
 // model/entities/table.rs
+use crate::app::TableId;
+use crate::model::attribute::{AttrId, Attribute};
+use crate::model::constraints::constraint::{FkId, ForeignKey, NotNull, PrimaryKey, Unique};
 use slotmap::SlotMap;
-use crate::model::constraints::constraint::{ForeignKey, NotNull, FkId, PrimaryKey, Unique};
-use crate::model::field::{Attribute, AttrId};
 
 /// SQL Table
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -9,31 +11,45 @@ pub struct Table {
     /// Title (name) of the database
     pub title: String,
 
-    /// Table rows
+    /// Table columns, contain "physical" attributes
     pub attributes: SlotMap<AttrId, Attribute>,
-    
+
+    /// Primary key constraint, contains only Ids of attributes that the PK is made out of
     pub pk: PrimaryKey,
 
-    pub fks: SlotMap<FkId, AttrId>,
+    /// Stores ForeignKey constraints
+    pub fks: SlotMap<FkId, ForeignKey>,
 
+    /// Vector of Unique constraints, does not contain the values itself, only I
     uniques: Vec<Unique>,
 
     not_nulls: Vec<NotNull>,
-}
 
+    #[serde(skip)]
+    pub open_modal: bool,
+
+    #[serde(skip)]
+    pub current_fk: Option<ForeignKey>,
+}
 
 impl Table {
     pub fn new_field(&mut self) {
         self.attributes.insert(Attribute::default());
     }
 
+    pub fn change_fk(&mut self, fk_id: FkId, foreign_key: ForeignKey) {
+        let fk = self.fks.remove(fk_id).expect("ERR");
+        self.fks.insert(foreign_key);
+    }
+
+    pub fn remove_fk(&mut self) {}
 
     pub fn add_field(&mut self, field: Attribute) {
         self.attributes.insert(field);
     }
 
     pub fn remove_field(&mut self, id: AttrId) {
-        if let None =self.attributes.remove(id) {
+        if let None = self.attributes.remove(id) {
             panic!("ID not found")
         }
     }
@@ -45,7 +61,6 @@ impl Table {
     pub fn attributes_mut(&mut self) -> &mut SlotMap<AttrId, Attribute> {
         &mut self.attributes
     }
-
 
     pub fn change_pk(&mut self, pk: PrimaryKey) {
         self.pk = pk;
@@ -76,6 +91,8 @@ impl Default for Table {
             fks: SlotMap::with_key(),
             uniques: vec![],
             not_nulls: vec![],
+            open_modal: false,
+            current_fk: None,
         }
     }
 }

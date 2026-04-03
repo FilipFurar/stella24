@@ -2,14 +2,11 @@
 
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
-use slotmap::{SlotMap};
+use slotmap::SlotMap;
 use std::fs;
 //use crate::app::command::{Command, CommandHistory};
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
-
-use crate::model::{/*connector::Connector,*/ entities::domain::Domain, entities::table::Table};
-use crate::model::constraints::constraint::ForeignKey;
-use crate::model::field::{Attribute, AttributeType};
+use crate::model::{entities::domain::Domain, entities::table::Table};
 
 mod command;
 
@@ -33,7 +30,6 @@ slotmap::new_key_type! {
 pub struct AppStella {
     tables: SlotMap<TableId, Table>,
     domains: SlotMap<DomainId, Domain>,
-
     /*#[serde(skip)]
     command_queue: Vec<Command>,
 
@@ -284,7 +280,7 @@ impl AppStella {
 
             for id in table_keys {
                 let window_id = Id::new(id);
-                let title = self.tables[id].title().to_owned();
+                let title = &self.tables[id].title;
 
                 let mut should_delete = false;
 
@@ -298,11 +294,9 @@ impl AppStella {
                         let table = &mut self.tables[id];
                         table.draw(ui, id, domains, &*tables);
 
-                        if table.can_delete() {
-                            ui.separator();
-                            if ui.button("Delete").clicked() {
-                                should_delete = true;
-                            }
+                        ui.separator();
+                        if ui.button("Delete").clicked() {
+                            should_delete = true;
                         }
                     });
 

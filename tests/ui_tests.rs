@@ -1,4 +1,4 @@
-use stella24::model::field::Attribute;
+use stella24::model::attribute::Attribute;
 use stella24::model::entities::table::Table;
 
 #[test]
