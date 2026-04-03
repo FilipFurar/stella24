@@ -8,7 +8,6 @@ use crate::model::entities::table::Table;
 use eframe::epaint::Color32;
 use egui::{Id, Modal, RichText, Stroke, Ui};
 use slotmap::SlotMap;
-use std::ops::Index;
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
@@ -65,25 +64,32 @@ impl Table {
             if save_to_fks {
                 if let Some(other_table_id) = fk.references {
                     if let Some(other_table) = tables.get(other_table_id) {
-                        for other_table_attr_id in &other_table.pk.attributes {
-                            fk.local_attrs.insert(*other_table_attr_id);
+                        if (other_table.pk.attributes.len() > 0) {
+                            for other_table_attr_id in &other_table.pk.attributes {
+                                fk.local_attrs.insert(*other_table_attr_id);
 
-                            let current_table_fk_id = self.fks.insert(fk.clone());
+                                let current_table_fk_id = self.fks.insert(fk.clone());
 
-                            self.attributes.insert(Attribute {
-                                name: format!(
-                                    "{}_{}",
-                                    self.fks.get(current_table_fk_id).expect("fk_id error").name,
-                                    other_table
-                                        .attributes
-                                        .get(*other_table_attr_id)
-                                        .expect("error attribut id")
-                                        .name
-                                ),
-                                attribute_type: AttributeType::ForeignKeyAttribute(*other_table_attr_id),
-                                pk: false,
-                                nullable: false,
-                            });
+                                self.attributes.insert(Attribute {
+                                    name: format!(
+                                        "{}_{}",
+                                        self.fks
+                                            .get(current_table_fk_id)
+                                            .expect("fk_id error")
+                                            .name,
+                                        other_table
+                                            .attributes
+                                            .get(*other_table_attr_id)
+                                            .expect("error attribute id")
+                                            .name
+                                    ),
+                                    attribute_type: AttributeType::ForeignKeyAttribute(
+                                        *other_table_attr_id,
+                                    ),
+                                    pk: false,
+                                    nullable: false,
+                                });
+                            }
                         }
                     }
                 }
@@ -121,7 +127,7 @@ impl Table {
             return;
         }
 
-        for (_, fk) in &self.fks {
+        for (_, fk) in &mut self.fks {
             fk.display(ui);
         }
     }
