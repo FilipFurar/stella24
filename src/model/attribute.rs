@@ -1,9 +1,7 @@
 // model/attribute
 
 use crate::app::DomainId;
-use crate::model::constraints::constraint::{FkId, ForeignKey};
 use crate::model::datatype::DataType;
-use crate::model::entities::table::Table;
 
 slotmap::new_key_type! {
     /// Unique type for FieldId keys

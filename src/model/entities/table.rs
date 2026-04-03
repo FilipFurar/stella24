@@ -1,6 +1,4 @@
-use egui::{Id, Modal};
 // model/entities/table.rs
-use crate::app::TableId;
 use crate::model::attribute::{AttrId, Attribute};
 use crate::model::constraints::constraint::{FkId, ForeignKey, NotNull, PrimaryKey, Unique};
 use slotmap::SlotMap;
@@ -38,7 +36,7 @@ impl Table {
     }
 
     pub fn change_fk(&mut self, fk_id: FkId, foreign_key: ForeignKey) {
-        let fk = self.fks.remove(fk_id).expect("ERR");
+        self.fks.remove(fk_id).expect("ERR");
         self.fks.insert(foreign_key);
     }
 
@@ -49,7 +47,7 @@ impl Table {
     }
 
     pub fn remove_field(&mut self, id: AttrId) {
-        if let None = self.attributes.remove(id) {
+        if self.attributes.remove(id).is_none() {
             panic!("ID not found")
         }
     }

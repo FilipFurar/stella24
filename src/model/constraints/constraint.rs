@@ -55,6 +55,12 @@ impl PrimaryKey {
     }
 }
 
+impl Default for PrimaryKey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ForeignKey {
     pub fn new() -> Self {
         Self {
@@ -62,5 +68,11 @@ impl ForeignKey {
             references: None,
             local_attrs: Default::default(),
         }
+    }
+}
+
+impl Default for ForeignKey {
+    fn default() -> Self {
+        Self::new()
     }
 }

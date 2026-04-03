@@ -9,8 +9,6 @@ use eframe::epaint::Color32;
 use egui::{Id, Modal, RichText, Stroke, Ui};
 use slotmap::SlotMap;
 
-const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
-const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 
 impl Table {
@@ -61,37 +59,30 @@ impl Table {
         });
 
         if should_close {
-            if save_to_fks {
-                if let Some(other_table_id) = fk.references {
-                    if let Some(other_table) = tables.get(other_table_id) {
-                        if (other_table.pk.attributes.len() > 0) {
-                            for other_table_attr_id in &other_table.pk.attributes {
-                                fk.local_attrs.insert(*other_table_attr_id);
+            if save_to_fks
+                && let Some(other_table_id) = fk.references
+                && let Some(other_table) = tables.get(other_table_id)
+                && !other_table.pk.attributes.is_empty()
+            {
+                for other_table_attr_id in &other_table.pk.attributes {
+                    fk.local_attrs.insert(*other_table_attr_id);
 
-                                let current_table_fk_id = self.fks.insert(fk.clone());
+                    let current_table_fk_id = self.fks.insert(fk.clone());
 
-                                self.attributes.insert(Attribute {
-                                    name: format!(
-                                        "{}_{}",
-                                        self.fks
-                                            .get(current_table_fk_id)
-                                            .expect("fk_id error")
-                                            .name,
-                                        other_table
-                                            .attributes
-                                            .get(*other_table_attr_id)
-                                            .expect("error attribute id")
-                                            .name
-                                    ),
-                                    attribute_type: AttributeType::ForeignKeyAttribute(
-                                        *other_table_attr_id,
-                                    ),
-                                    pk: false,
-                                    nullable: false,
-                                });
-                            }
-                        }
-                    }
+                    self.attributes.insert(Attribute {
+                        name: format!(
+                            "{}_{}",
+                            self.fks.get(current_table_fk_id).expect("fk_id error").name,
+                            other_table
+                                .attributes
+                                .get(*other_table_attr_id)
+                                .expect("error attribute id")
+                                .name
+                        ),
+                        attribute_type: AttributeType::ForeignKeyAttribute(*other_table_attr_id),
+                        pk: false,
+                        nullable: false,
+                    });
                 }
             }
             // else: drop fk (Cancel)
@@ -103,7 +94,7 @@ impl Table {
 
     /// Draw the primary key constraint
     fn draw_pk(&mut self, ui: &mut Ui) {
-        if self.pk.attributes.len() > 0 {
+        if !self.pk.attributes.is_empty() {
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, RED))
                 .show(ui, |ui| {
@@ -123,7 +114,7 @@ impl Table {
 
     /// Draw ForeignKey constraints
     pub fn draw_fks(&mut self, ui: &mut Ui) {
-        if self.fks.len() < 1 {
+        if self.fks.is_empty() {
             return;
         }
 

@@ -174,20 +174,20 @@ impl AppStella {
 
     /// Save file to disk
     pub fn handle_save(&mut self, path: std::path::PathBuf) {
-        if let Ok(json) = serde_json::to_string_pretty(&self) {
-            if let Err(err) = fs::write(&path, json) {
-                eprintln!("Error saving file: {}", err);
-            }
+        if let Ok(json) = serde_json::to_string_pretty(&self)
+            && let Err(err) = fs::write(&path, json)
+        {
+            eprintln!("Error saving file: {}", err);
         }
     }
 
     /// Open file on disk
     pub fn handle_open(&mut self, path: std::path::PathBuf) {
-        if let Ok(json) = fs::read_to_string(path) {
-            if let Ok(state) = serde_json::from_str::<AppStella>(&json) {
-                self.tables = state.tables;
-                self.domains = state.domains;
-            }
+        if let Ok(json) = fs::read_to_string(path)
+            && let Ok(state) = serde_json::from_str::<AppStella>(&json)
+        {
+            self.tables = state.tables;
+            self.domains = state.domains;
         }
     }
 
@@ -348,15 +348,17 @@ impl eframe::App for AppStella {
                     if ui.button("New").clicked() {
                         self.handle_new();
                     }
-                    if !is_web && ui.button("Open").clicked() {
-                        if let Some(path) = rfd::FileDialog::new().pick_file() {
-                            self.handle_open(path);
-                        }
+                    if !is_web
+                        && ui.button("Open").clicked()
+                        && let Some(path) = rfd::FileDialog::new().pick_file()
+                    {
+                        self.handle_open(path);
                     }
-                    if !is_web && ui.button("Save").clicked() {
-                        if let Some(path) = rfd::FileDialog::new().save_file() {
-                            self.handle_save(path);
-                        }
+                    if !is_web
+                        && ui.button("Save").clicked()
+                        && let Some(path) = rfd::FileDialog::new().save_file()
+                    {
+                        self.handle_save(path);
                     }
                     if ui.button("Export HTML").clicked() {
                         self.export_html();

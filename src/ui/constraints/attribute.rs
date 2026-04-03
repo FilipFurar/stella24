@@ -2,18 +2,14 @@
 
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeCategory, AttributeType};
-use crate::model::constraints::constraint::{FkId, ForeignKey};
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 use eframe::epaint::{Color32, Stroke};
-use egui::RichText;
 use egui::Ui;
 use egui::{Popup, PopupCloseBehavior};
 use slotmap::{Key, SlotMap};
 
-const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
-const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 
 /// A struct for storing UI changes, like attribute deletion or adding/removing from PK
@@ -32,7 +28,7 @@ impl DataType {
         if !self.params.is_empty() {
             ui.horizontal(|ui| {
                 ui.label("(");
-                for (_i, param) in self.params.iter_mut().enumerate() {
+                for param in self.params.iter_mut() {
                     ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
                 }
                 ui.label(")");
@@ -60,12 +56,8 @@ impl Attribute {
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(75.0));
 
-                    let display_text =
-                        self.attribute_type
-                            .display_text(domains, tables, current_table);
-
                     match &self.attribute_type {
-                        AttributeType::Logical(datatype) => {
+                        AttributeType::Logical(_datatype) => {
                             self.attribute_type.draw_compact(
                                 ui,
                                 id,
@@ -74,7 +66,7 @@ impl Attribute {
                                 current_table,
                             );
                         }
-                        AttributeType::Domain(domain) => {
+                        AttributeType::Domain(_domain) => {
                             self.attribute_type.draw_compact(
                                 ui,
                                 id,
@@ -83,9 +75,8 @@ impl Attribute {
                                 current_table,
                             );
                         }
-                        AttributeType::ForeignKeyAttribute(fk_attr) => {
-                            //self.attribute_type.draw_fk_attribute(ui, tables.get())
-                        }
+
+                        _ => {}
                     }
 
                     let mut is_pk = self.pk;
@@ -188,29 +179,21 @@ impl AttributeType {
             return;
         }
 
-        let inner = Popup::from_response(&button_response)
+        let _inner = Popup::from_response(&button_response)
             .id(popup_id)
             .close_behavior(PopupCloseBehavior::IgnoreClicks)
             .show(|ui| {
                 ui.set_min_width(250.0);
-                self.draw_popup(ui, id, domains, tables, current_table);
+                self.draw_popup(ui, id, domains);
             });
 
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             ui.data_mut(|d| d.insert_temp(popup_id, false));
-            return;
         }
     }
 
     /// Draws the popup for type selection
-    fn draw_popup(
-        &mut self,
-        ui: &mut Ui,
-        id: AttrId,
-        domains: &SlotMap<DomainId, Domain>,
-        tables: &SlotMap<TableId, Table>,
-        current_table: TableId,
-    ) {
+    fn draw_popup(&mut self, ui: &mut Ui, id: AttrId, domains: &SlotMap<DomainId, Domain>) {
         ui.horizontal(|ui| {
             let current_category = self.category();
             let mut new_category = current_category;
@@ -261,8 +244,8 @@ impl AttributeType {
                             }
                         });
 
-                    for (i, param) in dt.params.iter_mut().enumerate() {
-                        ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
+                    for param in dt.params.iter_mut() {
+                    ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
                     }
                 }
                 AttributeType::Domain(domain_id) => {
@@ -280,23 +263,7 @@ impl AttributeType {
                             }
                         });
                 }
-                AttributeType::ForeignKeyAttribute(fk) => {
-                    /*let selected = fk.references
-                        .and_then(|tid| tables.get(tid))
-                        .map(|t| t.title.clone())
-                        .unwrap_or_else(|| "Select table".to_string());
-
-                    egui::ComboBox::from_id_salt(format!("fk_{}", id.data().as_ffi()))
-                        .selected_text(&selected)
-                        .show_ui(ui, |ui| {
-                            for (tid, table) in tables {
-                                if tid == current_table { continue; }
-                                if ui.selectable_label(fk.references == Some(tid), &table.title).clicked() {
-                                    fk.references = Some(tid);
-                                }
-                            }
-                        });*/
-                }
+                _ => {}
             }
         });
     }
