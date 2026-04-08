@@ -1,5 +1,5 @@
-use crate::model::constraints::constraint::{FkId, ForeignKey};
-use eframe::epaint::{Color32, Stroke};
+use crate::model::constraints::constraint::{ForeignKey};
+use eframe::epaint::{Color32};
 use egui::{RichText, Ui};
 
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
