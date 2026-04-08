@@ -174,7 +174,7 @@ impl AppStella {
 
     /// Save file to disk
     pub fn handle_save(&mut self, path: std::path::PathBuf) {
-        if let Ok(json) = serde_json::to_string_pretty(&self)
+        if let Ok(json) = serde_json::to_string(&self)
             && let Err(err) = fs::write(&path, json)
         {
             eprintln!("Error saving file: {}", err);

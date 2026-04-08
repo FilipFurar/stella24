@@ -2,7 +2,7 @@
 
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
-use crate::model::constraints::constraint::ForeignKey;
+use crate::model::constraints::constraint::{FkId, ForeignKey};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 use eframe::epaint::Color32;
@@ -10,6 +10,8 @@ use egui::{Id, Modal, RichText, Stroke, Ui};
 use slotmap::SlotMap;
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
+const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
+
 
 impl Table {
     fn handle_fk_modal(&mut self, ui: &mut Ui, tables: &SlotMap<TableId, Table>) {
@@ -64,25 +66,30 @@ impl Table {
                 && let Some(other_table) = tables.get(other_table_id)
                 && !other_table.pk.attributes.is_empty()
             {
+
+                let current_table_fk_id = self.fks.insert(fk.clone());
+
                 for other_table_attr_id in &other_table.pk.attributes {
                     fk.local_attrs.insert(*other_table_attr_id);
 
-                    let current_table_fk_id = self.fks.insert(fk.clone());
+                    let other_table_attr_option = other_table
+                        .attributes
+                        .get(*other_table_attr_id);
 
-                    self.attributes.insert(Attribute {
-                        name: format!(
-                            "{}_{}",
-                            self.fks.get(current_table_fk_id).expect("fk_id error").name,
-                            other_table
-                                .attributes
-                                .get(*other_table_attr_id)
-                                .expect("error attribute id")
-                                .name
-                        ),
-                        attribute_type: AttributeType::ForeignKeyAttribute(*other_table_attr_id),
-                        pk: false,
-                        nullable: false,
-                    });
+
+                    if let Some(other_attr) = other_table_attr_option {
+                        self.attributes.insert(Attribute {
+                            name: format!(
+                                "{}_{}",
+                                self.fks.get(current_table_fk_id).expect("fk_id error").name,
+                                other_attr.name
+                            ),
+                            attribute_type: AttributeType::ForeignKeyAttribute(*other_table_attr_id),
+                            pk: false,
+                            nullable: false,
+                        });
+                    }
+
                 }
             }
             // else: drop fk (Cancel)
@@ -114,12 +121,34 @@ impl Table {
 
     /// Draw ForeignKey constraints
     pub fn draw_fks(&mut self, ui: &mut Ui) {
+
+        let mut to_delete: Option<FkId> = None;
+
         if self.fks.is_empty() {
             return;
         }
 
-        for (_, fk) in &mut self.fks {
-            fk.display(ui);
+        for (fkid, fk) in &mut self.fks {
+            egui::Frame::group(ui.style())
+                .stroke(Stroke::new(1.0, BLUE))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        fk.display(ui);
+
+                        if ui.button("🗑").clicked() {
+                            to_delete = Some(fkid);
+                        }
+                    });
+                });
+        }
+
+        if let Some(fkid) = to_delete {
+            if let Some(fk) = self.fks.get(fkid) {
+                for attid in &fk.local_attrs {
+                    self.attributes.remove(*attid);
+                }
+            }
+            self.fks.remove(fkid);
         }
     }
 
@@ -154,6 +183,7 @@ impl Table {
         }
 
         if let Some(id) = to_delete {
+            self.pk.attributes.remove(&id);
             self.remove_field(id);
         }
     }
