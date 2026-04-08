@@ -28,6 +28,9 @@ pub struct Table {
 
     #[serde(skip)]
     pub current_fk: Option<ForeignKey>,
+
+    /*#[serde(skip)]
+    pub current_attr: Option<Attribute>,*/
 }
 
 impl Table {

@@ -13,6 +13,26 @@ const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 
 impl Table {
+
+    /*fn handle_attribute_modal(&mut self, ui: &mut Ui) {
+        let mut should_close = false;
+        let mut save_to_attributes = false;
+
+        let mut attr = match self.current_attr.take() {
+            Some(attr) => attr,
+            None => return,
+        };
+
+        Modal::new(Id::new("attribute_modal")).show(ui.ctx(), |ui| {
+            ui.set_width(250.0);
+            ui.heading("New Attribute");
+
+            ui.label("Name:");
+            ui.text_edit_singleline(&mut attr.name);
+
+        });
+    }*/
+
     fn handle_fk_modal(&mut self, ui: &mut Ui, tables: &SlotMap<TableId, Table>) {
         // Take ownership out of Option, put back if not closing
         let mut fk = match self.current_fk.take() {
@@ -60,37 +80,42 @@ impl Table {
         });
 
         if should_close {
-            if save_to_fks
-                && let Some(other_table_id) = fk.references
-                && let Some(other_table) = tables.get(other_table_id)
-                && !other_table.pk.attributes.is_empty()
-            {
+            if save_to_fks {
+                // Check prerequisites before saving
+                let can_save = fk
+                    .references
+                    .and_then(|id| tables.get(id))
+                    .map(|t| !t.pk.attributes.is_empty())
+                    .unwrap_or(false);
 
-                let current_table_fk_id = self.fks.insert(fk.clone());
+                if can_save {
 
-                for other_table_attr_id in &other_table.pk.attributes {
-                    fk.local_attrs.insert(*other_table_attr_id);
+                    if let Some(other_table_id) = fk.references {
+                        if let Some(other_table) = tables.get(other_table_id) {
+                            for other_attr_id in &other_table.pk.attributes {
+                                if let Some(other_attr) = other_table.attributes.get(*other_attr_id) {
+                                    let fk_name = fk.name.clone();
 
-                    let other_table_attr_option = other_table
-                        .attributes
-                        .get(*other_table_attr_id);
+                                    let local_attr = Attribute {
+                                        name: format!("{}_{}", fk_name, other_attr.name),
+                                        attribute_type: AttributeType::ForeignKeyAttribute(*other_attr_id),
+                                        pk: false,
+                                        nullable: false,
+                                    };
 
-
-                    if let Some(other_attr) = other_table_attr_option {
-                        self.attributes.insert(Attribute {
-                            name: format!(
-                                "{}_{}",
-                                self.fks.get(current_table_fk_id).expect("fk_id error").name,
-                                other_attr.name
-                            ),
-                            attribute_type: AttributeType::ForeignKeyAttribute(*other_table_attr_id),
-                            pk: false,
-                            nullable: false,
-                        });
+                                    let local_attr_key = self.attributes.insert(local_attr);
+                                    fk.local_attrs.insert(local_attr_key);
+                                }
+                            }
+                        }
                     }
+
+                    // Insert the fully-built FK
+                    self.fks.insert(fk);
                 }
+                // else: drop fk (validation failed)
             }
-            // else: drop fk (Cancel)
+            // else: drop fk (cancelled)
         } else {
             // Put it back if not closing
             self.current_fk = Some(fk);
@@ -119,33 +144,34 @@ impl Table {
 
     /// Draw ForeignKey constraints
     pub fn draw_fks(&mut self, ui: &mut Ui) {
-        let mut to_delete: Option<FkId> = None;
-
         if self.fks.is_empty() {
             return;
         }
 
+        let mut to_delete: Vec<FkId> = Vec::new();
+
         for (fkid, fk) in &mut self.fks {
+            let fkid = fkid;
+
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, BLUE))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         fk.display(ui);
-
                         if ui.button("🗑").clicked() {
-                            to_delete = Some(fkid);
+                            to_delete.push(fkid);
                         }
                     });
                 });
         }
 
-        if let Some(fkid) = to_delete {
-            if let Some(fk) = self.fks.get(fkid) {
-                for attid in &fk.local_attrs {
-                    self.attributes.remove(*attid);
+        // Batch delete with cleanup
+        for fkid in to_delete {
+            if let Some(fk) = self.fks.remove(fkid) {
+                for attid in fk.local_attrs {
+                    self.attributes.remove(attid);
                 }
             }
-            self.fks.remove(fkid);
         }
     }
 
@@ -203,6 +229,7 @@ impl Table {
         self.draw_fks(ui);
 
         self.handle_fk_modal(ui, tables);
+        //self.handle_attribute_modal(ui);
 
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
