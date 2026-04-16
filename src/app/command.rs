@@ -3,9 +3,7 @@ use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::datatype::DataType;
 
-/// Intent-based state changes.
-///
-/// Keep this enum small and explicit: UI emits intents, `AppStella` executes them.
+/// Possible commands to dispatch as enum variants
 #[derive(Debug)]
 pub enum Command {
     // App/file lifecycle
@@ -55,7 +53,7 @@ pub enum Command {
     RemoveUniqueAttribute { table: TableId, index: usize, attr: AttrId },
 }
 
-/// Minimal FIFO queue for command batching per frame.
+/// queue for command batching per frame.
 #[derive(Default, Debug)]
 pub struct CommandQueue {
     pending: Vec<Command>,
