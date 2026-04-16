@@ -290,188 +290,187 @@ impl AppStella {
             let table_keys: Vec<TableId> = self.tables.keys().collect();
 
             for id in table_keys {
-                 let window_id = Id::new(id);
-                 let title = self.tables[id].title.clone();
+                let window_id = Id::new(id);
+                let title = self.tables[id].title.clone();
 
-                 let mut should_delete = false;
+                let mut should_delete = false;
 
-                 egui::Window::new(title)
-                     .id(window_id)
-                     .resizable(true)
-                     .collapsible(false)
-                     .default_size(vec2(300.0, 200.0))
-                     .show(ctx, |ui| {
-                         let ui_ctx = TableUiContext::from_app(&self.tables, &self.domains, id);
-                         let table = self.tables.get_mut(id).expect("table missing");
-                         let changes = table.draw(ui, &ui_ctx);
-                         if changes.title_changed {
-                             table_commands.push(Command::RenameTable {
-                                 table: id,
-                                 title: table.title.clone(),
-                             });
-                         }
-                         for row in changes.attribute_changes {
-                             if row.delete {
-                                 table_commands.push(Command::DeleteAttribute {
-                                     table: id,
-                                     attr: row.attr_id,
-                                 });
-                                 continue;
-                             }
+                egui::Window::new(title)
+                    .id(window_id)
+                    .resizable(true)
+                    .collapsible(false)
+                    .default_size(vec2(300.0, 200.0))
+                    .show(ctx, |ui| {
+                        let ui_ctx = TableUiContext::from_app(&self.tables, &self.domains, id);
+                        let table = self.tables.get_mut(id).expect("table missing");
+                        let changes = table.draw(ui, &ui_ctx);
+                        if changes.title_changed {
+                            table_commands.push(Command::RenameTable {
+                                table: id,
+                                title: table.title.clone(),
+                            });
+                        }
+                        for row in changes.attribute_changes {
+                            if row.delete {
+                                table_commands.push(Command::DeleteAttribute {
+                                    table: id,
+                                    attr: row.attr_id,
+                                });
+                                continue;
+                            }
 
-                              if let Some(attr) = table.attributes.get(row.attr_id) {
-                                  if row.rename_changed {
-                                      table_commands.push(Command::RenameAttribute {
-                                          table: id,
-                                          attr: row.attr_id,
-                                          name: attr.name.clone(),
-                                      });
-                                  }
-                                  if row.type_changed {
-                                      table_commands.push(Command::SetAttributeType {
-                                          table: id,
-                                          attr: row.attr_id,
-                                          attribute_type: attr.attribute_type.clone(),
-                                      });
-                                  }
-                                  if row.not_null_changed {
-                                      table_commands.push(Command::SetAttributeNotNull {
-                                          table: id,
-                                          attr: row.attr_id,
-                                          value: attr.not_null,
-                                      });
-                                  }
-                                  if row.unique_changed {
-                                      table_commands.push(Command::SetAttributeUnique {
-                                          table: id,
-                                          attr: row.attr_id,
-                                          value: attr.unique,
-                                      });
-                                  }
-                              }
+                            if let Some(attr) = table.attributes.get(row.attr_id) {
+                                if row.rename_changed {
+                                    table_commands.push(Command::RenameAttribute {
+                                        table: id,
+                                        attr: row.attr_id,
+                                        name: attr.name.clone(),
+                                    });
+                                }
+                                if row.type_changed {
+                                    table_commands.push(Command::SetAttributeType {
+                                        table: id,
+                                        attr: row.attr_id,
+                                        attribute_type: attr.attribute_type.clone(),
+                                    });
+                                }
+                                if row.not_null_changed {
+                                    table_commands.push(Command::SetAttributeNotNull {
+                                        table: id,
+                                        attr: row.attr_id,
+                                        value: attr.not_null,
+                                    });
+                                }
+                                if row.unique_changed {
+                                    table_commands.push(Command::SetAttributeUnique {
+                                        table: id,
+                                        attr: row.attr_id,
+                                        value: attr.unique,
+                                    });
+                                }
+                            }
 
-                              if let Some(value) = row.pk_change {
-                                  table_commands.push(Command::SetAttributePrimaryKey {
-                                      table: id,
-                                      attr: row.attr_id,
-                                      value,
-                                  });
-                              }
-                          }
-                          if changes.add_attribute {
-                              table_commands.push(Command::AddAttribute {
-                                  table: id,
-                                  attribute: Attribute::default(),
-                              });
-                          }
+                            if let Some(value) = row.pk_change {
+                                table_commands.push(Command::SetAttributePrimaryKey {
+                                    table: id,
+                                    attr: row.attr_id,
+                                    value,
+                                });
+                            }
+                        }
+                        if changes.add_attribute {
+                            table_commands.push(Command::AddAttribute {
+                                table: id,
+                                attribute: Attribute::default(),
+                            });
+                        }
 
-                          ui.separator();
-                          if ui.button("Delete").clicked() {
-                              should_delete = true;
-                          }
-                      });
+                        ui.separator();
+                        if ui.button("Delete").clicked() {
+                            should_delete = true;
+                        }
+                    });
 
-                  if should_delete {
-                      table_to_delete = Some(id);
-                  }
-              }
+                if should_delete {
+                    table_to_delete = Some(id);
+                }
+            }
 
-              egui::SidePanel::right("domains")
-                  .resizable(true)
-                  .default_width(260.0)
-                  .show(ctx, |ui| {
-                      ui.heading("Domains");
+            egui::SidePanel::right("domains")
+                .resizable(true)
+                .default_width(260.0)
+                .show(ctx, |ui| {
+                    ui.heading("Domains");
 
-                      egui::ScrollArea::vertical().show(ui, |ui| {
-                          for (id, domain) in self.domains.iter_mut() {
-                              ui.group(|ui| {
-                                  let changes = domain.draw(ui, id);
-                                  if changes.name_changed {
-                                      domain_commands.push(Command::RenameDomain {
-                                          domain: id,
-                                          name: domain.name.clone(),
-                                      });
-                                  }
-                                  if changes.data_type_changed {
-                                      domain_commands.push(Command::SetDomainType {
-                                          domain: id,
-                                          data_type: domain.data_type.clone(),
-                                      });
-                                  }
-                                  if ui.button("🗑").clicked() {
-                                      domain_to_delete = Some(id);
-                                  }
-                              });
-                          }
-                      });
-                  });
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for (id, domain) in self.domains.iter_mut() {
+                            ui.group(|ui| {
+                                let changes = domain.draw(ui, id);
+                                if changes.name_changed {
+                                    domain_commands.push(Command::RenameDomain {
+                                        domain: id,
+                                        name: domain.name.clone(),
+                                    });
+                                }
+                                if changes.data_type_changed {
+                                    domain_commands.push(Command::SetDomainType {
+                                        domain: id,
+                                        data_type: domain.data_type.clone(),
+                                    });
+                                }
+                                if ui.button("🗑").clicked() {
+                                    domain_to_delete = Some(id);
+                                }
+                            });
+                        }
+                    });
+                });
 
-              for cmd in domain_commands {
-                  self.dispatch(cmd);
-              }
+            for cmd in domain_commands {
+                self.dispatch(cmd);
+            }
 
-              for cmd in table_commands {
-                  self.dispatch(cmd);
-              }
+            for cmd in table_commands {
+                self.dispatch(cmd);
+            }
 
-              if let Some(idx) = table_to_delete {
-                  self.dispatch(Command::DeleteTable { table: idx });
-              }
+            if let Some(idx) = table_to_delete {
+                self.dispatch(Command::DeleteTable { table: idx });
+            }
 
-              if let Some(idx) = domain_to_delete {
-                  self.dispatch(Command::DeleteDomain { domain: idx });
-              }
+            if let Some(idx) = domain_to_delete {
+                self.dispatch(Command::DeleteDomain { domain: idx });
+            }
 
-              ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                  egui::warn_if_debug_build(ui);
-              });
-          });
-      }
-  }
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                egui::warn_if_debug_build(ui);
+            });
+        });
+    }
+}
 
-  impl eframe::App for AppStella {
-      /// Runs every frame
-      fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-          egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-              egui::MenuBar::new().ui(ui, |ui| {
-                  let is_web = cfg!(target_arch = "wasm32");
-                  ui.menu_button("File", |ui| {
-                      if ui.button("New").clicked() {
-                          self.handle_new();
-                      }
-                      if !is_web
-                          && ui.button("Open").clicked()
-                          && let Some(path) = rfd::FileDialog::new().pick_file()
-                      {
-                          self.handle_open(path);
-                      }
-                      if !is_web
-                          && ui.button("Save").clicked()
-                          && let Some(path) = rfd::FileDialog::new().save_file()
-                      {
-                          self.handle_save(path);
-                      }
-                      if ui.button("Export HTML").clicked() {
-                          self.export_html();
-                      }
-                      if !is_web && ui.button("Quit").clicked() {
-                          ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                      }
-                  });
-                  ui.separator();
-                  egui::widgets::global_theme_preference_buttons(ui);
+impl eframe::App for AppStella {
+    /// Runs every frame
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
+                let is_web = cfg!(target_arch = "wasm32");
+                ui.menu_button("File", |ui| {
+                    if ui.button("New").clicked() {
+                        self.handle_new();
+                    }
+                    if !is_web
+                        && ui.button("Open").clicked()
+                        && let Some(path) = rfd::FileDialog::new().pick_file()
+                    {
+                        self.handle_open(path);
+                    }
+                    if !is_web
+                        && ui.button("Save").clicked()
+                        && let Some(path) = rfd::FileDialog::new().save_file()
+                    {
+                        self.handle_save(path);
+                    }
+                    if ui.button("Export HTML").clicked() {
+                        self.export_html();
+                    }
+                    if !is_web && ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+                ui.separator();
+                egui::widgets::global_theme_preference_buttons(ui);
 
-                  ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
-                      let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
-                      ui.label(text);
-                  })
-              });
-          });
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
+                    let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
+                    ui.label(text);
+                })
+            });
+        });
 
-          self.draw_workbench_menu(ctx);
+        self.draw_workbench_menu(ctx);
 
-          self.draw_workbench(ctx);
-          self.flush_commands();
-      }
-  }
-
+        self.draw_workbench(ctx);
+        self.flush_commands();
+    }
+}

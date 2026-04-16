@@ -11,5 +11,4 @@ pub enum Condition {
 pub struct Check {
     pub name: String,
     pub condition: Condition,
-    
 }

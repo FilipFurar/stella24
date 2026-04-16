@@ -30,7 +30,6 @@ pub struct TableChanges {
 }
 
 impl Table {
-
     /*fn handle_attribute_modal(&mut self, ui: &mut Ui) {
         let mut should_close = false;
         let mut save_to_attributes = false;
@@ -105,14 +104,15 @@ impl Table {
                     .unwrap_or(false);
 
                 if can_save {
-
                     if let Some(other_table_id) = fk.references {
                         let fk_name = fk.name.clone();
                         if let Some(pk_attrs) = ctx.table_pk_attributes(other_table_id) {
                             for (other_attr_id, other_attr_name) in pk_attrs {
                                 let local_attr = Attribute {
                                     name: format!("{}_{}", fk_name, other_attr_name),
-                                    attribute_type: AttributeType::ForeignKeyAttribute(*other_attr_id),
+                                    attribute_type: AttributeType::ForeignKeyAttribute(
+                                        *other_attr_id,
+                                    ),
                                     pk: false,
                                     not_null: false,
                                     unique: false,
@@ -121,7 +121,7 @@ impl Table {
                                 fk.local_attrs.insert(local_attr_key);
                             }
                         }
-                     }
+                    }
 
                     // Insert the fully-built FK
                     self.fks.insert(fk);
@@ -195,10 +195,10 @@ impl Table {
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, GREEN))
                 .show(ui, |ui| {
-                        unique.draw(ui, &self.attributes);
-                        if ui.button("🗑").clicked() {
-                            to_delete.push(i);
-                        }
+                    unique.draw(ui, &self.attributes);
+                    if ui.button("🗑").clicked() {
+                        to_delete.push(i);
+                    }
                 });
         }
 
@@ -208,11 +208,7 @@ impl Table {
     }
 
     /// Draw all attributes
-    fn draw_attributes(
-         &mut self,
-         ui: &mut Ui,
-         ctx: &TableUiContext,
-     ) -> Vec<AttributeRowChanges> {
+    fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
         let mut result = Vec::new();
 
         for (id, attr) in self.attributes_mut() {
@@ -239,11 +235,7 @@ impl Table {
         result
     }
 
-    pub fn draw(
-         &mut self,
-         ui: &mut Ui,
-         ctx: &TableUiContext,
-     ) -> TableChanges {
+    pub fn draw(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> TableChanges {
         let mut changes = TableChanges::default();
 
         ui.horizontal(|ui| {
