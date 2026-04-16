@@ -1,53 +1,77 @@
 use crate::app::{DomainId, TableId};
-use crate::model::attribute::{AttrId, AttributeType};
+use crate::model::attribute::{AttrId, Attribute, AttributeType};
+use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::datatype::DataType;
-/*
-#[derive(Clone, Debug)]
+
+/// Intent-based state changes.
+///
+/// Keep this enum small and explicit: UI emits intents, `AppStella` executes them.
+#[derive(Debug)]
 pub enum Command {
+    // App/file lifecycle
+    NewCanvas,
+
     // Table lifecycle
     CreateTable { title: String },
-    DeleteTable(TableId),
-    RenameTable { id: TableId, new_title: String },
+    DeleteTable { table: TableId },
+    RenameTable { table: TableId, title: String },
+
+    // Domain lifecycle
+    CreateDomain { name: String, data_type: DataType },
+    DeleteDomain { domain: DomainId },
+    RenameDomain { domain: DomainId, name: String },
+    SetDomainType { domain: DomainId, data_type: DataType },
 
     // Attribute lifecycle
-    CreateAttribute {
-        table: TableId,
-        name: String,
-        attr_type: AttributeType
-    },
-    DeleteAttribute { table: TableId, id: AttrId },
-    RenameAttribute { table: TableId, id: AttrId, name: String },
-
-    // Type changes (the popup interactions)
+    AddAttribute { table: TableId, attribute: Attribute },
+    DeleteAttribute { table: TableId, attr: AttrId },
+    RenameAttribute { table: TableId, attr: AttrId, name: String },
     SetAttributeType {
         table: TableId,
         attr: AttrId,
-        new_type: AttributeType
+        attribute_type: AttributeType,
     },
+    SetAttributeNotNull { table: TableId, attr: AttrId, value: bool },
+    SetAttributeUnique { table: TableId, attr: AttrId, value: bool },
+    SetAttributePrimaryKey { table: TableId, attr: AttrId, value: bool },
 
-    // PK management
-    AddToPrimaryKey { table: TableId, attr: AttrId },
-    RemoveFromPrimaryKey { table: TableId, attr: AttrId },
+    // Primary key
     RenamePrimaryKey { table: TableId, name: String },
 
-    // FK management
-    CreateForeignKey {
+    // Foreign keys
+    AddForeignKey { table: TableId, foreign_key: ForeignKey },
+    DeleteForeignKey { table: TableId, fk: FkId },
+    SetForeignKeyReference {
         table: TableId,
-        name: String,
-        attr: AttrId,  // The FK column
-        references: TableId
+        fk: FkId,
+        references: Option<TableId>,
     },
-    DeleteForeignKey { table: TableId, id: usize }, // or FkId
-    SetFkReference { table: TableId, id: usize, references: Option<TableId> },
 
-    // Domain management
-    CreateDomain { name: String, base_type: DataType },
-    DeleteDomain(DomainId),
+    // Unique constraints
+    AddUnique { table: TableId, unique: Unique },
+    DeleteUnique { table: TableId, index: usize },
+    RenameUnique { table: TableId, index: usize, name: String },
+    AddUniqueAttribute { table: TableId, index: usize, attr: AttrId },
+    RemoveUniqueAttribute { table: TableId, index: usize, attr: AttrId },
 }
 
-// For undo/redo support later
-#[derive(Default)]
-pub struct CommandHistory {
-    pub(crate) undo_stack: Vec<Command>,
-    pub(crate) redo_stack: Vec<Command>,
-}*/
+/// Minimal FIFO queue for command batching per frame.
+#[derive(Default, Debug)]
+pub struct CommandQueue {
+    pending: Vec<Command>,
+}
+
+impl CommandQueue {
+    pub fn push(&mut self, command: Command) {
+        self.pending.push(command);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pending.is_empty()
+    }
+
+    /// Drains pending commands in insertion order.
+    pub fn drain(&mut self) -> impl Iterator<Item = Command> + '_ {
+        self.pending.drain(..)
+    }
+}

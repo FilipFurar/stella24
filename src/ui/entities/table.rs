@@ -1,16 +1,33 @@
 // ui/entities/table.rs
 
-use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
-use crate::model::constraints::constraint::{FkId, ForeignKey};
-use crate::model::entities::domain::Domain;
+use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
+use crate::ui::context::TableUiContext;
 use eframe::epaint::Color32;
 use egui::{Id, Modal, RichText, Stroke, Ui};
-use slotmap::SlotMap;
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
+const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
+
+#[derive(Default, Debug)]
+pub struct AttributeRowChanges {
+    pub attr_id: AttrId,
+    pub rename_changed: bool,
+    pub type_changed: bool,
+    pub not_null_changed: bool,
+    pub unique_changed: bool,
+    pub pk_change: Option<bool>,
+    pub delete: bool,
+}
+
+#[derive(Default)]
+pub struct TableChanges {
+    pub title_changed: bool,
+    pub add_attribute: bool,
+    pub attribute_changes: Vec<AttributeRowChanges>,
+}
 
 impl Table {
 
@@ -33,7 +50,7 @@ impl Table {
         });
     }*/
 
-    fn handle_fk_modal(&mut self, ui: &mut Ui, tables: &SlotMap<TableId, Table>) {
+    fn handle_fk_modal(&mut self, ui: &mut Ui, ctx: &TableUiContext) {
         // Take ownership out of Option, put back if not closing
         let mut fk = match self.current_fk.take() {
             Some(fk) => fk,
@@ -52,18 +69,18 @@ impl Table {
 
             let selected_text = fk
                 .references
-                .and_then(|id| tables.get(id))
-                .map(|t| t.title.clone())
+                .and_then(|id| ctx.table_title(id))
+                .map(|t| t.to_string())
                 .unwrap_or_else(|| "No table selected".to_string());
 
             egui::ComboBox::from_id_salt("fk_table_pick")
                 .selected_text(&selected_text)
                 .show_ui(ui, |ui| {
-                    if tables.is_empty() {
+                    if ctx.tables.is_empty() {
                         ui.weak("No tables available");
                     } else {
-                        for (tid, table) in tables.iter() {
-                            ui.selectable_value(&mut fk.references, Some(tid), &table.title);
+                        for table in &ctx.tables {
+                            ui.selectable_value(&mut fk.references, Some(table.id), &table.title);
                         }
                     }
                 });
@@ -84,31 +101,27 @@ impl Table {
                 // Check prerequisites before saving
                 let can_save = fk
                     .references
-                    .and_then(|id| tables.get(id))
-                    .map(|t| !t.pk.attributes.is_empty())
+                    .map(|id| ctx.table_has_pk(id))
                     .unwrap_or(false);
 
                 if can_save {
 
                     if let Some(other_table_id) = fk.references {
-                        if let Some(other_table) = tables.get(other_table_id) {
-                            for other_attr_id in &other_table.pk.attributes {
-                                if let Some(other_attr) = other_table.attributes.get(*other_attr_id) {
-                                    let fk_name = fk.name.clone();
-
-                                    let local_attr = Attribute {
-                                        name: format!("{}_{}", fk_name, other_attr.name),
-                                        attribute_type: AttributeType::ForeignKeyAttribute(*other_attr_id),
-                                        pk: false,
-                                        nullable: false,
-                                    };
-
-                                    let local_attr_key = self.attributes.insert(local_attr);
-                                    fk.local_attrs.insert(local_attr_key);
-                                }
+                        let fk_name = fk.name.clone();
+                        if let Some(pk_attrs) = ctx.table_pk_attributes(other_table_id) {
+                            for (other_attr_id, other_attr_name) in pk_attrs {
+                                let local_attr = Attribute {
+                                    name: format!("{}_{}", fk_name, other_attr_name),
+                                    attribute_type: AttributeType::ForeignKeyAttribute(*other_attr_id),
+                                    pk: false,
+                                    not_null: false,
+                                    unique: false,
+                                };
+                                let local_attr_key = self.attributes.insert(local_attr);
+                                fk.local_attrs.insert(local_attr_key);
                             }
                         }
-                    }
+                     }
 
                     // Insert the fully-built FK
                     self.fks.insert(fk);
@@ -157,7 +170,7 @@ impl Table {
                 .stroke(Stroke::new(1.0, BLUE))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        fk.display(ui);
+                        fk.draw(ui);
                         if ui.button("🗑").clicked() {
                             to_delete.push(fkid);
                         }
@@ -175,71 +188,96 @@ impl Table {
         }
     }
 
-    /// Draw all attributes
-    fn draw_attributes(
-        &mut self,
-        ui: &mut Ui,
-        current_id: TableId,
-        domains: &SlotMap<DomainId, Domain>,
-        tables: &SlotMap<TableId, Table>,
-    ) {
-        let mut to_delete: Option<AttrId> = None;
-        let mut pk_changes: Vec<(AttrId, bool)> = vec![];
+    pub fn draw_uniques(&mut self, ui: &mut Ui) {
+        let mut to_delete: Vec<usize> = Vec::new();
 
-        for (id, attr) in self.attributes_mut() {
-            let changes = attr.draw_attribute(ui, id, domains, tables, current_id);
-
-            if let Some((id, added)) = changes.pk_change {
-                pk_changes.push((id, added));
-            }
-            if let Some(id) = changes.delete {
-                to_delete = Some(id);
-            }
+        for (i, unique) in &mut self.uniques.iter_mut().enumerate() {
+            egui::Frame::group(ui.style())
+                .stroke(Stroke::new(1.0, GREEN))
+                .show(ui, |ui| {
+                        unique.draw(ui, &self.attributes);
+                        if ui.button("🗑").clicked() {
+                            to_delete.push(i);
+                        }
+                });
         }
 
-        for (id, added) in pk_changes {
-            if added {
-                self.pk.attributes.insert(id);
-            } else {
-                self.pk.attributes.remove(&id);
-            }
-        }
-
-        if let Some(id) = to_delete {
-            self.remove_field(id);
+        for i in to_delete {
+            self.uniques.remove(i);
         }
     }
 
+    /// Draw all attributes
+    fn draw_attributes(
+         &mut self,
+         ui: &mut Ui,
+         ctx: &TableUiContext,
+     ) -> Vec<AttributeRowChanges> {
+        let mut result = Vec::new();
+
+        for (id, attr) in self.attributes_mut() {
+            let changes = attr.draw_attribute(ui, id, ctx);
+            if changes.rename_changed
+                || changes.type_changed
+                || changes.not_null_changed
+                || changes.unique_changed
+                || changes.pk_change.is_some()
+                || changes.delete
+            {
+                result.push(AttributeRowChanges {
+                    attr_id: id,
+                    rename_changed: changes.rename_changed,
+                    type_changed: changes.type_changed,
+                    not_null_changed: changes.not_null_changed,
+                    unique_changed: changes.unique_changed,
+                    pk_change: changes.pk_change,
+                    delete: changes.delete,
+                });
+            }
+        }
+
+        result
+    }
+
     pub fn draw(
-        &mut self,
-        ui: &mut Ui,
-        current_id: TableId,
-        domains: &SlotMap<DomainId, Domain>,
-        tables: &SlotMap<TableId, Table>,
-    ) {
+         &mut self,
+         ui: &mut Ui,
+         ctx: &TableUiContext,
+     ) -> TableChanges {
+        let mut changes = TableChanges::default();
+
         ui.horizontal(|ui| {
             ui.label("Title:");
-            ui.text_edit_singleline(&mut self.title);
+            if ui.text_edit_singleline(&mut self.title).changed() {
+                changes.title_changed = true;
+            }
         });
         ui.separator();
 
-        self.draw_attributes(ui, current_id, domains, tables);
+        changes.attribute_changes = self.draw_attributes(ui, ctx);
 
         self.draw_pk(ui);
         self.draw_fks(ui);
 
-        self.handle_fk_modal(ui, tables);
+        self.draw_uniques(ui);
+        //self.draw_not_nulls(ui);
+
+        self.handle_fk_modal(ui, ctx);
         //self.handle_attribute_modal(ui);
 
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
-                self.new_field();
+                changes.add_attribute = true;
             }
             if ui.button("Add FK").clicked() {
                 self.current_fk = Some(ForeignKey::new());
             }
+            if ui.button("Add U").clicked() {
+                self.uniques.push(Unique::new());
+            }
         });
 
         ui.separator();
+        changes
     }
 }

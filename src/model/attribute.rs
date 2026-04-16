@@ -19,7 +19,9 @@ pub struct Attribute {
 
     pub pk: bool,
 
-    pub nullable: bool,
+    pub not_null: bool,
+
+    pub unique: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,13 +58,14 @@ impl Attribute {
                 params: vec![1, 0],
             }),
             pk: true,
-            nullable: false,
+            not_null: false,
+            unique: false,
         }
     }
 }
 
 /// The possible column options
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum AttributeType {
     /// Built-in data type
     Logical(DataType),
@@ -82,7 +85,8 @@ impl Default for Attribute {
                 params: vec![1],
             }),
             pk: false,
-            nullable: true,
+            not_null: true,
+            unique: false,
         }
     }
 }

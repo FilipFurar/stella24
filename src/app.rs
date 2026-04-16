@@ -6,9 +6,12 @@ use slotmap::SlotMap;
 use std::fs;
 //use crate::app::command::{Command, CommandHistory};
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
+use crate::model::attribute::Attribute;
 use crate::model::{entities::domain::Domain, entities::table::Table};
+use crate::ui::context::TableUiContext;
 
 mod command;
+use command::{Command, CommandQueue};
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
@@ -30,6 +33,8 @@ slotmap::new_key_type! {
 pub struct AppStella {
     tables: SlotMap<TableId, Table>,
     domains: SlotMap<DomainId, Domain>,
+    #[serde(skip)]
+    command_queue: CommandQueue,
     /*#[serde(skip)]
     command_queue: Vec<Command>,
 
@@ -56,121 +61,123 @@ impl AppStella {
             Default::default()
         }
     }
-    /*
-    /// UI calls this to queue mutations
+
+    /// Queue a state change to be applied after UI collection.
     pub fn dispatch(&mut self, cmd: Command) {
         self.command_queue.push(cmd);
     }
 
-    /// Call this once per frame before rendering
+    /// Apply all queued commands in FIFO order.
     pub fn flush_commands(&mut self) {
-        for cmd in self.command_queue.drain(..) {
-            self.execute(&cmd);
-            self.history.undo_stack.push(cmd); // For undo support
+        if self.command_queue.is_empty() {
+            return;
+        }
+
+        let commands: Vec<Command> = self.command_queue.drain().collect();
+        for cmd in commands {
+            self.execute(cmd);
         }
     }
 
-    fn execute(&mut self, cmd: &Command) {
+    fn execute(&mut self, cmd: Command) {
         match cmd {
+            Command::NewCanvas => {
+                self.tables.clear();
+                self.domains.clear();
+            }
             Command::CreateTable { title } => {
-                let table = Table {
-                    title: title.clone(),
+                self.tables.insert(Table {
+                    title,
                     ..Default::default()
-                };
-                self.tables.insert(table);
-            }
-
-            Command::DeleteTable(id) => {
-                self.tables.remove(*id);
-                // Cleanup: remove related FKs in other tables?
-            }
-
-            Command::RenameTable { id, new_title } => {
-                if let Some(table) = self.tables.get_mut(*id) {
-                    table.title = new_title.clone();
-                }
-            }
-
-            Command::CreateAttribute { table, name, attr_type } => {
-                if let Some(t) = self.tables.get_mut(*table) {
-                    let attr = Attribute {
-                        name: name.clone(),
-                        attribute_type: *attr_type.clone(),
-                        pk: false,
-                    };
-                    t.attributes.insert(attr);
-                }
-            }
-
-            Command::SetAttributeType { table, attr, new_type } => {
-                if let Some(t) = self.tables.get_mut(*table) {
-                    if let Some(a) = t.attributes.get_mut(*attr) {
-                        a.set_type(*new_type.clone());
-                    }
-                }
-            }
-
-            Command::AddToPrimaryKey { table, attr } => {
-                if let Some(t) = self.tables.get_mut(*table) {
-                    t.pk.attributes.insert(*attr);
-                    if let Some(a) = t.attributes.get_mut(*attr) {
-                        a.pk = true;
-                        a.nullable = false; // PK implies NOT NULL
-                    }
-                }
-            }
-
-            Command::RemoveFromPrimaryKey { table, attr } => {
-                if let Some(t) = self.tables.get_mut(*table) {
-                    t.pk.attributes.remove(attr);
-                    if let Some(a) = t.attributes.get_mut(*attr) {
-                        a.pk = false;
-                    }
-                }
-            }
-
-            Command::CreateForeignKey { table, name, attr, references } => {
-                if let Some(t) = self.tables.get_mut(*table) {
-                    let fk = ForeignKey {
-                        name: name.clone(),
-                        references: Some(*references),
-                    };
-                    t.fks.insert(fk);
-                    // Mark the attribute as FK type
-                    if let Some(a) = t.attributes.get_mut(*attr) {
-                        a.attribute_type = AttributeType::ForeignKey(fk.clone());
-                    }
-                }
-            }
-
-            _ => {} // Handle other commands...
-        }
-
-    }
-
-    pub fn undo(&mut self) {
-        if let Some(cmd) = self.history.undo_stack.pop() {
-            // Execute inverse command
-            self.execute_inverse(&cmd);
-            self.history.redo_stack.push(cmd);
-        }
-    }
-
-    fn execute_inverse(&mut self, cmd: &Command) {
-        // Match on command and do the opposite
-        match cmd {
-            Command::CreateTable { .. } => {
-                // Would need to store ID in command to undo
-            }
-            Command::AddToPrimaryKey { table, attr } => {
-                self.execute(&Command::RemoveFromPrimaryKey {
-                    table: *table,
-                    attr: *attr
                 });
+            }
+            Command::DeleteTable { table } => {
+                self.tables.remove(table);
+            }
+            Command::RenameTable { table, title } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    t.title = title;
+                }
+            }
+            Command::AddAttribute { table, attribute } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    t.add_field(attribute);
+                }
+            }
+            Command::DeleteAttribute { table, attr } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    t.attributes.remove(attr);
+                    t.pk.attributes.remove(&attr);
+                }
+            }
+            Command::RenameAttribute { table, attr, name } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.name = name;
+                }
+            }
+            Command::SetAttributeType {
+                table,
+                attr,
+                attribute_type,
+            } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.attribute_type = attribute_type;
+                }
+            }
+            Command::SetAttributeNotNull { table, attr, value } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.not_null = if a.pk { true } else { value };
+                }
+            }
+            Command::SetAttributeUnique { table, attr, value } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.unique = if a.pk { true } else { value };
+                }
+            }
+            Command::SetAttributePrimaryKey { table, attr, value } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    if value {
+                        t.pk.attributes.insert(attr);
+                    } else {
+                        t.pk.attributes.remove(&attr);
+                    }
+
+                    if let Some(a) = t.attributes.get_mut(attr) {
+                        a.pk = value;
+                        if value {
+                            a.not_null = true;
+                            a.unique = true;
+                        }
+                    }
+                }
+            }
+            Command::CreateDomain { name, data_type } => {
+                self.domains.insert(Domain { name, data_type });
+            }
+            Command::DeleteDomain { domain } => {
+                self.domains.remove(domain);
+            }
+            Command::RenameDomain { domain, name } => {
+                if let Some(d) = self.domains.get_mut(domain) {
+                    d.name = name;
+                }
+            }
+            Command::SetDomainType { domain, data_type } => {
+                if let Some(d) = self.domains.get_mut(domain) {
+                    d.data_type = data_type;
+                }
             }
             _ => {}
         }
-    }*/
+    }
 
     /// Save file to disk
     pub fn handle_save(&mut self, path: std::path::PathBuf) {
@@ -207,8 +214,8 @@ impl AppStella {
         }
             if ui.button("Don't save").clicked() {*/
 
-        self.tables.clear();
-        self.domains.clear();
+        self.dispatch(Command::NewCanvas);
+        self.flush_commands();
         /*}
         });*/
     }
@@ -240,9 +247,9 @@ impl AppStella {
                     )
                     .clicked()
                 {
-                    let table = Table::default();
-
-                    self.tables.insert(table);
+                    self.dispatch(Command::CreateTable {
+                        title: Table::default().title,
+                    });
                 }
                 if ui
                     .add(
@@ -253,7 +260,10 @@ impl AppStella {
                     .clicked()
                 {
                     let domain = Domain::default();
-                    self.domains.insert(domain);
+                    self.dispatch(Command::CreateDomain {
+                        name: domain.name,
+                        data_type: domain.data_type,
+                    });
                 }
                 if ui
                     .add(
@@ -274,111 +284,194 @@ impl AppStella {
 
             let mut table_to_delete: Option<TableId> = None;
             let mut domain_to_delete: Option<DomainId> = None;
+            let mut domain_commands: Vec<Command> = Vec::new();
+            let mut table_commands: Vec<Command> = Vec::new();
 
             let table_keys: Vec<TableId> = self.tables.keys().collect();
-            let domains = &self.domains;
 
             for id in table_keys {
-                let window_id = Id::new(id);
-                let title = &self.tables[id].title;
+                 let window_id = Id::new(id);
+                 let title = self.tables[id].title.clone();
 
-                let mut should_delete = false;
+                 let mut should_delete = false;
 
-                egui::Window::new(title)
-                    .id(window_id)
-                    .resizable(true)
-                    .collapsible(false)
-                    .default_size(vec2(300.0, 200.0))
-                    .show(ctx, |ui| unsafe {
-                        let tables: *const SlotMap<TableId, Table> = &self.tables;
-                        let table = &mut self.tables[id];
-                        table.draw(ui, id, domains, &*tables);
+                 egui::Window::new(title)
+                     .id(window_id)
+                     .resizable(true)
+                     .collapsible(false)
+                     .default_size(vec2(300.0, 200.0))
+                     .show(ctx, |ui| {
+                         let ui_ctx = TableUiContext::from_app(&self.tables, &self.domains, id);
+                         let table = self.tables.get_mut(id).expect("table missing");
+                         let changes = table.draw(ui, &ui_ctx);
+                         if changes.title_changed {
+                             table_commands.push(Command::RenameTable {
+                                 table: id,
+                                 title: table.title.clone(),
+                             });
+                         }
+                         for row in changes.attribute_changes {
+                             if row.delete {
+                                 table_commands.push(Command::DeleteAttribute {
+                                     table: id,
+                                     attr: row.attr_id,
+                                 });
+                                 continue;
+                             }
 
-                        ui.separator();
-                        if ui.button("Delete").clicked() {
-                            should_delete = true;
-                        }
-                    });
+                              if let Some(attr) = table.attributes.get(row.attr_id) {
+                                  if row.rename_changed {
+                                      table_commands.push(Command::RenameAttribute {
+                                          table: id,
+                                          attr: row.attr_id,
+                                          name: attr.name.clone(),
+                                      });
+                                  }
+                                  if row.type_changed {
+                                      table_commands.push(Command::SetAttributeType {
+                                          table: id,
+                                          attr: row.attr_id,
+                                          attribute_type: attr.attribute_type.clone(),
+                                      });
+                                  }
+                                  if row.not_null_changed {
+                                      table_commands.push(Command::SetAttributeNotNull {
+                                          table: id,
+                                          attr: row.attr_id,
+                                          value: attr.not_null,
+                                      });
+                                  }
+                                  if row.unique_changed {
+                                      table_commands.push(Command::SetAttributeUnique {
+                                          table: id,
+                                          attr: row.attr_id,
+                                          value: attr.unique,
+                                      });
+                                  }
+                              }
 
-                if should_delete {
-                    table_to_delete = Some(id);
-                }
-            }
+                              if let Some(value) = row.pk_change {
+                                  table_commands.push(Command::SetAttributePrimaryKey {
+                                      table: id,
+                                      attr: row.attr_id,
+                                      value,
+                                  });
+                              }
+                          }
+                          if changes.add_attribute {
+                              table_commands.push(Command::AddAttribute {
+                                  table: id,
+                                  attribute: Attribute::default(),
+                              });
+                          }
 
-            egui::SidePanel::right("domains")
-                .resizable(true)
-                .default_width(260.0)
-                .show(ctx, |ui| {
-                    ui.heading("Domains");
+                          ui.separator();
+                          if ui.button("Delete").clicked() {
+                              should_delete = true;
+                          }
+                      });
 
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for (id, domain) in self.domains.iter_mut() {
-                            ui.group(|ui| {
-                                domain.draw(ui, id);
-                                if ui.button("🗑").clicked() {
-                                    domain_to_delete = Some(id);
-                                }
-                            });
-                        }
-                    });
-                });
+                  if should_delete {
+                      table_to_delete = Some(id);
+                  }
+              }
 
-            if let Some(idx) = table_to_delete {
-                self.tables.remove(idx);
-            }
+              egui::SidePanel::right("domains")
+                  .resizable(true)
+                  .default_width(260.0)
+                  .show(ctx, |ui| {
+                      ui.heading("Domains");
 
-            if let Some(idx) = domain_to_delete {
-                self.domains.remove(idx);
-            }
+                      egui::ScrollArea::vertical().show(ui, |ui| {
+                          for (id, domain) in self.domains.iter_mut() {
+                              ui.group(|ui| {
+                                  let changes = domain.draw(ui, id);
+                                  if changes.name_changed {
+                                      domain_commands.push(Command::RenameDomain {
+                                          domain: id,
+                                          name: domain.name.clone(),
+                                      });
+                                  }
+                                  if changes.data_type_changed {
+                                      domain_commands.push(Command::SetDomainType {
+                                          domain: id,
+                                          data_type: domain.data_type.clone(),
+                                      });
+                                  }
+                                  if ui.button("🗑").clicked() {
+                                      domain_to_delete = Some(id);
+                                  }
+                              });
+                          }
+                      });
+                  });
 
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                egui::warn_if_debug_build(ui);
-            });
-        });
-    }
-}
+              for cmd in domain_commands {
+                  self.dispatch(cmd);
+              }
 
-impl eframe::App for AppStella {
-    /// Runs every frame
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                let is_web = cfg!(target_arch = "wasm32");
-                ui.menu_button("File", |ui| {
-                    if ui.button("New").clicked() {
-                        self.handle_new();
-                    }
-                    if !is_web
-                        && ui.button("Open").clicked()
-                        && let Some(path) = rfd::FileDialog::new().pick_file()
-                    {
-                        self.handle_open(path);
-                    }
-                    if !is_web
-                        && ui.button("Save").clicked()
-                        && let Some(path) = rfd::FileDialog::new().save_file()
-                    {
-                        self.handle_save(path);
-                    }
-                    if ui.button("Export HTML").clicked() {
-                        self.export_html();
-                    }
-                    if !is_web && ui.button("Quit").clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
-                });
-                ui.separator();
-                egui::widgets::global_theme_preference_buttons(ui);
+              for cmd in table_commands {
+                  self.dispatch(cmd);
+              }
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
-                    let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
-                    ui.label(text);
-                })
-            });
-        });
+              if let Some(idx) = table_to_delete {
+                  self.dispatch(Command::DeleteTable { table: idx });
+              }
 
-        self.draw_workbench_menu(ctx);
+              if let Some(idx) = domain_to_delete {
+                  self.dispatch(Command::DeleteDomain { domain: idx });
+              }
 
-        self.draw_workbench(ctx);
-    }
-}
+              ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                  egui::warn_if_debug_build(ui);
+              });
+          });
+      }
+  }
+
+  impl eframe::App for AppStella {
+      /// Runs every frame
+      fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+          egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+              egui::MenuBar::new().ui(ui, |ui| {
+                  let is_web = cfg!(target_arch = "wasm32");
+                  ui.menu_button("File", |ui| {
+                      if ui.button("New").clicked() {
+                          self.handle_new();
+                      }
+                      if !is_web
+                          && ui.button("Open").clicked()
+                          && let Some(path) = rfd::FileDialog::new().pick_file()
+                      {
+                          self.handle_open(path);
+                      }
+                      if !is_web
+                          && ui.button("Save").clicked()
+                          && let Some(path) = rfd::FileDialog::new().save_file()
+                      {
+                          self.handle_save(path);
+                      }
+                      if ui.button("Export HTML").clicked() {
+                          self.export_html();
+                      }
+                      if !is_web && ui.button("Quit").clicked() {
+                          ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                      }
+                  });
+                  ui.separator();
+                  egui::widgets::global_theme_preference_buttons(ui);
+
+                  ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
+                      let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
+                      ui.label(text);
+                  })
+              });
+          });
+
+          self.draw_workbench_menu(ctx);
+
+          self.draw_workbench(ctx);
+          self.flush_commands();
+      }
+  }
+

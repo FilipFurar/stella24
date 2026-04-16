@@ -1,7 +1,6 @@
 // model/constraints/constraints.rs
 use crate::app::TableId;
 use crate::model::attribute::AttrId;
-use slotmap::SlotMap;
 use std::collections::HashSet;
 
 slotmap::new_key_type! {
@@ -26,24 +25,16 @@ pub struct ForeignKey {
     pub local_attrs: HashSet<AttrId>,
 }
 
-slotmap::new_key_type! {
-    /// Unique type for Unique keys
-    pub struct UniqueId;
-}
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct Unique {
-    name: String,
-    attributes: SlotMap<UniqueId, AttrId>,
+    pub name: String,
+    pub attributes: HashSet<AttrId>,
 }
 
-slotmap::new_key_type! {
-    /// Unique type for Not Null keys
-    pub struct NotNullId;
-}
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct NotNull {
-    name: String,
-    attributes: SlotMap<NotNullId, AttrId>,
+    pub name: String,
+    pub attributes: HashSet<AttrId>,
 }
 
 impl PrimaryKey {
@@ -74,5 +65,23 @@ impl ForeignKey {
 impl Default for ForeignKey {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Unique {
+    pub fn new() -> Self {
+        Self {
+            name: "".to_string(),
+            attributes: Default::default(),
+        }
+    }
+}
+
+impl NotNull {
+    pub fn new() -> Self {
+        Self {
+            name: "".to_string(),
+            attributes: Default::default(),
+        }
     }
 }

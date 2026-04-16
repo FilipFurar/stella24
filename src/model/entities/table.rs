@@ -19,18 +19,15 @@ pub struct Table {
     pub fks: SlotMap<FkId, ForeignKey>,
 
     /// Vector of Unique constraints, does not contain the values itself, only I
-    uniques: Vec<Unique>,
+    pub uniques: Vec<Unique>,
 
-    not_nulls: Vec<NotNull>,
+    pub not_nulls: Vec<NotNull>,
 
     #[serde(skip)]
     pub open_modal: bool,
 
     #[serde(skip)]
     pub current_fk: Option<ForeignKey>,
-
-    /*#[serde(skip)]
-    pub current_attr: Option<Attribute>,*/
 }
 
 impl Table {

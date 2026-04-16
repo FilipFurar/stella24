@@ -15,6 +15,10 @@ repeat
       :Add the NOT NULL constraint to the attribute;
   else (yes)
     endif
+  if (Is the attribute unique?) then (yes)
+      :Add the Unique constraint to the attribute;
+  else (no)
+    endif
   endif
 
 repeat while (Need another attribute?) is (yes)
