@@ -1,0 +1,27 @@
+@startuml
+start
+:Open Stella24;
+:Create a new table;
+
+repeat
+  :Add a new attribute;
+  :Choose attribute name;
+  :Choose attribute data type;
+
+  if (Add to primary key?) then (yes)
+    :Add the attribute to primary key;
+  else (no)
+  if (Can the attribute be NULL?) then (no)
+      :Add the NOT NULL constraint to the attribute;
+  else (yes)
+    endif
+  if (Is the attribute unique?) then (yes)
+      :Add the Unique constraint to the attribute;
+  else (no)
+    endif
+  endif
+
+repeat while (Need another attribute?) is (yes)
+
+stop
+@enduml

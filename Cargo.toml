@@ -21,6 +21,7 @@ eframe = { version = "0.33.3", default-features = false, features = [
 ] }
 log = "0.4.29"
 #egui_cable = "0.9.0"
+#egui_node_graph2 =  {path = "../egui_node_graph2/egui_node_graph2"}
 
 # You only need serde if you want app persistence:
 gethostname = "1.0.1"
