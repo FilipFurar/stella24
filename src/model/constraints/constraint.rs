@@ -83,7 +83,6 @@ impl Default for Unique {
     }
 }
 
-
 impl NotNull {
     pub fn new() -> Self {
         Self {
