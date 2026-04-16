@@ -1,4 +1,3 @@
-#![warn(clippy::all, rust_2018_idioms)]
 //! # Stella24
 //! ER modeler for Oracle SQL
 

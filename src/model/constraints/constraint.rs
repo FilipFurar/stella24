@@ -77,8 +77,24 @@ impl Unique {
     }
 }
 
+impl Default for Unique {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
 impl NotNull {
     pub fn new() -> Self {
+        Self {
+            name: "".to_string(),
+            attributes: Default::default(),
+        }
+    }
+}
+
+impl Default for NotNull {
+    fn default() -> Self {
         Self {
             name: "".to_string(),
             attributes: Default::default(),

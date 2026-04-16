@@ -164,7 +164,6 @@ impl Table {
         let mut to_delete: Vec<FkId> = Vec::new();
 
         for (fkid, fk) in &mut self.fks {
-            let fkid = fkid;
 
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, BLUE))
