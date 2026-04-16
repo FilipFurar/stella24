@@ -58,13 +58,12 @@ impl Attribute {
                         changes.rename_changed = true;
                     }
 
-                    match &self.attribute_type {
-                        AttributeType::Logical(_) | AttributeType::Domain(_) => {
-                            if self.attribute_type.draw_compact(ui, id, ctx) {
-                                changes.type_changed = true;
-                            }
+                    if let AttributeType::Logical(_) | AttributeType::Domain(_) =
+                        &self.attribute_type
+                    {
+                        if self.attribute_type.draw_compact(ui, id, ctx) {
+                            changes.type_changed = true;
                         }
-                        _ => {}
                     }
 
                     ui.add_enabled_ui(!self.pk, |ui| {

@@ -451,8 +451,7 @@ impl eframe::App for AppStella {
                     {
                         self.handle_save(path);
                     }
-                    if !is_web
-                    && ui.button("Export HTML").clicked() {
+                    if !is_web && ui.button("Export HTML").clicked() {
                         self.export_html();
                     }
                     if !is_web && ui.button("Quit").clicked() {
