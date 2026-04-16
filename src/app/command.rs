@@ -10,35 +10,84 @@ pub enum Command {
     NewCanvas,
 
     // Table lifecycle
-    CreateTable { title: String },
-    DeleteTable { table: TableId },
-    RenameTable { table: TableId, title: String },
+    CreateTable {
+        title: String,
+    },
+    DeleteTable {
+        table: TableId,
+    },
+    RenameTable {
+        table: TableId,
+        title: String,
+    },
 
     // Domain lifecycle
-    CreateDomain { name: String, data_type: DataType },
-    DeleteDomain { domain: DomainId },
-    RenameDomain { domain: DomainId, name: String },
-    SetDomainType { domain: DomainId, data_type: DataType },
+    CreateDomain {
+        name: String,
+        data_type: DataType,
+    },
+    DeleteDomain {
+        domain: DomainId,
+    },
+    RenameDomain {
+        domain: DomainId,
+        name: String,
+    },
+    SetDomainType {
+        domain: DomainId,
+        data_type: DataType,
+    },
 
     // Attribute lifecycle
-    AddAttribute { table: TableId, attribute: Attribute },
-    DeleteAttribute { table: TableId, attr: AttrId },
-    RenameAttribute { table: TableId, attr: AttrId, name: String },
+    AddAttribute {
+        table: TableId,
+        attribute: Attribute,
+    },
+    DeleteAttribute {
+        table: TableId,
+        attr: AttrId,
+    },
+    RenameAttribute {
+        table: TableId,
+        attr: AttrId,
+        name: String,
+    },
     SetAttributeType {
         table: TableId,
         attr: AttrId,
         attribute_type: AttributeType,
     },
-    SetAttributeNotNull { table: TableId, attr: AttrId, value: bool },
-    SetAttributeUnique { table: TableId, attr: AttrId, value: bool },
-    SetAttributePrimaryKey { table: TableId, attr: AttrId, value: bool },
+    SetAttributeNotNull {
+        table: TableId,
+        attr: AttrId,
+        value: bool,
+    },
+    SetAttributeUnique {
+        table: TableId,
+        attr: AttrId,
+        value: bool,
+    },
+    SetAttributePrimaryKey {
+        table: TableId,
+        attr: AttrId,
+        value: bool,
+    },
 
     // Primary key
-    RenamePrimaryKey { table: TableId, name: String },
+    RenamePrimaryKey {
+        table: TableId,
+        name: String,
+    },
 
     // Foreign keys
-    AddForeignKey { table: TableId, foreign_key: ForeignKey },
-    DeleteForeignKey { table: TableId, fk: FkId },
+    AddForeignKey {
+        table: TableId,
+        foreign_key: ForeignKey,
+    },
+    DeleteForeignKey {
+        table: TableId,
+        fk: FkId,
+    },
     SetForeignKeyReference {
         table: TableId,
         fk: FkId,
@@ -46,11 +95,29 @@ pub enum Command {
     },
 
     // Unique constraints
-    AddUnique { table: TableId, unique: Unique },
-    DeleteUnique { table: TableId, index: usize },
-    RenameUnique { table: TableId, index: usize, name: String },
-    AddUniqueAttribute { table: TableId, index: usize, attr: AttrId },
-    RemoveUniqueAttribute { table: TableId, index: usize, attr: AttrId },
+    AddUnique {
+        table: TableId,
+        unique: Unique,
+    },
+    DeleteUnique {
+        table: TableId,
+        index: usize,
+    },
+    RenameUnique {
+        table: TableId,
+        index: usize,
+        name: String,
+    },
+    AddUniqueAttribute {
+        table: TableId,
+        index: usize,
+        attr: AttrId,
+    },
+    RemoveUniqueAttribute {
+        table: TableId,
+        index: usize,
+        attr: AttrId,
+    },
 }
 
 /// queue for command batching per frame.

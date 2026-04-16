@@ -55,7 +55,12 @@ impl TableUiContext {
                     .pk
                     .attributes
                     .iter()
-                    .filter_map(|attr_id| table.attributes.get(*attr_id).map(|attr| (*attr_id, attr.name.clone())))
+                    .filter_map(|attr_id| {
+                        table
+                            .attributes
+                            .get(*attr_id)
+                            .map(|attr| (*attr_id, attr.name.clone()))
+                    })
                     .collect(),
             })
             .collect();
@@ -89,7 +94,10 @@ impl TableUiContext {
 
     /// Returns the title for the given table ID, if it exists in the snapshot.
     pub fn table_title(&self, id: TableId) -> Option<&str> {
-        self.tables.iter().find(|t| t.id == id).map(|t| t.title.as_str())
+        self.tables
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.title.as_str())
     }
 
     /// Returns whether the given table has a primary key in the snapshot.
@@ -111,7 +119,10 @@ impl TableUiContext {
 
     /// Returns the name for the given domain ID, if it exists in the snapshot.
     pub fn domain_name(&self, id: DomainId) -> Option<&str> {
-        self.domains.iter().find(|d| d.id == id).map(|d| d.name.as_str())
+        self.domains
+            .iter()
+            .find(|d| d.id == id)
+            .map(|d| d.name.as_str())
     }
 
     /// Returns the current table's attribute name for the given attribute ID, if present.

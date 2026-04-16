@@ -129,11 +129,10 @@ impl AttributeType {
                 .domain_name(*did)
                 .map(|name| name.to_string())
                 .unwrap_or_else(|| "Invalid domain".to_string()),
-            AttributeType::ForeignKeyAttribute(fk) => {
-                ctx.current_table_attribute_name(*fk)
-                    .map(|name| format!("FK -> {}", name))
-                    .unwrap_or_else(|| "attr err".to_string())
-            }
+            AttributeType::ForeignKeyAttribute(fk) => ctx
+                .current_table_attribute_name(*fk)
+                .map(|name| format!("FK -> {}", name))
+                .unwrap_or_else(|| "attr err".to_string()),
         }
     }
 
@@ -257,23 +256,21 @@ impl AttributeType {
                     }
                 }
                 AttributeType::Domain(domain_id) => {
-                    let selected = ctx
-                        .domain_name(*domain_id)
-                        .expect("err");
-                     egui::ComboBox::from_id_salt(format!("domain_{}", id.data().as_ffi()))
-                         .selected_text(selected)
-                         .show_ui(ui, |ui| {
+                    let selected = ctx.domain_name(*domain_id).expect("err");
+                    egui::ComboBox::from_id_salt(format!("domain_{}", id.data().as_ffi()))
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
                             for domain in &ctx.domains {
-                                 if ui
+                                if ui
                                     .selectable_label(*domain_id == domain.id, &domain.name)
-                                     .clicked()
-                                 {
+                                    .clicked()
+                                {
                                     *domain_id = domain.id;
-                                     changed = true;
-                                 }
-                             }
-                         });
-                 }
+                                    changed = true;
+                                }
+                            }
+                        });
+                }
                 _ => {}
             }
         });
