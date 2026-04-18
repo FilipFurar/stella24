@@ -1,22 +1,18 @@
 @startuml
-'https://plantuml.com/use-case-diagram
-
-:Main Admin: as Admin
-(Use the application) as (Use)
-
-User -> (Start)
-User --> (Use)
-
-Admin ---> (Use)
-
-note right of Admin : This is an example.
-
-note right of (Use)
-A note can also
-be on several lines
-end note
-
-note "This note is connected\nto several objects." as N2
-(Start) .. N2
-N2 .. (Use)
+left to right direction
+actor "User" as user
+rectangle ER_Modeler {
+    usecase "Save project as JSON" as save_project
+    usecase "Load model from JSON" as load_model
+    usecase "Export diagram to HTML" as export_html
+    usecase "Export model to SQL" as export_sql
+    usecase "Create new canvas" as new_canvas
+    usecase "Quit application" as quit_app
+}
+user --> save_project
+user --> load_model
+user --> export_html
+user --> export_sql
+user --> new_canvas
+user --> quit_app
 @enduml

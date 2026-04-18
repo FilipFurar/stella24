@@ -13,5 +13,6 @@ pub mod html_export;
 /// # UI module
 /// Contains UI logic and drawing
 pub mod ui;
+pub mod file_dialog;
 
 pub use app::AppStella;
