@@ -222,12 +222,12 @@ impl AppStella {
         });*/
     }
 
-    pub fn export_html(&self) {
+    pub fn export_svg(&self) {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("HTML", &["html"])
+            .add_filter("SVG", &["svg"])
             .save_file()
         {
-            self.to_html(path.to_str().unwrap());
+            self.to_svg(path.to_str().unwrap());
         }
     }
 
@@ -280,13 +280,54 @@ impl AppStella {
         });
     }
 
+    fn draw_domains_panel(&mut self, ctx: &egui::Context) {
+        let mut domain_to_delete: Option<DomainId> = None;
+        let mut domain_commands: Vec<Command> = Vec::new();
+
+        egui::SidePanel::right("domains")
+            .resizable(true)
+            .default_width(260.0)
+            .show(ctx, |ui| {
+                ui.heading("Domains");
+
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for (id, domain) in self.domains.iter_mut() {
+                        ui.group(|ui| {
+                            let changes = domain.draw(ui, id);
+                            if changes.name_changed {
+                                domain_commands.push(Command::RenameDomain {
+                                    domain: id,
+                                    name: domain.name.clone(),
+                                });
+                            }
+                            if changes.data_type_changed {
+                                domain_commands.push(Command::SetDomainType {
+                                    domain: id,
+                                    data_type: domain.data_type.clone(),
+                                });
+                            }
+                            if ui.button("🗑").clicked() {
+                                domain_to_delete = Some(id);
+                            }
+                        });
+                    }
+                });
+            });
+
+        for cmd in domain_commands {
+            self.dispatch(cmd);
+        }
+        if let Some(idx) = domain_to_delete {
+            self.dispatch(Command::DeleteDomain { domain: idx });
+        }
+    }
+
     fn draw_workbench(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
+            let workbench_rect = ui.available_rect_before_wrap().shrink(8.0);
 
             let mut table_to_delete: Option<TableId> = None;
-            let mut domain_to_delete: Option<DomainId> = None;
-            let mut domain_commands: Vec<Command> = Vec::new();
             let mut table_commands: Vec<Command> = Vec::new();
             let mut table_rects: HashMap<TableId, egui::Rect> = HashMap::new();
 
@@ -300,6 +341,7 @@ impl AppStella {
 
                 let window = egui::Window::new(title)
                     .id(window_id)
+                    .constrain_to(workbench_rect)
                     .resizable(true)
                     .collapsible(false)
                     .default_size(vec2(300.0, 200.0))
@@ -392,51 +434,12 @@ impl AppStella {
             for edge in build_edges(&self.tables, &table_rects) {
                 draw_crow_foot_edge(&relation_painter, &edge);
             }
-
-            egui::SidePanel::right("domains")
-                .resizable(true)
-                .default_width(260.0)
-                .show(ctx, |ui| {
-                    ui.heading("Domains");
-
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for (id, domain) in self.domains.iter_mut() {
-                            ui.group(|ui| {
-                                let changes = domain.draw(ui, id);
-                                if changes.name_changed {
-                                    domain_commands.push(Command::RenameDomain {
-                                        domain: id,
-                                        name: domain.name.clone(),
-                                    });
-                                }
-                                if changes.data_type_changed {
-                                    domain_commands.push(Command::SetDomainType {
-                                        domain: id,
-                                        data_type: domain.data_type.clone(),
-                                    });
-                                }
-                                if ui.button("🗑").clicked() {
-                                    domain_to_delete = Some(id);
-                                }
-                            });
-                        }
-                    });
-                });
-
-            for cmd in domain_commands {
-                self.dispatch(cmd);
-            }
-
             for cmd in table_commands {
                 self.dispatch(cmd);
             }
 
             if let Some(idx) = table_to_delete {
                 self.dispatch(Command::DeleteTable { table: idx });
-            }
-
-            if let Some(idx) = domain_to_delete {
-                self.dispatch(Command::DeleteDomain { domain: idx });
             }
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -468,8 +471,8 @@ impl eframe::App for AppStella {
                     {
                         self.handle_save(path);
                     }
-                    if !is_web && ui.button("Export HTML").clicked() {
-                        self.export_html();
+                    if !is_web && ui.button("Export SVG").clicked() {
+                        self.export_svg();
                     }
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -486,6 +489,7 @@ impl eframe::App for AppStella {
         });
 
         self.draw_workbench_menu(ctx);
+        self.draw_domains_panel(ctx);
 
         self.draw_workbench(ctx);
         self.flush_commands();
