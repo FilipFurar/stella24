@@ -1,0 +1,131 @@
+@startuml
+
+hide circle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "Identifikatory" {
+  class TableId <<id>>
+  class DomainId <<id>>
+  class AttrId <<id>>
+  class FkId <<id>>
+}
+
+package "Jadro modelu" {
+  struct Table {
+    +title: String
+    +attributes: SlotMap<AttrId, Attribute>
+    +pk: PrimaryKey
+    +fks: SlotMap<FkId, ForeignKey>
+    +uniques: Vec<Unique>
+    +not_nulls: Vec<NotNull>
+    +open_modal: bool
+    +current_fk: Option<ForeignKey>
+  }
+
+  struct Domain {
+    +name: String
+    +data_type: DataType
+  }
+
+  struct Attribute {
+    +name: String
+    +attribute_type: AttributeType
+    +pk: bool
+    +not_null: bool
+    +unique: bool
+  }
+
+  enum AttributeType {
+    Logical(DataType)
+    Domain(DomainId)
+    ForeignKeyAttribute(AttrId)
+  }
+
+  enum AttributeCategory {
+    Logical
+    Domain
+    ForeignKey
+  }
+
+  struct DataType <<struct>> {
+    +base: usize
+    +params: Vec<u32>
+  }
+
+  dataclass DataTypeDef {
+    +name: &'static str
+    +param_count: usize
+  }
+}
+
+package "Obmedzenia" {
+  struct PrimaryKey {
+    +name: String
+    +attributes: HashSet<AttrId>
+  }
+
+  struct ForeignKey {
+    +name: String
+    +references: Option<TableId>
+    +local_attrs: HashSet<AttrId>
+  }
+
+  struct Unique {
+    +name: String
+    +attributes: HashSet<AttrId>
+  }
+
+  struct NotNull {
+    +name: String
+    +attributes: HashSet<AttrId>
+  }
+
+  struct Check {
+    +name: String
+    +condition: Condition
+  }
+
+  enum Condition <<enum>> {
+    Comparison
+    Logical
+    Between
+    Like
+    In
+    IsNull
+    IsNotNull
+  }
+}
+
+' Kompozicia / vlastnictvo
+Table *-- "1" PrimaryKey : pk
+Table *-- "0..*" ForeignKey : fks
+Table *-- "0..*" Unique : uniques
+Table *-- "0..*" NotNull : not_nulls
+Table *-- "0..*" Attribute : attributes
+Domain *-- "1" DataType : data_type
+
+' Typove / referencne vazby
+Attribute --> "1" AttributeType : attribute_type
+AttributeType --> DataType : Logical
+AttributeType --> DomainId : Domain
+AttributeType --> AttrId : ForeignKeyAttribute
+PrimaryKey --> AttrId
+Unique --> AttrId
+NotNull --> AttrId
+ForeignKey --> TableId : references
+ForeignKey --> AttrId : local_attrs
+
+note right of Table
+  V implementacii v Ruste:
+  - attributes su klucovane cez AttrId (SlotMap)
+  - fks su klucovane cez FkId (SlotMap)
+end note
+
+note right of DataTypeDef
+  DATA_TYPES je staticky register
+  pouzity cez index DataType.base
+end note
+
+@enduml
+

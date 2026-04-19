@@ -267,14 +267,6 @@ impl AppStella {
                         data_type: domain.data_type,
                     });
                 }
-                if ui
-                    .add(
-                        egui::Button::new("Connector")
-                            .min_size(vec2(120.0, 25.0))
-                            .stroke(egui::Stroke::new(1.0, RED)),
-                    )
-                    .clicked()
-                {}
             });
             ui.add_space(2.0);
         });
