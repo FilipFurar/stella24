@@ -9,6 +9,8 @@ use std::fs;
 use crate::model::attribute::Attribute;
 use crate::model::{entities::domain::Domain, entities::table::Table};
 use crate::ui::context::TableUiContext;
+use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
+use std::collections::HashMap;
 
 mod command;
 use command::{Command, CommandQueue};
@@ -286,6 +288,7 @@ impl AppStella {
             let mut domain_to_delete: Option<DomainId> = None;
             let mut domain_commands: Vec<Command> = Vec::new();
             let mut table_commands: Vec<Command> = Vec::new();
+            let mut table_rects: HashMap<TableId, egui::Rect> = HashMap::new();
 
             let table_keys: Vec<TableId> = self.tables.keys().collect();
 
@@ -295,7 +298,7 @@ impl AppStella {
 
                 let mut should_delete = false;
 
-                egui::Window::new(title)
+                let window = egui::Window::new(title)
                     .id(window_id)
                     .resizable(true)
                     .collapsible(false)
@@ -317,6 +320,16 @@ impl AppStella {
                                     attr: row.attr_id,
                                 });
                                 continue;
+                            }
+
+                            // Apply PK toggles first so NN/U commands in the same frame
+                            // observe the final PK state for this attribute.
+                            if let Some(value) = row.pk_change {
+                                table_commands.push(Command::SetAttributePrimaryKey {
+                                    table: id,
+                                    attr: row.attr_id,
+                                    value,
+                                });
                             }
 
                             if let Some(attr) = table.attributes.get(row.attr_id) {
@@ -349,14 +362,6 @@ impl AppStella {
                                     });
                                 }
                             }
-
-                            if let Some(value) = row.pk_change {
-                                table_commands.push(Command::SetAttributePrimaryKey {
-                                    table: id,
-                                    attr: row.attr_id,
-                                    value,
-                                });
-                            }
                         }
                         if changes.add_attribute {
                             table_commands.push(Command::AddAttribute {
@@ -371,9 +376,21 @@ impl AppStella {
                         }
                     });
 
+                if let Some(window) = window {
+                    table_rects.insert(id, window.response.rect);
+                }
+
                 if should_delete {
                     table_to_delete = Some(id);
                 }
+            }
+
+            let relation_painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                Id::new("crow_foot_relations"),
+            ));
+            for edge in build_edges(&self.tables, &table_rects) {
+                draw_crow_foot_edge(&relation_painter, &edge);
             }
 
             egui::SidePanel::right("domains")
@@ -474,3 +491,46 @@ impl eframe::App for AppStella {
         self.flush_commands();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_make_former_pk_attribute_nullable_when_pk_removed_first() {
+        let mut app = AppStella::default();
+        let table_id = app.tables.insert(Table::default());
+
+        let attr_id = {
+            let table = app.tables.get_mut(table_id).expect("table missing");
+            let attr_id = table.attributes.insert(Attribute {
+                pk: true,
+                not_null: true,
+                ..Attribute::default()
+            });
+            table.pk.attributes.insert(attr_id);
+            attr_id
+        };
+
+        app.dispatch(Command::SetAttributePrimaryKey {
+            table: table_id,
+            attr: attr_id,
+            value: false,
+        });
+        app.dispatch(Command::SetAttributeNotNull {
+            table: table_id,
+            attr: attr_id,
+            value: false,
+        });
+        app.flush_commands();
+
+        let attr = app
+            .tables
+            .get(table_id)
+            .and_then(|t| t.attributes.get(attr_id))
+            .expect("attribute missing");
+        assert!(!attr.pk);
+        assert!(!attr.not_null);
+    }
+}
+
