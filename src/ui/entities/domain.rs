@@ -1,6 +1,7 @@
 // ui/entities/domain.rs
 
 use crate::app::DomainId;
+use crate::app::Command;
 use crate::model::constraints::check::Check;
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::entities::domain::Domain;
@@ -13,6 +14,7 @@ use slotmap::Key;
 pub struct DomainChanges {
     pub name_changed: bool,
     pub data_type_changed: bool,
+    pub commands: Vec<Command>,
 }
 
 /// UI implementation for domains
@@ -60,6 +62,8 @@ impl Domain {
             }
         });
 
+        ui.checkbox(&mut self.not_null, "NOT NULL");
+
         ui.separator();
         ui.label("Check constraints:");
 
@@ -70,12 +74,19 @@ impl Domain {
             }
         }
 
-        for i in to_delete.into_iter().rev() {
+        for i in to_delete.iter().copied().rev() {
             self.check_constraints.remove(i);
         }
 
+        for i in to_delete.into_iter().rev() {
+            changes.commands.push(Command::DeleteDomainCheck { domain: id, index: i });
+        }
+
         if ui.button("Add Check").clicked() {
-            self.check_constraints.push(Check::new());
+            changes.commands.push(Command::AddDomainCheck {
+                domain: id,
+                check: Check::new(),
+            });
         }
 
         changes

@@ -13,11 +13,10 @@ use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 use std::collections::HashMap;
 
 mod command;
-use command::{Command, CommandQueue};
+pub use command::{Command, CommandQueue};
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
-const RED: Color32 = Color32::from_rgb(194, 73, 125);
 
 slotmap::new_key_type! {
     /// Unique type for TableIDs (keys)
@@ -177,6 +176,106 @@ impl AppStella {
                     d.data_type = data_type;
                 }
             }
+            Command::AddForeignKey { table, foreign_key } => {
+                if let Some(referenced_table) = foreign_key.references
+                    && let Some(pk_snapshot) = self.tables.get(referenced_table).map(|referenced| {
+                        referenced
+                            .pk
+                            .attributes
+                            .iter()
+                            .filter_map(|attr_id| {
+                                referenced
+                                    .attributes
+                                    .get(*attr_id)
+                                    .map(|attr| (*attr_id, attr.name.clone()))
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    && let Some(current_table) = self.tables.get_mut(table)
+                {
+                    let mut fk = foreign_key;
+                    fk.local_attrs.clear();
+
+                    for (other_attr_id, other_attr_name) in pk_snapshot {
+                        let local_attr = Attribute {
+                            name: format!("{}_{}", fk.name, other_attr_name),
+                            attribute_type: crate::model::attribute::AttributeType::ForeignKeyAttribute(
+                                other_attr_id,
+                            ),
+                            pk: false,
+                            not_null: false,
+                            unique: false,
+                        };
+                        let local_attr_key = current_table.attributes.insert(local_attr);
+                        fk.local_attrs.insert(local_attr_key);
+                    }
+
+                    current_table.add_foreign_key(fk);
+                }
+            }
+            Command::DeleteForeignKey { table, fk } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_foreign_key(fk);
+                }
+            }
+            Command::SetForeignKeyReference {
+                table,
+                fk,
+                references,
+            } => {
+                if let Some(current_table) = self.tables.get_mut(table)
+                    && let Some(foreign_key) = current_table.fks.get_mut(fk)
+                {
+                    foreign_key.references = references;
+                }
+            }
+            Command::AddUnique { table, unique } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.add_unique(unique);
+                }
+            }
+            Command::DeleteUnique { table, index } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_unique(index);
+                }
+            }
+            Command::RenameUnique { table, index, name } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.rename_unique(index, name);
+                }
+            }
+            Command::AddUniqueAttribute { table, index, attr } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.add_unique_attribute(index, attr);
+                }
+            }
+            Command::RemoveUniqueAttribute { table, index, attr } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_unique_attribute(index, attr);
+                }
+            }
+            Command::AddTableCheck { table, check } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.add_check(check);
+                }
+            }
+            Command::DeleteTableCheck { table, index } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_check(index);
+                }
+            }
+            Command::AddDomainCheck { domain, check } => {
+                if let Some(current_domain) = self.domains.get_mut(domain) {
+                    current_domain.check_constraints.push(check);
+                }
+            }
+            Command::DeleteDomainCheck { domain, index } => {
+                if let Some(current_domain) = self.domains.get_mut(domain)
+                    && index < current_domain.check_constraints.len()
+                {
+                    current_domain.check_constraints.remove(index);
+                }
+            }
             _ => {}
         }
     }
@@ -228,6 +327,15 @@ impl AppStella {
             .save_file()
         {
             self.to_svg(path.to_str().unwrap());
+        }
+    }
+
+    pub fn export_sql(&self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("SQL", &["sql"])
+            .save_file()
+        {
+            self.to_oracle_sql(path.to_str().unwrap());
         }
     }
 
@@ -286,6 +394,9 @@ impl AppStella {
                     for (id, domain) in self.domains.iter_mut() {
                         ui.group(|ui| {
                             let changes = domain.draw(ui, id);
+                            for cmd in changes.commands {
+                                domain_commands.push(cmd);
+                            }
                             if changes.name_changed {
                                 domain_commands.push(Command::RenameDomain {
                                     domain: id,
@@ -340,7 +451,10 @@ impl AppStella {
                     .show(ctx, |ui| {
                         let ui_ctx = TableUiContext::from_app(&self.tables, &self.domains, id);
                         let table = self.tables.get_mut(id).expect("table missing");
-                        let changes = table.draw(ui, &ui_ctx);
+                        let changes = table.draw(ui, &ui_ctx, id);
+                        for cmd in changes.commands {
+                            table_commands.push(cmd);
+                        }
                         if changes.title_changed {
                             table_commands.push(Command::RenameTable {
                                 table: id,
@@ -465,6 +579,9 @@ impl eframe::App for AppStella {
                     }
                     if !is_web && ui.button("Export SVG").clicked() {
                         self.export_svg();
+                    }
+                    if !is_web && ui.button("Export SQL").clicked() {
+                        self.export_sql();
                     }
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);

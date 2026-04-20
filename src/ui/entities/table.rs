@@ -1,6 +1,7 @@
 // ui/entities/table.rs
 
-use crate::model::attribute::{AttrId, Attribute, AttributeType};
+use crate::app::{Command, TableId};
+use crate::model::attribute::AttrId;
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
@@ -29,6 +30,7 @@ pub struct TableChanges {
     pub title_changed: bool,
     pub add_attribute: bool,
     pub attribute_changes: Vec<AttributeRowChanges>,
+    pub commands: Vec<Command>,
 }
 
 impl Table {
@@ -51,11 +53,11 @@ impl Table {
         });
     }*/
 
-    fn handle_fk_modal(&mut self, ui: &mut Ui, ctx: &TableUiContext) {
+    fn handle_fk_modal(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Option<ForeignKey> {
         // Take ownership out of Option, put back if not closing
         let mut fk = match self.current_fk.take() {
             Some(fk) => fk,
-            None => return,
+            None => return None,
         };
 
         let mut should_close = false;
@@ -106,27 +108,7 @@ impl Table {
                     .unwrap_or(false);
 
                 if can_save {
-                    if let Some(other_table_id) = fk.references {
-                        let fk_name = fk.name.clone();
-                        if let Some(pk_attrs) = ctx.table_pk_attributes(other_table_id) {
-                            for (other_attr_id, other_attr_name) in pk_attrs {
-                                let local_attr = Attribute {
-                                    name: format!("{}_{}", fk_name, other_attr_name),
-                                    attribute_type: AttributeType::ForeignKeyAttribute(
-                                        *other_attr_id,
-                                    ),
-                                    pk: false,
-                                    not_null: false,
-                                    unique: false,
-                                };
-                                let local_attr_key = self.attributes.insert(local_attr);
-                                fk.local_attrs.insert(local_attr_key);
-                            }
-                        }
-                    }
-
-                    // Insert the fully-built FK
-                    self.fks.insert(fk);
+                    return Some(fk);
                 }
                 // else: drop fk (validation failed)
             }
@@ -135,6 +117,8 @@ impl Table {
             // Put it back if not closing
             self.current_fk = Some(fk);
         }
+
+        None
     }
 
     /// Draw the primary key constraint
@@ -158,9 +142,9 @@ impl Table {
     }
 
     /// Draw ForeignKey constraints
-    pub fn draw_fks(&mut self, ui: &mut Ui) {
+    pub fn draw_fks(&mut self, ui: &mut Ui) -> Vec<FkId> {
         if self.fks.is_empty() {
-            return;
+            return Vec::new();
         }
 
         let mut to_delete: Vec<FkId> = Vec::new();
@@ -178,30 +162,27 @@ impl Table {
                 });
         }
 
-        // Batch delete with cleanup
-        for fkid in to_delete {
-            if let Some(fk) = self.fks.remove(fkid) {
+        for fkid in &to_delete {
+            if let Some(fk) = self.fks.remove(*fkid) {
                 for attid in fk.local_attrs {
                     self.attributes.remove(attid);
                 }
             }
         }
+
+        to_delete
     }
 
-    pub fn draw_uniques(&mut self, ui: &mut Ui) {
+    pub fn draw_uniques(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<Command> {
+        let mut commands = Vec::new();
         let mut to_delete: Vec<usize> = Vec::new();
 
         for (i, unique) in &mut self.uniques.iter_mut().enumerate() {
+            let before_name = unique.name.clone();
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, GREEN))
                 .show(ui, |ui| {
                     unique.draw(ui, &self.attributes);
-                    for attribute in &unique.attributes {
-                        if let Some(attr) = self.attributes.get_mut(*attribute) {
-                            // Attributes covered by table-level UNIQUE should not also be inline-unique.
-                            attr.unique = false;
-                        }
-                    }
                     ui.horizontal(|ui| {
                         if ui.button("Edit").clicked() {
                             self.current_unique = Some(i);
@@ -212,21 +193,36 @@ impl Table {
                     });
 
                 });
+
+            if unique.name != before_name {
+                commands.push(Command::RenameUnique {
+                    table: table_id,
+                    index: i,
+                    name: unique.name.clone(),
+                });
+            }
         }
 
-        for i in to_delete {
+        for i in to_delete.into_iter().rev() {
             self.uniques.remove(i);
             if self.current_unique == Some(i) {
                 self.current_unique = None;
-            } else if let Some(current) = self.current_unique {
-                if i < current {
-                    self.current_unique = Some(current - 1);
-                }
+            } else if let Some(current) = self.current_unique
+                && i < current
+            {
+                self.current_unique = Some(current - 1);
             }
+
+            commands.push(Command::DeleteUnique {
+                table: table_id,
+                index: i,
+            });
         }
+
+        commands
     }
 
-    pub fn draw_checks(&mut self, ui: &mut Ui) {
+    pub fn draw_checks(&mut self, ui: &mut Ui) -> Vec<usize> {
         let mut to_delete: Vec<usize> = Vec::new();
 
         for (i, check) in self.checks.iter_mut().enumerate() {
@@ -235,29 +231,63 @@ impl Table {
             }
         }
 
-        for i in to_delete.into_iter().rev() {
+        for i in to_delete.iter().copied().rev() {
             self.checks.remove(i);
         }
+
+        to_delete
     }
 
-    fn handle_unique_modal(&mut self, ui: &mut Ui) {
+    fn handle_unique_modal(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<Command> {
         let Some(unique_index) = self.current_unique else {
-            return;
+            return Vec::new();
         };
 
         if unique_index >= self.uniques.len() {
             self.current_unique = None;
-            return;
+            return Vec::new();
         }
+
+        let before_name = self.uniques[unique_index].name.clone();
+        let before_attrs = self.uniques[unique_index].attributes.clone();
 
         let should_close = {
             let unique = &mut self.uniques[unique_index];
             unique.attribute_modal(ui, &self.attributes, unique_index)
         };
 
+        let mut commands = Vec::new();
+
         if should_close {
+            let unique = &self.uniques[unique_index];
+            if unique.name != before_name {
+                commands.push(Command::RenameUnique {
+                    table: table_id,
+                    index: unique_index,
+                    name: unique.name.clone(),
+                });
+            }
+
+            for attr in unique.attributes.difference(&before_attrs) {
+                commands.push(Command::AddUniqueAttribute {
+                    table: table_id,
+                    index: unique_index,
+                    attr: *attr,
+                });
+            }
+
+            for attr in before_attrs.difference(&unique.attributes) {
+                commands.push(Command::RemoveUniqueAttribute {
+                    table: table_id,
+                    index: unique_index,
+                    attr: *attr,
+                });
+            }
+
             self.current_unique = None;
         }
+
+        commands
     }
 
     /// Draw all attributes
@@ -294,7 +324,7 @@ impl Table {
         result
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> TableChanges {
+    pub fn draw(&mut self, ui: &mut Ui, ctx: &TableUiContext, table_id: TableId) -> TableChanges {
         let mut changes = TableChanges::default();
 
         ui.horizontal(|ui| {
@@ -308,16 +338,20 @@ impl Table {
         changes.attribute_changes = self.draw_attributes(ui, ctx);
 
         self.draw_pk(ui);
-        self.draw_fks(ui);
+        for fkid in self.draw_fks(ui) {
+            changes.commands.push(Command::DeleteForeignKey { table: table_id, fk: fkid });
+        }
 
-        self.draw_uniques(ui);
-        ui.separator();
-        ui.label("Check constraints:");
-        self.draw_checks(ui);
-        self.handle_unique_modal(ui);
+        changes.commands.extend(self.draw_uniques(ui, table_id));
+        for index in self.draw_checks(ui).into_iter().rev() {
+            changes.commands.push(Command::DeleteTableCheck { table: table_id, index });
+        }
+        changes.commands.extend(self.handle_unique_modal(ui, table_id));
         //self.draw_not_nulls(ui);
 
-        self.handle_fk_modal(ui, ctx);
+        if let Some(fk) = self.handle_fk_modal(ui, ctx) {
+            changes.commands.push(Command::AddForeignKey { table: table_id, foreign_key: fk });
+        }
         //self.handle_attribute_modal(ui);
 
         ui.horizontal(|ui| {
@@ -328,10 +362,16 @@ impl Table {
                 self.current_fk = Some(ForeignKey::new());
             }
             if ui.button("Add U").clicked() {
-                self.uniques.push(Unique::new());
+                changes.commands.push(Command::AddUnique {
+                    table: table_id,
+                    unique: Unique::new(),
+                });
             }
             if ui.button("Add Check").clicked() {
-                self.checks.push(Check::new());
+                changes.commands.push(Command::AddTableCheck {
+                    table: table_id,
+                    check: Check::new(),
+                });
             }
         });
 

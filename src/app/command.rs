@@ -1,5 +1,6 @@
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
+use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::datatype::DataType;
 
@@ -118,9 +119,27 @@ pub enum Command {
         index: usize,
         attr: AttrId,
     },
+
+    // Check constraints
+    AddTableCheck {
+        table: TableId,
+        check: Check,
+    },
+    DeleteTableCheck {
+        table: TableId,
+        index: usize,
+    },
+    AddDomainCheck {
+        domain: DomainId,
+        check: Check,
+    },
+    DeleteDomainCheck {
+        domain: DomainId,
+        index: usize,
+    },
 }
 
-/// queue for command batching per frame.
+/// Queue for command batching per frame.
 #[derive(Default, Debug)]
 pub struct CommandQueue {
     pending: Vec<Command>,
