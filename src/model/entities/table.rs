@@ -1,5 +1,6 @@
 // model/entities/table.rs
 use crate::model::attribute::{AttrId, Attribute};
+use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, NotNull, PrimaryKey, Unique};
 use slotmap::SlotMap;
 
@@ -23,11 +24,17 @@ pub struct Table {
 
     pub not_nulls: Vec<NotNull>,
 
+    #[serde(default)]
+    pub checks: Vec<Check>,
+
     #[serde(skip)]
     pub open_modal: bool,
 
     #[serde(skip)]
     pub current_fk: Option<ForeignKey>,
+
+    #[serde(skip)]
+    pub current_unique: Option<usize>,
 }
 
 impl Table {
@@ -40,7 +47,17 @@ impl Table {
         self.fks.insert(foreign_key);
     }
 
-    pub fn remove_fk(&mut self) {}
+    pub fn add_foreign_key(&mut self, foreign_key: ForeignKey) -> FkId {
+        self.fks.insert(foreign_key)
+    }
+
+    pub fn remove_foreign_key(&mut self, fk_id: FkId) -> Option<ForeignKey> {
+        let fk = self.fks.remove(fk_id)?;
+        for attid in &fk.local_attrs {
+            self.attributes.remove(*attid);
+        }
+        Some(fk)
+    }
 
     pub fn add_field(&mut self, field: Attribute) {
         self.attributes.insert(field);
@@ -78,6 +95,79 @@ impl Table {
         }
         p
     }
+
+    pub fn add_unique(&mut self, unique: Unique) -> usize {
+        for attr_id in &unique.attributes {
+            if let Some(attribute) = self.attributes.get_mut(*attr_id) {
+                attribute.unique = true;
+            }
+        }
+
+        self.uniques.push(unique);
+        self.uniques.len().saturating_sub(1)
+    }
+
+    pub fn remove_unique(&mut self, index: usize) -> Option<Unique> {
+        if index >= self.uniques.len() {
+            return None;
+        }
+
+        let unique = self.uniques.remove(index);
+        for attr_id in &unique.attributes {
+            let still_unique = self.pk.attributes.contains(attr_id)
+                || self.uniques
+                    .iter()
+                    .any(|candidate| candidate.attributes.contains(attr_id));
+            if !still_unique && let Some(attr) = self.attributes.get_mut(*attr_id) {
+                attr.unique = false;
+            }
+        }
+
+        Some(unique)
+    }
+
+    pub fn rename_unique(&mut self, index: usize, name: String) {
+        if let Some(unique) = self.uniques.get_mut(index) {
+            unique.name = name;
+        }
+    }
+
+    pub fn add_unique_attribute(&mut self, index: usize, attr: AttrId) {
+        if let Some(unique) = self.uniques.get_mut(index) {
+            unique.attributes.insert(attr);
+            if let Some(attribute) = self.attributes.get_mut(attr) {
+                attribute.unique = true;
+            }
+        }
+    }
+
+    pub fn remove_unique_attribute(&mut self, index: usize, attr: AttrId) {
+        if let Some(unique) = self.uniques.get_mut(index) {
+            unique.attributes.remove(&attr);
+        }
+
+        let still_unique = self.pk.attributes.contains(&attr)
+            || self
+                .uniques
+                .iter()
+                .any(|candidate| candidate.attributes.contains(&attr));
+        if !still_unique && let Some(attribute) = self.attributes.get_mut(attr) {
+            attribute.unique = false;
+        }
+    }
+
+    pub fn add_check(&mut self, check: Check) -> usize {
+        self.checks.push(check);
+        self.checks.len().saturating_sub(1)
+    }
+
+    pub fn remove_check(&mut self, index: usize) -> Option<Check> {
+        if index < self.checks.len() {
+            Some(self.checks.remove(index))
+        } else {
+            None
+        }
+    }
 }
 
 impl Default for Table {
@@ -89,8 +179,10 @@ impl Default for Table {
             fks: SlotMap::with_key(),
             uniques: vec![],
             not_nulls: vec![],
+            checks: vec![],
             open_modal: false,
             current_fk: None,
+            current_unique: None,
         }
     }
 }

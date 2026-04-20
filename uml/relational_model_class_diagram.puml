@@ -1,0 +1,131 @@
+@startuml
+
+hide circle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "IDs" {
+  class TableId <<id>>
+  class DomainId <<id>>
+  class AttrId <<id>>
+  class FkId <<id>>
+}
+
+package "Core Model" {
+  class Table {
+    +title: String
+    +attributes: SlotMap<AttrId, Attribute>
+    +pk: PrimaryKey
+    +fks: SlotMap<FkId, ForeignKey>
+    +uniques: Vec<Unique>
+    +not_nulls: Vec<NotNull>
+    +open_modal: bool
+    +current_fk: Option<ForeignKey>
+  }
+
+  class Domain {
+    +name: String
+    +data_type: DataType
+  }
+
+  class Attribute {
+    +name: String
+    +attribute_type: AttributeType
+    +pk: bool
+    +not_null: bool
+    +unique: bool
+  }
+
+  enum AttributeType {
+    Logical(DataType)
+    Domain(DomainId)
+    ForeignKeyAttribute(AttrId)
+  }
+
+  enum AttributeCategory {
+    Logical
+    Domain
+    ForeignKey
+  }
+
+  class DataType {
+    +base: usize
+    +params: Vec<u32>
+  }
+
+  class DataTypeDef {
+    +name: &'static str
+    +param_count: usize
+  }
+}
+
+package "Constraints" {
+  class PrimaryKey {
+    +name: String
+    +attributes: HashSet<AttrId>
+  }
+
+  class ForeignKey {
+    +name: String
+    +references: Option<TableId>
+    +local_attrs: HashSet<AttrId>
+  }
+
+  class Unique {
+    +name: String
+    +attributes: HashSet<AttrId>
+  }
+
+  class NotNull {
+    +name: String
+    +attributes: HashSet<AttrId>
+  }
+
+  class Check {
+    +name: String
+    +condition: Condition
+  }
+
+  enum Condition {
+    Comparison
+    Logical
+    Between
+    Like
+    In
+    IsNull
+    IsNotNull
+  }
+}
+
+' Composition / ownership
+Table *-- "1" PrimaryKey : pk
+Table *-- "0..*" ForeignKey : fks
+Table *-- "0..*" Unique : uniques
+Table *-- "0..*" NotNull : not_nulls
+Table *-- "0..*" Attribute : attributes
+Domain *-- "1" DataType : data_type
+
+' Type / reference links
+Attribute --> "1" AttributeType : attribute_type
+AttributeType --> DataType : Logical
+AttributeType --> DomainId : Domain
+AttributeType --> AttrId : ForeignKeyAttribute
+PrimaryKey --> AttrId
+Unique --> AttrId
+NotNull --> AttrId
+ForeignKey --> TableId : references
+ForeignKey --> AttrId : local_attrs
+
+note right of Table
+  In Rust implementation:
+  - attributes are keyed by AttrId (SlotMap)
+  - fks are keyed by FkId (SlotMap)
+end note
+
+note right of DataTypeDef
+  DATA_TYPES is a static registry
+  used by DataType.base index
+end note
+
+@enduml
+

@@ -1,0 +1,38 @@
+@startuml
+start
+:Otvoriť Stella24;
+:Vytvoriť novú tabuľku;
+
+repeat
+  if (Čo pridať?) then (Atribút)
+    repeat
+      :Pridať nový atribút;
+      :Zvoliť názov atribútu;
+      :Zvoliť typ údajov atribútu;
+      if (Môže byť atribút NULL?) then (nie)
+        :Pridať obmedzenie NOT NULL k atribútu;
+      else (áno)
+      endif
+      if (Je atribút jedinečný?) then (áno)
+        :Pridať obmedzenie Unique k atribútu;
+      else (nie)
+      endif
+    repeat while (Treba pridať viac?) is (áno)
+  elseif (Cudzí kľúč) then
+    repeat
+      :Pridať nový cudzí kľúč;
+      :Zvoliť lokálne atribúty;
+      :Zvoliť referencovanú tabuľku;
+    repeat while (Treba pridať viac?) is (áno)
+  else (Obmedzenie)
+    repeat
+      :Pridať nové obmedzenie;
+      :Zvoliť typ obmedzenia (PK, Unique, Check, atď.);
+      :Zvoliť ovplyvnené atribúty;
+    repeat while (Treba pridať viac?) is (áno)
+  endif
+repeat while (Treba pridať viac?) is (áno)
+
+stop
+@enduml
+

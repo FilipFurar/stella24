@@ -43,6 +43,7 @@ impl Attribute {
         ui: &mut Ui,
         id: AttrId,
         ctx: &TableUiContext,
+        disable_inline_unique: bool,
     ) -> AttributeChanges {
         let mut changes = AttributeChanges::default();
         let stroke = Color32::DARK_GRAY;
@@ -58,13 +59,12 @@ impl Attribute {
                         changes.rename_changed = true;
                     }
 
-                    match &self.attribute_type {
-                        AttributeType::Logical(_) | AttributeType::Domain(_) => {
-                            if self.attribute_type.draw_compact(ui, id, ctx) {
-                                changes.type_changed = true;
-                            }
+                    if let AttributeType::Logical(_) | AttributeType::Domain(_) =
+                        &self.attribute_type
+                    {
+                        if self.attribute_type.draw_compact(ui, id, ctx) {
+                            changes.type_changed = true;
                         }
-                        _ => {}
                     }
 
                     ui.add_enabled_ui(!self.pk, |ui| {
@@ -73,7 +73,7 @@ impl Attribute {
                         }
                     });
 
-                    ui.add_enabled_ui(!self.pk, |ui| {
+                    ui.add_enabled_ui(!self.pk && !disable_inline_unique, |ui| {
                         if ui.checkbox(&mut self.unique, "U").changed() {
                             changes.unique_changed = true;
                         }

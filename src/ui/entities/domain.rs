@@ -1,8 +1,11 @@
 // ui/entities/domain.rs
 
 use crate::app::DomainId;
+use crate::app::Command;
+use crate::model::constraints::check::Check;
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::entities::domain::Domain;
+use crate::ui::constraints::check::draw_check;
 use egui::Ui;
 use slotmap::Key;
 
@@ -11,6 +14,7 @@ use slotmap::Key;
 pub struct DomainChanges {
     pub name_changed: bool,
     pub data_type_changed: bool,
+    pub commands: Vec<Command>,
 }
 
 /// UI implementation for domains
@@ -57,6 +61,33 @@ impl Domain {
                 });
             }
         });
+
+        ui.checkbox(&mut self.not_null, "NOT NULL");
+
+        ui.separator();
+        ui.label("Check constraints:");
+
+        let mut to_delete: Vec<usize> = Vec::new();
+        for (i, check) in self.check_constraints.iter_mut().enumerate() {
+            if draw_check(ui, check, ("domain_check", id.data().as_ffi(), i), "sql") {
+                to_delete.push(i);
+            }
+        }
+
+        for i in to_delete.iter().copied().rev() {
+            self.check_constraints.remove(i);
+        }
+
+        for i in to_delete.into_iter().rev() {
+            changes.commands.push(Command::DeleteDomainCheck { domain: id, index: i });
+        }
+
+        if ui.button("Add Check").clicked() {
+            changes.commands.push(Command::AddDomainCheck {
+                domain: id,
+                check: Check::new(),
+            });
+        }
 
         changes
     }

@@ -1,0 +1,15 @@
+@startuml
+left to right direction
+actor "User" as user
+rectangle ER_Modeler {
+    usecase "Create new table" as create_table
+    usecase "Create new domain" as create_domain
+    usecase "Edit Table Attributes" as edit_attributes
+    usecase "Manage Constraints" as manage_constraints
+}
+user --> create_table
+user --> create_domain
+
+create_table ..> edit_attributes : <<include>>
+create_table ..> manage_constraints : <<include>>
+@enduml

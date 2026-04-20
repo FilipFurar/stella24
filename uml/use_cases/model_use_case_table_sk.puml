@@ -1,0 +1,37 @@
+@startuml
+left to right direction
+actor "Používateľ" as user
+rectangle "Tabuľka" {
+    usecase "Upraviť atribúty tabuľky" as edit_attributes
+    usecase "Spravovať obmedzenia tabuľky" as manage_constraints_table
+
+
+    usecase "Pridať atribút" as add_attribute
+    usecase "Odstrániť atribút" as remove_attribute
+    usecase "Upraviť dátový typ atribútu" as edit_datatype
+    usecase "Zmeniť názov atribútu" as rename_attribute
+    usecase "Zmeniť parametre atribútu" as edit_parameters
+
+    usecase "Spravovať CHECK obmedzenie" as manage_check
+    usecase "Spravovať NOT NULL obmedzenie" as manage_notnull
+    usecase "Spravovať UNIQUE obmedzenia" as manage_unique
+    usecase "Spravovať FOREIGN KEYs" as manage_fk
+    usecase "Spravovať PRIMARY KEY" as manage_pk
+}
+
+user --> edit_attributes
+user --> manage_constraints_table
+
+
+edit_attributes ..> add_attribute : <<include>>
+edit_attributes ..> remove_attribute : <<include>>
+edit_attributes ..> edit_datatype : <<include>>
+edit_attributes ..> rename_attribute : <<include>>
+edit_attributes ..> edit_parameters : <<include>>
+
+manage_constraints_table ..> manage_check : <<include>>
+manage_constraints_table ..> manage_notnull : <<include>>
+manage_constraints_table ..> manage_unique : <<include>>
+manage_constraints_table ..> manage_fk : <<include>>
+manage_constraints_table ..> manage_pk : <<include>>
+@enduml
