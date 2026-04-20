@@ -1,8 +1,10 @@
 // ui/entities/domain.rs
 
 use crate::app::DomainId;
+use crate::model::constraints::check::Check;
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::entities::domain::Domain;
+use crate::ui::constraints::check::draw_check;
 use egui::Ui;
 use slotmap::Key;
 
@@ -57,6 +59,24 @@ impl Domain {
                 });
             }
         });
+
+        ui.separator();
+        ui.label("Check constraints:");
+
+        let mut to_delete: Vec<usize> = Vec::new();
+        for (i, check) in self.check_constraints.iter_mut().enumerate() {
+            if draw_check(ui, check, ("domain_check", id.data().as_ffi(), i), "sql") {
+                to_delete.push(i);
+            }
+        }
+
+        for i in to_delete.into_iter().rev() {
+            self.check_constraints.remove(i);
+        }
+
+        if ui.button("Add Check").clicked() {
+            self.check_constraints.push(Check::new());
+        }
 
         changes
     }

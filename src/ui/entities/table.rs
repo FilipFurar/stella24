@@ -1,8 +1,10 @@
 // ui/entities/table.rs
 
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
+use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
+use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
 use eframe::epaint::Color32;
 use egui::{Id, Modal, RichText, Stroke, Ui};
@@ -194,23 +196,82 @@ impl Table {
                 .stroke(Stroke::new(1.0, GREEN))
                 .show(ui, |ui| {
                     unique.draw(ui, &self.attributes);
-                    if ui.button("🗑").clicked() {
-                        to_delete.push(i);
+                    for attribute in &unique.attributes {
+                        if let Some(attr) = self.attributes.get_mut(*attribute) {
+                            // Attributes covered by table-level UNIQUE should not also be inline-unique.
+                            attr.unique = false;
+                        }
                     }
+                    ui.horizontal(|ui| {
+                        if ui.button("Edit").clicked() {
+                            self.current_unique = Some(i);
+                        }
+                        if ui.button("🗑").clicked() {
+                            to_delete.push(i);
+                        }
+                    });
+
                 });
         }
 
         for i in to_delete {
             self.uniques.remove(i);
+            if self.current_unique == Some(i) {
+                self.current_unique = None;
+            } else if let Some(current) = self.current_unique {
+                if i < current {
+                    self.current_unique = Some(current - 1);
+                }
+            }
+        }
+    }
+
+    pub fn draw_checks(&mut self, ui: &mut Ui) {
+        let mut to_delete: Vec<usize> = Vec::new();
+
+        for (i, check) in self.checks.iter_mut().enumerate() {
+            if draw_check(ui, check, ("table_check", i), "sql") {
+                to_delete.push(i);
+            }
+        }
+
+        for i in to_delete.into_iter().rev() {
+            self.checks.remove(i);
+        }
+    }
+
+    fn handle_unique_modal(&mut self, ui: &mut Ui) {
+        let Some(unique_index) = self.current_unique else {
+            return;
+        };
+
+        if unique_index >= self.uniques.len() {
+            self.current_unique = None;
+            return;
+        }
+
+        let should_close = {
+            let unique = &mut self.uniques[unique_index];
+            unique.attribute_modal(ui, &self.attributes, unique_index)
+        };
+
+        if should_close {
+            self.current_unique = None;
         }
     }
 
     /// Draw all attributes
     fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
         let mut result = Vec::new();
+        let attrs_in_table_uniques: std::collections::HashSet<AttrId> = self
+            .uniques
+            .iter()
+            .flat_map(|unique| unique.attributes.iter().copied())
+            .collect();
 
         for (id, attr) in self.attributes_mut() {
-            let changes = attr.draw_attribute(ui, id, ctx);
+            let disable_inline_unique = attrs_in_table_uniques.contains(&id);
+            let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
             if changes.rename_changed
                 || changes.type_changed
                 || changes.not_null_changed
@@ -250,6 +311,10 @@ impl Table {
         self.draw_fks(ui);
 
         self.draw_uniques(ui);
+        ui.separator();
+        ui.label("Check constraints:");
+        self.draw_checks(ui);
+        self.handle_unique_modal(ui);
         //self.draw_not_nulls(ui);
 
         self.handle_fk_modal(ui, ctx);
@@ -265,9 +330,11 @@ impl Table {
             if ui.button("Add U").clicked() {
                 self.uniques.push(Unique::new());
             }
+            if ui.button("Add Check").clicked() {
+                self.checks.push(Check::new());
+            }
         });
 
-        ui.separator();
         changes
     }
 }

@@ -43,6 +43,7 @@ impl Attribute {
         ui: &mut Ui,
         id: AttrId,
         ctx: &TableUiContext,
+        disable_inline_unique: bool,
     ) -> AttributeChanges {
         let mut changes = AttributeChanges::default();
         let stroke = Color32::DARK_GRAY;
@@ -72,7 +73,7 @@ impl Attribute {
                         }
                     });
 
-                    ui.add_enabled_ui(!self.pk, |ui| {
+                    ui.add_enabled_ui(!self.pk && !disable_inline_unique, |ui| {
                         if ui.checkbox(&mut self.unique, "U").changed() {
                             changes.unique_changed = true;
                         }

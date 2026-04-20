@@ -1,5 +1,6 @@
 // model/entities/table.rs
 use crate::model::attribute::{AttrId, Attribute};
+use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, NotNull, PrimaryKey, Unique};
 use slotmap::SlotMap;
 
@@ -23,11 +24,17 @@ pub struct Table {
 
     pub not_nulls: Vec<NotNull>,
 
+    #[serde(default)]
+    pub checks: Vec<Check>,
+
     #[serde(skip)]
     pub open_modal: bool,
 
     #[serde(skip)]
     pub current_fk: Option<ForeignKey>,
+
+    #[serde(skip)]
+    pub current_unique: Option<usize>,
 }
 
 impl Table {
@@ -89,8 +96,10 @@ impl Default for Table {
             fks: SlotMap::with_key(),
             uniques: vec![],
             not_nulls: vec![],
+            checks: vec![],
             open_modal: false,
             current_fk: None,
+            current_unique: None,
         }
     }
 }

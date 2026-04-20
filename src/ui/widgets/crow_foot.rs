@@ -169,10 +169,21 @@ fn child_side_cardinality(from_table: &Table, fk: &ForeignKey) -> Cardinality {
         .iter()
         .any(|u| !u.attributes.is_empty() && u.attributes == fk.local_attrs);
     let is_pk = !from_table.pk.attributes.is_empty() && from_table.pk.attributes == fk.local_attrs;
+    let has_inline_unique_single_column = {
+        let mut local_attrs = fk.local_attrs.iter();
+        match (local_attrs.next(), local_attrs.next()) {
+            (Some(attr_id), None) => from_table
+                .attributes
+                .get(*attr_id)
+                .map(|attr| attr.unique)
+                .unwrap_or(false),
+            _ => false,
+        }
+    };
 
     Cardinality {
         min: CardinalityMin::Zero,
-        max: if has_exact_unique || is_pk {
+        max: if has_exact_unique || is_pk || has_inline_unique_single_column {
             CardinalityMax::One
         } else {
             CardinalityMax::Many

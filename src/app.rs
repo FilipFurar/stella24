@@ -162,7 +162,7 @@ impl AppStella {
                 }
             }
             Command::CreateDomain { name, data_type } => {
-                self.domains.insert(Domain { name, data_type });
+                self.domains.insert(Domain { name, data_type, check_constraints: vec![], not_null: false });
             }
             Command::DeleteDomain { domain } => {
                 self.domains.remove(domain);

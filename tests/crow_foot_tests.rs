@@ -126,6 +126,35 @@ fn child_side_is_one_only_when_fk_matches_unique_exactly() {
 }
 
 #[test]
+fn child_side_is_one_when_single_fk_column_has_inline_unique() {
+    let mut tables: SlotMap<TableId, Table> = SlotMap::with_key();
+
+    let parent_id = tables.insert(Table::default());
+
+    let mut child = Table::default();
+    let fk_attr = child.attributes.insert(Attribute {
+        not_null: true,
+        unique: true,
+        ..Attribute::default()
+    });
+
+    let mut fk = ForeignKey::new();
+    fk.references = Some(parent_id);
+    fk.local_attrs.insert(fk_attr);
+
+    child.fks.insert(fk);
+    let child_id = tables.insert(child);
+
+    let mut rects = HashMap::new();
+    rects.insert(child_id, make_rect(100.0, 120.0));
+    rects.insert(parent_id, make_rect(420.0, 120.0));
+
+    let edges = build_edges(&tables, &rects);
+    assert_eq!(edges.len(), 1);
+    assert_eq!(edges[0].from_cardinality.max, CardinalityMax::One);
+}
+
+#[test]
 fn parent_side_is_optional_when_any_fk_column_is_nullable() {
     let mut tables: SlotMap<TableId, Table> = SlotMap::with_key();
     let parent_id = tables.insert(Table::default());
