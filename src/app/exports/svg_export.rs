@@ -1,16 +1,18 @@
+use crate::AppStella;
 use crate::app::{DomainId, TableId};
-use crate::model::attribute::{Attribute, AttributeType};
+use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::datatype::DATA_TYPES;
 use crate::model::entities::domain::Domain;
 use crate::ui::widgets::crow_foot::{
     Cardinality, CardinalityMax, CardinalityMin, CrowFootEdge, RelationshipKind, build_edges,
 };
-use crate::AppStella;
 use egui::{Color32, Pos2, Rect, Vec2, pos2, vec2};
 use slotmap::SlotMap;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 
+/// Represents a side of a rectangle used for edge anchor placement.
+/// Used to determine which edge of a table card a relationship line connects to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Side {
     Left,
@@ -19,41 +21,95 @@ enum Side {
     Bottom,
 }
 
+/// Represents a complete SVG diagram scene containing tables and relationships.
+///
+/// This is the top-level structure that models the entire ER diagram as an SVG export.
+/// It contains dimensions for the canvas and collections of table nodes and relationships
+/// that can be rendered to SVG format.
 #[derive(Clone, Debug)]
 pub struct SvgScene {
+    /// Canvas width in pixels
     pub width: f32,
+    /// Canvas height in pixels
     pub height: f32,
+    /// All table cards in the diagram
     pub tables: Vec<SvgTableNode>,
+    /// All relationship edges in the diagram
     pub relations: Vec<SvgRelationEdge>,
 }
 
+/// Represents a single table card in the SVG diagram.
+///
+/// Contains the table's metadata, attributes, constraints, and position/size information.
+/// Used for rendering individual table cards in the ER diagram.
 #[derive(Clone, Debug)]
 pub struct SvgTableNode {
+    /// Unique identifier for the table
     pub id: TableId,
+    /// Table name/title
     pub title: String,
+    /// All attribute rows in the table
     pub attributes: Vec<SvgAttributeRow>,
+    /// All table-level constraints (PK, FK, UNIQUE, CHECK, etc.)
+    pub table_constraints: Vec<SvgTableConstraintRow>,
+    /// Position and dimensions of the table card on the canvas
     pub rect: Rect,
 }
 
+/// Represents a single row in a table's attribute/column section.
+///
+/// Contains the column name, data type, and any inline constraints (PK, NN, U).
 #[derive(Clone, Debug)]
 pub struct SvgAttributeRow {
+    /// Column/attribute name
     pub name: String,
+    /// Data type as a displayable string (e.g., "VARCHAR(50)", "NUMBER", or domain name)
     pub datatype: String,
+    /// Inline constraint flags (e.g., "PK, NN" or "U")
     pub constraints: String,
 }
 
+/// Represents a single table-level constraint in the constraints section.
+///
+/// Table-level constraints include multi-column PRIMARY KEYs, UNIQUE constraints,
+/// FOREIGN KEYs, and CHECK constraints.
+#[derive(Clone, Debug)]
+pub struct SvgTableConstraintRow {
+    /// Formatted constraint description (e.g., "FK fk_child (parent_id) -> parent")
+    pub text: String,
+}
+
+/// Represents a relationship edge (crow's foot notation) between two tables.
+///
+/// Contains both the visual routing of the line and semantic information about
+/// the relationship's cardinality and type (identifying/non-identifying).
 #[derive(Clone, Debug)]
 pub struct SvgRelationEdge {
+    /// Starting point of the edge (on the child/referencing table)
     pub from: Pos2,
+    /// Ending point of the edge (on the parent/referenced table)
     pub to: Pos2,
+    /// Routing path waypoints between from and to (may contain intermediate points)
     pub route: Vec<Pos2>,
+    /// Cardinality at the source (child) end
     pub from_cardinality: Cardinality,
+    /// Cardinality at the target (parent) end
     pub to_cardinality: Cardinality,
+    /// Relationship type (identifying = solid, non-identifying = dashed)
     pub kind: RelationshipKind,
+    /// Color of the edge
     pub color: Color32,
 }
 
 impl AppStella {
+    /// Exports the current data model to an SVG file.
+    ///
+    /// Generates a complete ER diagram as an SVG image and writes it to the specified path.
+    /// The diagram includes all tables, attributes, constraints, and relationships with
+    /// crow's foot notation. Layout is automatic with multi-column grid positioning.
+    ///
+    /// # Arguments
+    /// * `path` - File path where the SVG will be written
     pub fn to_svg(&self, path: &str) {
         let scene = model_to_svg_scene(self);
         let svg = render_svg_scene(&scene);
@@ -63,6 +119,17 @@ impl AppStella {
     }
 }
 
+/// Converts the application's data model into an SVG scene.
+///
+/// Transforms tables, domains, and relationships from the application model
+/// into a drawable SVG scene. Handles layout, edge routing, anchor distribution,
+/// and deduplication of relationships.
+///
+/// # Arguments
+/// * `app` - The application instance containing all model data
+///
+/// # Returns
+/// A complete `SvgScene` ready for rendering to SVG format.
 pub fn model_to_svg_scene(app: &AppStella) -> SvgScene {
     let tables = map_tables_to_nodes(app.tables(), app.domains());
 
@@ -105,6 +172,18 @@ pub fn model_to_svg_scene(app: &AppStella) -> SvgScene {
     }
 }
 
+/// Converts all tables and domains from the model into SVG table nodes.
+///
+/// Lays out tables in a multi-column grid (3 columns per row) with automatic
+/// height calculation based on attributes and constraints. Extracts and formats
+/// attributes and table-level constraints.
+///
+/// # Arguments
+/// * `tables` - All tables in the model
+/// * `domains` - All domains in the model (used for attribute type resolution)
+///
+/// # Returns
+/// A vector of `SvgTableNode` with positioned rectangles and formatted content.
 fn map_tables_to_nodes(
     tables: &SlotMap<TableId, crate::model::entities::table::Table>,
     domains: &SlotMap<DomainId, Domain>,
@@ -121,8 +200,15 @@ fn map_tables_to_nodes(
             .values()
             .map(|a| format_attribute_row(a, domains))
             .collect::<Vec<_>>();
+        let table_constraints = format_table_constraints(table, tables);
 
-        let h = 66.0 + (attributes.len() as f32 * 24.0).max(24.0);
+        let attr_h = (attributes.len() as f32 * 24.0).max(24.0);
+        let constraints_h = if table_constraints.is_empty() {
+            0.0
+        } else {
+            28.0 + table_constraints.len() as f32 * 18.0
+        };
+        let h = 66.0 + attr_h + constraints_h;
         if col == 3 {
             col = 0;
             x = 40.0;
@@ -137,6 +223,7 @@ fn map_tables_to_nodes(
             id,
             title: table.title.clone(),
             attributes,
+            table_constraints,
             rect,
         });
 
@@ -147,6 +234,17 @@ fn map_tables_to_nodes(
     out
 }
 
+/// Formats a single attribute into an SVG row representation.
+///
+/// Extracts the attribute name, data type, and inline constraints (PK, NN, U).
+/// Data types are resolved from domains or shown as logical type names with parameters.
+///
+/// # Arguments
+/// * `attr` - The attribute to format
+/// * `domains` - Domain collection for type resolution
+///
+/// # Returns
+/// A formatted `SvgAttributeRow` ready for rendering.
 fn format_attribute_row(attr: &Attribute, domains: &SlotMap<DomainId, Domain>) -> SvgAttributeRow {
     let mut flags = Vec::new();
     if attr.pk {
@@ -194,6 +292,17 @@ fn format_attribute_row(attr: &Attribute, domains: &SlotMap<DomainId, Domain>) -
     }
 }
 
+/// Renders an SVG scene to XML string format.
+///
+/// Produces valid SVG markup that can be written to a file or displayed in a viewer.
+/// Includes proper XML declaration, SVG header with viewBox, and grouped elements
+/// for relations and tables.
+///
+/// # Arguments
+/// * `scene` - The SVG scene to render
+///
+/// # Returns
+/// A complete SVG document as a string.
 pub fn render_svg_scene(scene: &SvgScene) -> String {
     let mut s = String::new();
     s.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -219,13 +328,21 @@ pub fn render_svg_scene(scene: &SvgScene) -> String {
     s
 }
 
+/// Renders a single table card as SVG elements.
+///
+/// Produces a rounded-rectangle background with a title header, attribute rows
+/// with name/type/constraints columns, and a table-constraints section if present.
+/// Uses dark theme colors for accessibility.
+///
+/// # Arguments
+/// * `table` - The table node to render
+///
+/// # Returns
+/// SVG XML string containing the table group and all its content.
 fn render_table(table: &SvgTableNode) -> String {
     let mut s = String::new();
     let r = table.rect;
-    s.push_str(&format!(
-        "<g class=\"table\" data-id=\"{:?}\">\n",
-        table.id
-    ));
+    s.push_str(&format!("<g class=\"table\" data-id=\"{:?}\">\n", table.id));
     s.push_str(&format!(
         "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" fill=\"#2b2b2b\" stroke=\"#505050\"/>\n",
         r.left(),
@@ -270,10 +387,153 @@ fn render_table(table: &SvgTableNode) -> String {
         y += 18.0;
     }
 
+    if !table.table_constraints.is_empty() {
+        let sep_y = y + 4.0;
+        s.push_str(&format!(
+            "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"#505050\" stroke-width=\"1\"/>\n",
+            r.left() + 8.0,
+            sep_y,
+            r.right() - 8.0,
+            sep_y
+        ));
+
+        y = sep_y + 14.0;
+        s.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#bbbbbb\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"11\" font-weight=\"600\" text-anchor=\"start\" dominant-baseline=\"middle\">Table constraints</text>\n",
+            name_x,
+            y
+        ));
+
+        y += 16.0;
+        for constraint in &table.table_constraints {
+            s.push_str(&format!(
+                "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#b8b8b8\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"11\" text-anchor=\"start\" dominant-baseline=\"middle\">{}</text>\n",
+                name_x,
+                y,
+                escape_xml(&constraint.text)
+            ));
+            y += 16.0;
+        }
+    }
+
     s.push_str("</g>\n");
     s
 }
 
+/// Extracts and formats table-level constraints for SVG display.
+///
+/// Collects multi-column PRIMARY KEYs, UNIQUE constraints, NOT NULL constraints,
+/// FOREIGN KEYs, and CHECK constraints. Single-column constraints that are already
+/// shown inline with attributes are excluded.
+///
+/// # Arguments
+/// * `table` - The table to extract constraints from
+/// * `tables` - All tables (used for FK reference resolution)
+///
+/// # Returns
+/// A vector of formatted constraint rows.
+fn format_table_constraints(
+    table: &crate::model::entities::table::Table,
+    tables: &SlotMap<TableId, crate::model::entities::table::Table>,
+) -> Vec<SvgTableConstraintRow> {
+    let mut rows = Vec::new();
+
+    let pk_attrs = sorted_attr_names(table, &table.pk.attributes);
+    if pk_attrs.len() > 1 {
+        rows.push(SvgTableConstraintRow {
+            text: format!("PK ({})", pk_attrs.join(", ")),
+        });
+    }
+
+    for unique in &table.uniques {
+        let attrs = sorted_attr_names(table, &unique.attributes);
+        if attrs.len() > 1 {
+            rows.push(SvgTableConstraintRow {
+                text: if unique.name.trim().is_empty() {
+                    format!("UQ ({})", attrs.join(", "))
+                } else {
+                    format!("UQ {} ({})", unique.name, attrs.join(", "))
+                },
+            });
+        }
+    }
+
+    for not_null in &table.not_nulls {
+        let attrs = sorted_attr_names(table, &not_null.attributes);
+        if attrs.len() > 1 {
+            rows.push(SvgTableConstraintRow {
+                text: if not_null.name.trim().is_empty() {
+                    format!("NN ({})", attrs.join(", "))
+                } else {
+                    format!("NN {} ({})", not_null.name, attrs.join(", "))
+                },
+            });
+        }
+    }
+
+    for fk in table.fks.values() {
+        let local_attrs = sorted_attr_names(table, &fk.local_attrs);
+        let target = fk
+            .references
+            .and_then(|id| tables.get(id))
+            .map(|t| t.title.clone())
+            .unwrap_or_else(|| "?".to_string());
+        rows.push(SvgTableConstraintRow {
+            text: if fk.name.trim().is_empty() {
+                format!("FK ({}) -> {}", local_attrs.join(", "), target)
+            } else {
+                format!("FK {} ({}) -> {}", fk.name, local_attrs.join(", "), target)
+            },
+        });
+    }
+
+    for check in &table.checks {
+        rows.push(SvgTableConstraintRow {
+            text: if check.name.trim().is_empty() {
+                format!("CHECK ({})", check.condition)
+            } else {
+                format!("CHECK {} ({})", check.name, check.condition)
+            },
+        });
+    }
+
+    rows
+}
+
+/// Extracts and sorts attribute names from a set of attribute IDs.
+///
+/// Performs a lookup of attribute names from the table and returns them sorted
+/// alphabetically for consistent, readable constraint display.
+///
+/// # Arguments
+/// * `table` - The table containing the attributes
+/// * `ids` - Set of attribute IDs to resolve
+///
+/// # Returns
+/// A sorted vector of attribute names.
+fn sorted_attr_names(
+    table: &crate::model::entities::table::Table,
+    ids: &HashSet<AttrId>,
+) -> Vec<String> {
+    let mut names = ids
+        .iter()
+        .filter_map(|id| table.attributes.get(*id).map(|attr| attr.name.clone()))
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
+/// Renders a single relationship edge with crow's foot notation.
+///
+/// Produces SVG elements for the line, endpoints with cardinality symbols
+/// (circles, bars, crow's feet), and the appropriate styling (solid for identifying,
+/// dashed for non-identifying).
+///
+/// # Arguments
+/// * `rel` - The relationship edge to render
+///
+/// # Returns
+/// SVG XML string for the complete relationship line with endpoints.
 fn render_relation(rel: &SvgRelationEdge) -> String {
     let color = color_hex(rel.color);
     let mut s = String::new();
@@ -313,17 +573,28 @@ fn render_relation(rel: &SvgRelationEdge) -> String {
         rel.from_cardinality,
         &color,
     ));
-    s.push_str(&render_endpoint(
-        rel.to,
-        to_dir,
-        rel.to_cardinality,
-        &color,
-    ));
+    s.push_str(&render_endpoint(rel.to, to_dir, rel.to_cardinality, &color));
 
     s.push_str("</g>\n");
     s
 }
 
+/// Renders the visual endpoint (cardinality symbol) of a relationship.
+///
+/// Produces the appropriate SVG geometry for the cardinality constraint:
+/// - Circles for "zero" cardinality min
+/// - Bars for "one" cardinality min
+/// - Crow's feet for "many" cardinality max
+/// - Bars for "one" cardinality max
+///
+/// # Arguments
+/// * `point` - Endpoint position
+/// * `direction` - Direction vector along the relationship line
+/// * `card` - Cardinality constraint (min and max)
+/// * `color` - Color for the endpoint
+///
+/// # Returns
+/// SVG XML string for the endpoint symbols.
 fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &str) -> String {
     if direction == Vec2::ZERO {
         return String::new();
@@ -360,6 +631,18 @@ fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &
     s
 }
 
+/// Renders a polyline route connecting multiple points.
+///
+/// Produces SVG line segments connecting the waypoints in the route,
+/// with optional dashing for non-identifying relationships.
+///
+/// # Arguments
+/// * `points` - Waypoints along the route
+/// * `color` - Line color
+/// * `dash` - Optional stroke-dasharray attribute (empty or " stroke-dasharray=\"4 6\"")
+///
+/// # Returns
+/// SVG XML string for the line segments.
 fn render_route(points: &[Pos2], color: &str, dash: &str) -> String {
     let mut s = String::new();
     for win in points.windows(2) {
@@ -391,9 +674,21 @@ fn render_crow_foot(apex: Pos2, direction: Vec2, normal: Vec2, color: &str) -> S
         "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"/>\n\
          <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"/>\n\
          <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"/>\n",
-        apex.x, apex.y, left.x, left.y, color,
-        apex.x, apex.y, mid.x, mid.y, color,
-        apex.x, apex.y, right.x, right.y, color
+        apex.x,
+        apex.y,
+        left.x,
+        left.y,
+        color,
+        apex.x,
+        apex.y,
+        mid.x,
+        mid.y,
+        color,
+        apex.x,
+        apex.y,
+        right.x,
+        right.y,
+        color
     )
 }
 
@@ -458,10 +753,16 @@ fn distribute_edge_anchors(edges: &mut [CrowFootEdge], rects: &HashMap<TableId, 
 
     for (idx, edge) in edges.iter().enumerate() {
         if let Some((table_id, side)) = endpoint_table_side(edge.from, rects) {
-            groups.entry((table_id, side)).or_default().push((idx, true));
+            groups
+                .entry((table_id, side))
+                .or_default()
+                .push((idx, true));
         }
         if let Some((table_id, side)) = endpoint_table_side(edge.to, rects) {
-            groups.entry((table_id, side)).or_default().push((idx, false));
+            groups
+                .entry((table_id, side))
+                .or_default()
+                .push((idx, false));
         }
     }
 
@@ -586,7 +887,10 @@ fn route_between_stubs(
     from_id: Option<TableId>,
     to_id: Option<TableId>,
 ) -> Vec<Pos2> {
-    let mut candidates = vec![vec![from, pos2(to.x, from.y), to], vec![from, pos2(from.x, to.y), to]];
+    let mut candidates = vec![
+        vec![from, pos2(to.x, from.y), to],
+        vec![from, pos2(from.x, to.y), to],
+    ];
 
     let mut x_lanes = vec![from.x - 40.0, from.x + 40.0, to.x - 40.0, to.x + 40.0];
     let mut y_lanes = vec![from.y - 40.0, from.y + 40.0, to.y - 40.0, to.y + 40.0];
@@ -696,10 +1000,3 @@ fn simplify_route(mut points: Vec<Pos2>) -> Vec<Pos2> {
     out.push(*points.last().expect("route has endpoint"));
     out
 }
-
-
-
-
-
-
-

@@ -73,17 +73,13 @@ impl Attribute {
                         }
                     });
 
-                    ui.add_enabled_ui(!self.pk && !disable_inline_unique, |ui| {
+                    ui.add_enabled_ui(!disable_inline_unique, |ui| {
                         if ui.checkbox(&mut self.unique, "U").changed() {
                             changes.unique_changed = true;
                         }
                     });
 
                     if self.pk {
-                        if !self.unique {
-                            self.unique = true;
-                            changes.unique_changed = true;
-                        }
                         if !self.not_null {
                             self.not_null = true;
                             changes.not_null_changed = true;

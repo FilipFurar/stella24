@@ -32,7 +32,7 @@ pub static DATA_TYPES: &[DataTypeDef] = &[
         param_count: 0,
     },
     DataTypeDef {
-        name: "INTEGER",
+        name: "NUMBER",
         param_count: 2,
     },
     DataTypeDef {

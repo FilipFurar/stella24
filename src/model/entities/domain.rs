@@ -1,7 +1,7 @@
 // model/entities/domain.rs
 
-use crate::model::constraints::check::Check;
 use super::super::datatype::DataType;
+use crate::model::constraints::check::Check;
 
 /// SQL Domain
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

@@ -191,7 +191,6 @@ impl Table {
                             to_delete.push(i);
                         }
                     });
-
                 });
 
             if unique.name != before_name {
@@ -339,18 +338,29 @@ impl Table {
 
         self.draw_pk(ui);
         for fkid in self.draw_fks(ui) {
-            changes.commands.push(Command::DeleteForeignKey { table: table_id, fk: fkid });
+            changes.commands.push(Command::DeleteForeignKey {
+                table: table_id,
+                fk: fkid,
+            });
         }
 
         changes.commands.extend(self.draw_uniques(ui, table_id));
         for index in self.draw_checks(ui).into_iter().rev() {
-            changes.commands.push(Command::DeleteTableCheck { table: table_id, index });
+            changes.commands.push(Command::DeleteTableCheck {
+                table: table_id,
+                index,
+            });
         }
-        changes.commands.extend(self.handle_unique_modal(ui, table_id));
+        changes
+            .commands
+            .extend(self.handle_unique_modal(ui, table_id));
         //self.draw_not_nulls(ui);
 
         if let Some(fk) = self.handle_fk_modal(ui, ctx) {
-            changes.commands.push(Command::AddForeignKey { table: table_id, foreign_key: fk });
+            changes.commands.push(Command::AddForeignKey {
+                table: table_id,
+                foreign_key: fk,
+            });
         }
         //self.handle_attribute_modal(ui);
 

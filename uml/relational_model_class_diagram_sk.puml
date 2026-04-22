@@ -5,10 +5,10 @@ skinparam classAttributeIconSize 0
 skinparam linetype ortho
 
 package "Identifikatory" {
-  class TableId <<id>>
-  class DomainId <<id>>
-  class AttrId <<id>>
-  class FkId <<id>>
+  struct TableId <<id>>
+  struct DomainId <<id>>
+  struct AttrId <<id>>
+  struct FkId <<id>>
 }
 
 package "Jadro modelu" {
