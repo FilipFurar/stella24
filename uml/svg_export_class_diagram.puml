@@ -1,0 +1,45 @@
+@startuml svg_export_struct_diagram
+skinparam structAttributeIconSize 0
+
+struct SvgScene {
+  +width: f32
+  +height: f32
+  +tables: Vec<SvgTableNode>
+  +relations: Vec<SvgRelationEdge>
+}
+
+struct SvgTableNode {
+  +id: TableId
+  +title: String
+  +attributes: Vec<SvgAttributeRow>
+  +table_constraints: Vec<SvgTableConstraintRow>
+  +rect: Rect
+}
+
+struct SvgAttributeRow {
+  +name: String
+  +datatype: String
+  +constraints: String
+}
+
+struct SvgTableConstraintRow {
+  +text: String
+}
+
+struct SvgRelationEdge {
+  +from: Pos2
+  +to: Pos2
+  +route: Vec<Pos2>
+  +from_cardinality: Cardinality
+  +to_cardinality: Cardinality
+  +kind: RelationshipKind
+  +color: Color32
+}
+
+SvgScene "1" *-- "0..*" SvgTableNode : tables
+SvgScene "1" *-- "0..*" SvgRelationEdge : relations
+SvgTableNode "1" *-- "0..*" SvgAttributeRow : attributes
+SvgTableNode "1" *-- "0..*" SvgTableConstraintRow : table_constraints
+
+@enduml
+

@@ -68,9 +68,9 @@ fn svg_export_uses_workbench_relation_notation() {
     assert!(svg.contains("stroke-dasharray=\"4 6\""));
     assert!(svg.contains("data-from-cardinality=\"0..N\""));
     assert!(svg.contains("data-to-cardinality=\"1..1\""));
+    assert!(svg.contains("Table constraints"));
+    assert!(svg.contains("FK fk_parent (parent_id) -&gt; parent"));
 
     let _ = fs::remove_file(input_path);
     let _ = fs::remove_file(output_path);
 }
-
-

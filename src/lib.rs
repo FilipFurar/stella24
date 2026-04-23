@@ -9,11 +9,8 @@ pub mod app;
 /// Contains all backend logic
 pub mod model;
 
-pub mod sql_export;
-pub mod svg_export;
 /// # UI module
 /// Contains UI logic and drawing
 pub mod ui;
-pub mod file_dialog;
 
 pub use app::AppStella;

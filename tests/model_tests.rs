@@ -83,4 +83,3 @@ fn foreign_key_local_attrs_are_deduplicated() {
     let only_fk = table.fks.values().next().expect("fk missing");
     assert_eq!(only_fk.local_attrs.len(), 1);
 }
-
