@@ -15,6 +15,7 @@ pub struct Table {
     pub attributes: SlotMap<AttrId, Attribute>,
 
     /// Primary key constraint, contains only Ids of attributes that the PK is made out of
+    #[serde(default)]
     pub pk: PrimaryKey,
 
     /// Stores ForeignKey constraints

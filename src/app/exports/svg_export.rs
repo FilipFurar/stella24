@@ -10,6 +10,8 @@ use egui::{Color32, Pos2, Rect, Vec2, pos2, vec2};
 use slotmap::SlotMap;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use svg::Document;
+use svg::node::element::{Circle, Group, Line, Rectangle, Text as SvgText};
 
 /// Represents a side of a rectangle used for edge anchor placement.
 /// Used to determine which edge of a table card a relationship line connects to.
@@ -19,6 +21,82 @@ enum Side {
     Right,
     Top,
     Bottom,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SvgLayoutMode {
+    Automatic,
+    Workbench,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SvgThemeChoice {
+    Default,
+    Light,
+    Dark,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SvgExportOptions {
+    pub layout: SvgLayoutMode,
+    pub theme: SvgThemeChoice,
+}
+
+impl Default for SvgExportOptions {
+    fn default() -> Self {
+        Self {
+            layout: SvgLayoutMode::Automatic,
+            theme: SvgThemeChoice::Default,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SvgTheme {
+    table_fill: &'static str,
+    table_stroke: &'static str,
+    title_text: &'static str,
+    body_text: &'static str,
+    section_title_text: &'static str,
+    constraint_text: &'static str,
+}
+
+impl SvgTheme {
+    fn dark() -> Self {
+        Self {
+            table_fill: "#2b2b2b",
+            table_stroke: "#505050",
+            title_text: "#f0f0f0",
+            body_text: "#d8d8d8",
+            section_title_text: "#bbbbbb",
+            constraint_text: "#b8b8b8",
+        }
+    }
+
+    fn light() -> Self {
+        Self {
+            table_fill: "#f7f7f7",
+            table_stroke: "#9b9b9b",
+            title_text: "#181818",
+            body_text: "#2a2a2a",
+            section_title_text: "#444444",
+            constraint_text: "#4f4f4f",
+        }
+    }
+}
+
+fn resolve_theme(choice: SvgThemeChoice, default_dark_mode: bool) -> SvgTheme {
+    match choice {
+        SvgThemeChoice::Default => {
+            if default_dark_mode {
+                SvgTheme::dark()
+            } else {
+                SvgTheme::light()
+            }
+        }
+        SvgThemeChoice::Light => SvgTheme::light(),
+        SvgThemeChoice::Dark => SvgTheme::dark(),
+    }
 }
 
 /// Represents a complete SVG diagram scene containing tables and relationships.
@@ -111,11 +189,31 @@ impl AppStella {
     /// # Arguments
     /// * `path` - File path where the SVG will be written
     pub fn to_svg(&self, path: &str) {
-        let scene = model_to_svg_scene(self);
-        let svg = render_svg_scene(&scene);
+        self.to_svg_with_options(path, SvgExportOptions::default(), None, true);
+    }
+
+    pub fn to_svg_with_options(
+        &self,
+        path: &str,
+        options: SvgExportOptions,
+        workbench_rects: Option<&HashMap<TableId, Rect>>,
+        default_dark_mode: bool,
+    ) {
+        let svg = self.svg_string_with_options(options, workbench_rects, default_dark_mode);
         if let Err(err) = fs::write(path, svg) {
             eprintln!("Error exporting SVG: {err}");
         }
+    }
+
+    pub fn svg_string_with_options(
+        &self,
+        options: SvgExportOptions,
+        workbench_rects: Option<&HashMap<TableId, Rect>>,
+        default_dark_mode: bool,
+    ) -> String {
+        let scene = model_to_svg_scene_with_layout(self, options.layout, workbench_rects);
+        let theme = resolve_theme(options.theme, default_dark_mode);
+        render_svg_scene_with_theme(&scene, theme)
     }
 }
 
@@ -131,7 +229,20 @@ impl AppStella {
 /// # Returns
 /// A complete `SvgScene` ready for rendering to SVG format.
 pub fn model_to_svg_scene(app: &AppStella) -> SvgScene {
-    let tables = map_tables_to_nodes(app.tables(), app.domains());
+    model_to_svg_scene_with_layout(app, SvgLayoutMode::Automatic, None)
+}
+
+pub fn model_to_svg_scene_with_layout(
+    app: &AppStella,
+    layout: SvgLayoutMode,
+    workbench_rects: Option<&HashMap<TableId, Rect>>,
+) -> SvgScene {
+    let tables = match (layout, workbench_rects) {
+        (SvgLayoutMode::Workbench, Some(rects)) => {
+            map_tables_to_nodes_with_rects(app.tables(), app.domains(), rects)
+        }
+        _ => map_tables_to_nodes(app.tables(), app.domains()),
+    };
 
     let mut rects = HashMap::new();
     let mut max_x: f32 = 0.0;
@@ -234,6 +345,20 @@ fn map_tables_to_nodes(
     out
 }
 
+fn map_tables_to_nodes_with_rects(
+    tables: &SlotMap<TableId, crate::model::entities::table::Table>,
+    domains: &SlotMap<DomainId, Domain>,
+    table_rects: &HashMap<TableId, Rect>,
+) -> Vec<SvgTableNode> {
+    let mut nodes = map_tables_to_nodes(tables, domains);
+    for node in &mut nodes {
+        if let Some(rect) = table_rects.get(&node.id) {
+            node.rect = *rect;
+        }
+    }
+    nodes
+}
+
 /// Formats a single attribute into an SVG row representation.
 ///
 /// Extracts the attribute name, data type, and inline constraints (PK, NN, U).
@@ -304,28 +429,35 @@ fn format_attribute_row(attr: &Attribute, domains: &SlotMap<DomainId, Domain>) -
 /// # Returns
 /// A complete SVG document as a string.
 pub fn render_svg_scene(scene: &SvgScene) -> String {
-    let mut s = String::new();
-    s.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    s.push_str(&format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{:.0}\" height=\"{:.0}\" viewBox=\"0 0 {:.0} {:.0}\">\n",
-        scene.width, scene.height, scene.width, scene.height
-    ));
-    // Keep exported SVG transparent; viewers can style background themselves.
+    render_svg_scene_with_theme(scene, SvgTheme::dark())
+}
 
-    s.push_str("<g class=\"relations\">\n");
-    for rel in &scene.relations {
-        s.push_str(&render_relation(rel));
-    }
-    s.push_str("</g>\n");
+fn render_svg_scene_with_theme(scene: &SvgScene, theme: SvgTheme) -> String {
+    let relations = scene
+        .relations
+        .iter()
+        .fold(Group::new().set("class", "relations"), |group, rel| {
+            group.add(render_relation(rel))
+        });
+    let tables = scene
+        .tables
+        .iter()
+        .fold(Group::new().set("class", "tables"), |group, table| {
+            group.add(render_table(table, theme))
+        });
 
-    s.push_str("<g class=\"tables\">\n");
-    for table in &scene.tables {
-        s.push_str(&render_table(table));
-    }
-    s.push_str("</g>\n");
+    let document = Document::new()
+        .set("xmlns", "http://www.w3.org/2000/svg")
+        .set("width", format!("{:.0}", scene.width))
+        .set("height", format!("{:.0}", scene.height))
+        .set(
+            "viewBox",
+            format!("0 0 {:.0} {:.0}", scene.width, scene.height),
+        )
+        .add(relations)
+        .add(tables);
 
-    s.push_str("</svg>\n");
-    s
+    format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}\n", document)
 }
 
 /// Renders a single table card as SVG elements.
@@ -339,49 +471,69 @@ pub fn render_svg_scene(scene: &SvgScene) -> String {
 ///
 /// # Returns
 /// SVG XML string containing the table group and all its content.
-fn render_table(table: &SvgTableNode) -> String {
-    let mut s = String::new();
+fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
     let r = table.rect;
-    s.push_str(&format!("<g class=\"table\" data-id=\"{:?}\">\n", table.id));
-    s.push_str(&format!(
-        "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"8\" fill=\"#2b2b2b\" stroke=\"#505050\"/>\n",
-        r.left(),
-        r.top(),
-        r.width(),
-        r.height()
-    ));
+    let mut group = Group::new()
+        .set("class", "table")
+        .set("data-id", format!("{:?}", table.id));
+    group = group.add(
+        Rectangle::new()
+            .set("x", r.left())
+            .set("y", r.top())
+            .set("width", r.width())
+            .set("height", r.height())
+            .set("rx", 8)
+            .set("fill", theme.table_fill)
+            .set("stroke", theme.table_stroke),
+    );
 
     let title_y = r.top() + 26.0;
-    s.push_str(&format!(
-        "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#f0f0f0\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"30\" font-weight=\"700\" transform=\"scale(0.45)\">{}</text>\n",
-        (r.left() + 12.0) / 0.45,
-        title_y / 0.45,
-        escape_xml(&table.title)
-    ));
+    group = group.add(
+        SvgText::new(table.title.clone())
+            .set("x", (r.left() + 12.0) / 0.45)
+            .set("y", title_y / 0.45)
+            .set("fill", theme.title_text)
+            .set("font-family", "Inter, Segoe UI, Arial, sans-serif")
+            .set("font-size", 30)
+            .set("font-weight", 700)
+            .set("transform", "scale(0.45)"),
+    );
 
     let name_x = r.left() + 12.0;
     let datatype_x = r.left() + r.width() * 0.50;
     let constraints_x = r.right() - 12.0;
     let mut y = r.top() + 54.0;
     for attr in &table.attributes {
-        s.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#d8d8d8\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"12\" text-anchor=\"start\" dominant-baseline=\"middle\">{}</text>\n",
+        group = group.add(svg_text(
             name_x,
             y,
-            escape_xml(&attr.name)
+            theme.body_text,
+            12,
+            "start",
+            Some("middle"),
+            None,
+            &attr.name,
         ));
-        s.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#d8d8d8\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"12\" text-anchor=\"middle\" dominant-baseline=\"middle\">{}</text>\n",
+        group = group.add(svg_text(
             datatype_x,
             y,
-            escape_xml(&attr.datatype)
+            theme.body_text,
+            12,
+            "middle",
+            Some("middle"),
+            None,
+            &attr.datatype,
         ));
         if !attr.constraints.is_empty() {
-            s.push_str(&format!(
-                "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#d8d8d8\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"12\" text-anchor=\"end\" dominant-baseline=\"middle\">{}</text>\n",
+            group = group.add(svg_text(
                 constraints_x,
                 y,
-                escape_xml(&attr.constraints)
+                theme.body_text,
+                12,
+                "end",
+                Some("middle"),
+                None,
+                &attr.constraints,
             ));
         }
         y += 18.0;
@@ -389,35 +541,45 @@ fn render_table(table: &SvgTableNode) -> String {
 
     if !table.table_constraints.is_empty() {
         let sep_y = y + 4.0;
-        s.push_str(&format!(
-            "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"#505050\" stroke-width=\"1\"/>\n",
-            r.left() + 8.0,
-            sep_y,
-            r.right() - 8.0,
-            sep_y
-        ));
+        group = group.add(
+            Line::new()
+                .set("x1", r.left() + 8.0)
+                .set("y1", sep_y)
+                .set("x2", r.right() - 8.0)
+                .set("y2", sep_y)
+                .set("stroke", theme.table_stroke)
+                .set("stroke-width", 1),
+        );
 
         y = sep_y + 14.0;
-        s.push_str(&format!(
-            "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#bbbbbb\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"11\" font-weight=\"600\" text-anchor=\"start\" dominant-baseline=\"middle\">Table constraints</text>\n",
+        group = group.add(svg_text(
             name_x,
-            y
+            y,
+            theme.section_title_text,
+            11,
+            "start",
+            Some("middle"),
+            Some("600"),
+            "Table constraints",
         ));
 
         y += 16.0;
         for constraint in &table.table_constraints {
-            s.push_str(&format!(
-                "<text x=\"{:.1}\" y=\"{:.1}\" fill=\"#b8b8b8\" font-family=\"Inter, Segoe UI, Arial, sans-serif\" font-size=\"11\" text-anchor=\"start\" dominant-baseline=\"middle\">{}</text>\n",
+            group = group.add(svg_text(
                 name_x,
                 y,
-                escape_xml(&constraint.text)
+                theme.constraint_text,
+                11,
+                "start",
+                Some("middle"),
+                None,
+                &constraint.text,
             ));
             y += 16.0;
         }
     }
 
-    s.push_str("</g>\n");
-    s
+    group
 }
 
 /// Extracts and formats table-level constraints for SVG display.
@@ -534,27 +696,22 @@ fn sorted_attr_names(
 ///
 /// # Returns
 /// SVG XML string for the complete relationship line with endpoints.
-fn render_relation(rel: &SvgRelationEdge) -> String {
+fn render_relation(rel: &SvgRelationEdge) -> Group {
     let color = color_hex(rel.color);
-    let mut s = String::new();
-    let dash = if rel.kind == RelationshipKind::NonIdentifying {
-        " stroke-dasharray=\"4 6\""
-    } else {
-        ""
-    };
+    let mut group = Group::new()
+        .set("class", "relation")
+        .set("data-kind", relation_kind_label(rel.kind))
+        .set(
+            "data-from-cardinality",
+            cardinality_label(rel.from_cardinality),
+        )
+        .set("data-to-cardinality", cardinality_label(rel.to_cardinality));
 
-    s.push_str(&format!(
-        "<g class=\"relation\" data-kind=\"{}\" data-from-cardinality=\"{}\" data-to-cardinality=\"{}\">\n",
-        if rel.kind == RelationshipKind::Identifying {
-            "identifying"
-        } else {
-            "non-identifying"
-        },
-        cardinality_label(rel.from_cardinality),
-        cardinality_label(rel.to_cardinality)
+    group = group.add(render_route(
+        &rel.route,
+        &color,
+        rel.kind == RelationshipKind::NonIdentifying,
     ));
-
-    s.push_str(&render_route(&rel.route, &color, dash));
 
     let from_dir = if rel.route.len() >= 2 {
         rel.route[1] - rel.route[0]
@@ -567,16 +724,15 @@ fn render_relation(rel: &SvgRelationEdge) -> String {
         rel.from - rel.to
     };
 
-    s.push_str(&render_endpoint(
+    group = group.add(render_endpoint(
         rel.from,
         from_dir,
         rel.from_cardinality,
         &color,
     ));
-    s.push_str(&render_endpoint(rel.to, to_dir, rel.to_cardinality, &color));
+    group = group.add(render_endpoint(rel.to, to_dir, rel.to_cardinality, &color));
 
-    s.push_str("</g>\n");
-    s
+    group
 }
 
 /// Renders the visual endpoint (cardinality symbol) of a relationship.
@@ -595,9 +751,9 @@ fn render_relation(rel: &SvgRelationEdge) -> String {
 ///
 /// # Returns
 /// SVG XML string for the endpoint symbols.
-fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &str) -> String {
+fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &str) -> Group {
     if direction == Vec2::ZERO {
-        return String::new();
+        return Group::new();
     }
 
     direction = direction.normalized();
@@ -605,30 +761,35 @@ fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &
     let min_pos = point + direction * 7.0;
     let max_pos = point + direction * 15.0;
 
-    let mut s = String::new();
+    let mut group = Group::new();
 
     match card.min {
         CardinalityMin::Zero => {
-            s.push_str(&format!(
-                "<circle cx=\"{:.1}\" cy=\"{:.1}\" r=\"4\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.8\"/>\n",
-                min_pos.x, min_pos.y, color
-            ));
+            group = group.add(
+                Circle::new()
+                    .set("cx", min_pos.x)
+                    .set("cy", min_pos.y)
+                    .set("r", 4)
+                    .set("fill", "none")
+                    .set("stroke", color)
+                    .set("stroke-width", 1.8),
+            );
         }
         CardinalityMin::One => {
-            s.push_str(&render_bar(min_pos, normal, color));
+            group = group.add(render_bar(min_pos, normal, color));
         }
     }
 
     match card.max {
         CardinalityMax::One => {
-            s.push_str(&render_bar(max_pos, normal, color));
+            group = group.add(render_bar(max_pos, normal, color));
         }
         CardinalityMax::Many => {
-            s.push_str(&render_crow_foot(max_pos, direction, normal, color));
+            group = group.add(render_crow_foot(max_pos, direction, normal, color));
         }
     }
 
-    s
+    group
 }
 
 /// Renders a polyline route connecting multiple points.
@@ -643,53 +804,47 @@ fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &
 ///
 /// # Returns
 /// SVG XML string for the line segments.
-fn render_route(points: &[Pos2], color: &str, dash: &str) -> String {
-    let mut s = String::new();
+fn render_route(points: &[Pos2], color: &str, dashed: bool) -> Group {
+    let mut group = Group::new();
     for win in points.windows(2) {
-        s.push_str(&format!(
-            "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"{}/>\n",
-            win[0].x, win[0].y, win[1].x, win[1].y, color, dash
-        ));
+        let mut line = Line::new()
+            .set("x1", win[0].x)
+            .set("y1", win[0].y)
+            .set("x2", win[1].x)
+            .set("y2", win[1].y)
+            .set("stroke", color)
+            .set("stroke-width", 1.8);
+        if dashed {
+            line = line.set("stroke-dasharray", "4 6");
+        }
+        group = group.add(line);
     }
-    s
+    group
 }
 
-fn render_bar(center: Pos2, normal: Vec2, color: &str) -> String {
+fn render_bar(center: Pos2, normal: Vec2, color: &str) -> Line {
     let half = normal * 5.0;
     let a = center - half;
     let b = center + half;
-    format!(
-        "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"/>\n",
-        a.x, a.y, b.x, b.y, color
-    )
+    Line::new()
+        .set("x1", a.x)
+        .set("y1", a.y)
+        .set("x2", b.x)
+        .set("y2", b.y)
+        .set("stroke", color)
+        .set("stroke-width", 1.8)
 }
 
-fn render_crow_foot(apex: Pos2, direction: Vec2, normal: Vec2, color: &str) -> String {
+fn render_crow_foot(apex: Pos2, direction: Vec2, normal: Vec2, color: &str) -> Group {
     let root = apex - direction * 8.0;
     let left = root + normal * 6.0;
     let mid = root;
     let right = root - normal * 6.0;
 
-    format!(
-        "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"/>\n\
-         <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"/>\n\
-         <line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{}\" stroke-width=\"1.8\"/>\n",
-        apex.x,
-        apex.y,
-        left.x,
-        left.y,
-        color,
-        apex.x,
-        apex.y,
-        mid.x,
-        mid.y,
-        color,
-        apex.x,
-        apex.y,
-        right.x,
-        right.y,
-        color
-    )
+    Group::new()
+        .add(render_line(apex, left, color))
+        .add(render_line(apex, mid, color))
+        .add(render_line(apex, right, color))
 }
 
 fn color_hex(c: Color32) -> String {
@@ -740,12 +895,42 @@ fn quant(v: f32) -> i32 {
     (v * 10.0).round() as i32
 }
 
-fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+fn render_line(a: Pos2, b: Pos2, color: &str) -> Line {
+    Line::new()
+        .set("x1", a.x)
+        .set("y1", a.y)
+        .set("x2", b.x)
+        .set("y2", b.y)
+        .set("stroke", color)
+        .set("stroke-width", 1.8)
+}
+
+fn svg_text(
+    x: f32,
+    y: f32,
+    fill: &str,
+    font_size: u32,
+    anchor: &str,
+    dominant_baseline: Option<&str>,
+    font_weight: Option<&str>,
+    content: &str,
+) -> SvgText {
+    let mut text = SvgText::new(content.to_owned())
+        .set("x", x)
+        .set("y", y)
+        .set("fill", fill)
+        .set("font-family", "Inter, Segoe UI, Arial, sans-serif")
+        .set("font-size", font_size)
+        .set("text-anchor", anchor);
+
+    if let Some(dominant_baseline) = dominant_baseline {
+        text = text.set("dominant-baseline", dominant_baseline);
+    }
+    if let Some(font_weight) = font_weight {
+        text = text.set("font-weight", font_weight);
+    }
+
+    text
 }
 
 fn distribute_edge_anchors(edges: &mut [CrowFootEdge], rects: &HashMap<TableId, Rect>) {

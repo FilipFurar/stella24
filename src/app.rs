@@ -6,9 +6,10 @@ use slotmap::SlotMap;
 use std::fs;
 //use crate::app::command::{Command, CommandHistory};
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
+use crate::app::exports::sql_export::build_oracle_sql;
+use crate::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
 use crate::model::attribute::Attribute;
 use crate::model::{entities::domain::Domain, entities::table::Table};
-use crate::app::exports::sql_export::build_oracle_sql;
 use crate::ui::context::TableUiContext;
 use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 pub use command::{Command, CommandQueue};
@@ -32,6 +33,16 @@ enum SqlExportModal {
     },
 }
 
+#[derive(Default)]
+enum SvgExportModal {
+    #[default]
+    Hidden,
+    Open {
+        layout: SvgLayoutMode,
+        theme: SvgThemeChoice,
+    },
+}
+
 slotmap::new_key_type! {
     /// Unique type for TableIDs (keys)
     pub struct TableId;
@@ -47,11 +58,15 @@ slotmap::new_key_type! {
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct AppStella {
     pub tables: SlotMap<TableId, Table>,
-    domains: SlotMap<DomainId, Domain>,
+    pub domains: SlotMap<DomainId, Domain>,
     #[serde(skip)]
     command_queue: CommandQueue,
     #[serde(skip)]
     sql_export_modal: SqlExportModal,
+    #[serde(skip)]
+    svg_export_modal: SvgExportModal,
+    #[serde(skip)]
+    workbench_table_rects: HashMap<TableId, egui::Rect>,
     /*#[serde(skip)]
     command_queue: Vec<Command>,
 
@@ -206,7 +221,6 @@ impl AppStella {
                     name,
                     data_type,
                     check_constraints: vec![],
-                    not_null: false,
                 });
             }
             Command::DeleteDomain { domain } => {
@@ -368,13 +382,11 @@ impl AppStella {
         });*/
     }
 
-    pub fn export_svg(&self) {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("SVG", &["svg"])
-            .save_file()
-        {
-            self.to_svg(path.to_str().unwrap());
-        }
+    pub fn open_svg_export_modal(&mut self) {
+        self.svg_export_modal = SvgExportModal::Open {
+            layout: SvgLayoutMode::Automatic,
+            theme: SvgThemeChoice::Default,
+        };
     }
 
     pub fn export_sql(&mut self) {
@@ -403,7 +415,11 @@ impl AppStella {
             .show(ctx, |ui| match &self.sql_export_modal {
                 SqlExportModal::Hidden => {}
                 SqlExportModal::Success { sql } => {
-                    Self::draw_highlighted_code(ui, sql, "sql", 16);
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            Self::draw_highlighted_code(ui, sql, "sql", 12);
+                        });
 
                     ui.separator();
                     ui.horizontal(|ui| {
@@ -419,7 +435,11 @@ impl AppStella {
                     });
                 }
                 SqlExportModal::Error { message } => {
-                    Self::draw_highlighted_code(ui, message, "txt", 8);
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            Self::draw_highlighted_code(ui, message, "txt", 8);
+                        });
 
                     ui.separator();
                     if ui.button("Close").clicked() {
@@ -445,6 +465,92 @@ impl AppStella {
 
         if close_modal {
             self.sql_export_modal = SqlExportModal::Hidden;
+        }
+    }
+
+    fn draw_svg_export_modal(&mut self, ctx: &egui::Context) {
+        let (mut layout, mut theme) = match self.svg_export_modal {
+            SvgExportModal::Hidden => return,
+            SvgExportModal::Open { layout, theme } => (layout, theme),
+        };
+
+        let mut close_modal = false;
+        let mut save_svg = false;
+
+        egui::Window::new("Export SVG")
+            .id(Id::new("export_svg_modal"))
+            .resizable(true)
+            .collapsible(false)
+            .default_size(vec2(860.0, 520.0))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Layout:");
+                    ui.selectable_value(&mut layout, SvgLayoutMode::Automatic, "Automatic");
+                    ui.selectable_value(&mut layout, SvgLayoutMode::Workbench, "Workbench");
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theme:");
+                    ui.selectable_value(&mut theme, SvgThemeChoice::Default, "Default");
+                    ui.selectable_value(&mut theme, SvgThemeChoice::Light, "Light");
+                    ui.selectable_value(&mut theme, SvgThemeChoice::Dark, "Dark");
+                });
+
+                if layout == SvgLayoutMode::Workbench && self.workbench_table_rects.is_empty() {
+                    ui.label("No workbench positions captured yet; missing tables fall back to automatic placement.");
+                }
+
+                let svg = self.svg_string_with_options(
+                    SvgExportOptions { layout, theme },
+                    Some(&self.workbench_table_rects),
+                    ctx.style().visuals.dark_mode,
+                );
+
+                egui::ScrollArea::vertical()
+                    .max_height(280.0)
+                    .show(ui, |ui| {
+                        match egui_extras::image::load_svg_bytes(svg.as_bytes(), &Default::default()) {
+                            Ok(color_image) => {
+                                let texture = ctx.load_texture(
+                                    "svg_preview",
+                                    color_image,
+                                    egui::TextureOptions::default(),
+                                );
+                                ui.image(&texture);
+                            }
+                            Err(err) => {
+                                ui.label(format!("Failed to render SVG: {}", err));
+                            }
+                        }
+                    });
+
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button("Save file").clicked() {
+                        save_svg = true;
+                    }
+                    if ui.button("Copy to clipboard").clicked() {
+                        ctx.copy_text(svg.clone());
+                    }
+                    if ui.button("Close").clicked() {
+                        close_modal = true;
+                    }
+                });
+
+                if save_svg
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("SVG", &["svg"])
+                        .save_file()
+                    && let Err(err) = fs::write(path, &svg)
+                {
+                    eprintln!("Error exporting SVG: {err}");
+                }
+            });
+
+        if close_modal {
+            self.svg_export_modal = SvgExportModal::Hidden;
+        } else {
+            self.svg_export_modal = SvgExportModal::Open { layout, theme };
         }
     }
 
@@ -643,9 +749,10 @@ impl AppStella {
             }
 
             let relation_painter = ctx.layer_painter(egui::LayerId::new(
-                egui::Order::Foreground,
+                egui::Order::Background,
                 Id::new("crow_foot_relations"),
             ));
+            self.workbench_table_rects = table_rects.clone();
             for edge in build_edges(&self.tables, &table_rects) {
                 draw_crow_foot_edge(&relation_painter, &edge);
             }
@@ -676,18 +783,22 @@ impl eframe::App for AppStella {
                     }
                     if !is_web
                         && ui.button("Open").clicked()
-                        && let Some(path) = rfd::FileDialog::new().pick_file()
+                        && let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .pick_file()
                     {
                         self.handle_open(path);
                     }
                     if !is_web
                         && ui.button("Save").clicked()
-                        && let Some(path) = rfd::FileDialog::new().save_file()
+                        && let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .save_file()
                     {
                         self.handle_save(path);
                     }
                     if !is_web && ui.button("Export SVG").clicked() {
-                        self.export_svg();
+                        self.open_svg_export_modal();
                     }
                     if !is_web && ui.button("Export SQL").clicked() {
                         self.export_sql();
@@ -710,6 +821,7 @@ impl eframe::App for AppStella {
         self.draw_domains_panel(ctx);
 
         self.draw_workbench(ctx);
+        self.draw_svg_export_modal(ctx);
         self.draw_sql_export_modal(ctx);
         self.flush_commands();
     }

@@ -1,6 +1,6 @@
 use slotmap::SlotMap;
+use stella24::app::exports::sql_export::{SqlExportError, build_oracle_sql};
 use stella24::app::{DomainId, TableId};
-use stella24::app::exports::sql_export::{build_oracle_sql, SqlExportError};
 use stella24::model::attribute::{Attribute, AttributeType};
 use stella24::model::constraints::check::Check;
 use stella24::model::constraints::constraint::{ForeignKey, PrimaryKey};
@@ -36,7 +36,6 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
             name: "ck_dom".to_string(),
             condition: "VALUE <> ''".to_string(),
         }],
-        not_null: true,
     });
     let mut parent = mk_table("parent");
     let parent_attr = parent.attributes.insert(Attribute {

@@ -1,5 +1,5 @@
-use stella24::app::Command;
 use stella24::AppStella;
+use stella24::app::Command;
 use stella24::model::attribute::Attribute;
 use stella24::model::entities::table::Table;
 
