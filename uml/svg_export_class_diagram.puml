@@ -1,0 +1,135 @@
+@startuml
+
+hide circle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "SVG Export" {
+  class AppStella {
+	+to_svg(path: &str)
+  }
+
+  enum Side {
+	Left
+	Right
+	Top
+	Bottom
+  }
+
+  class SvgScene {
+	+width: f32
+	+height: f32
+	+tables: Vec<SvgTableNode>
+	+relations: Vec<SvgRelationEdge>
+  }
+
+  class SvgTableNode {
+	+id: TableId
+	+title: String
+	+attributes: Vec<SvgAttributeRow>
+	+table_constraints: Vec<SvgTableConstraintRow>
+	+rect: Rect
+  }
+
+  class SvgAttributeRow {
+	+name: String
+	+datatype: String
+	+constraints: String
+  }
+
+  class SvgTableConstraintRow {
+	+text: String
+  }
+
+  class SvgRelationEdge {
+	+from: Pos2
+	+to: Pos2
+	+route: Vec<Pos2>
+	+from_cardinality: Cardinality
+	+to_cardinality: Cardinality
+	+kind: RelationshipKind
+	+color: Color32
+  }
+
+  class SvgExportHelpers <<utility>> {
+	{static} model_to_svg_scene(app: AppStella): SvgScene
+	{static} map_tables_to_nodes(tables, domains): Vec<SvgTableNode>
+	{static} format_attribute_row(attr, domains): SvgAttributeRow
+	{static} render_svg_scene(scene: SvgScene): String
+	{static} render_table(table: SvgTableNode): Group
+	{static} format_table_constraints(table, tables): Vec<SvgTableConstraintRow>
+	{static} sorted_attr_names(table, ids): Vec<String>
+	{static} render_relation(rel: SvgRelationEdge): Group
+	{static} render_endpoint(point, direction, card, color): Group
+	{static} render_route(points, color, dashed): Group
+	{static} render_bar(center, normal, color): Line
+	{static} render_crow_foot(apex, direction, normal, color): Group
+	{static} color_hex(c: Color32): String
+	{static} cardinality_label(c: Cardinality): &'static str
+	{static} relation_kind_label(kind: RelationshipKind): &'static str
+	{static} deduplicate_relations(relations): Vec<SvgRelationEdge>
+	{static} distribute_edge_anchors(edges, rects)
+	{static} route_relation(from, to, rects): Vec<Pos2>
+	{static} route_between_stubs(from, to, rects, from_id, to_id): Vec<Pos2>
+	{static} route_score(points, rects, from_id, to_id): f32
+	{static} simplify_route(points): Vec<Pos2>
+  }
+}
+
+package "External types" {
+  class TableId <<id>>
+  class DomainId <<id>>
+  class AttrId <<id>>
+  class Cardinality
+  class CardinalityMin
+  class CardinalityMax
+  class RelationshipKind
+  class Pos2
+  class Rect
+  class Vec2
+  class Color32
+  class Group
+  class Line
+  class Circle
+  class Rectangle
+  class Text
+  class Document
+}
+
+AppStella --> SvgExportHelpers : to_svg()
+SvgExportHelpers --> SvgScene
+SvgExportHelpers --> SvgTableNode
+SvgExportHelpers --> SvgAttributeRow
+SvgExportHelpers --> SvgTableConstraintRow
+SvgExportHelpers --> SvgRelationEdge
+SvgExportHelpers --> Side
+
+SvgScene *-- "0..*" SvgTableNode : tables
+SvgScene *-- "0..*" SvgRelationEdge : relations
+SvgTableNode --> TableId
+SvgTableNode --> Rect
+SvgTableNode *-- "0..*" SvgAttributeRow : attributes
+SvgTableNode *-- "0..*" SvgTableConstraintRow : table_constraints
+SvgRelationEdge --> Pos2
+SvgRelationEdge --> Cardinality
+SvgRelationEdge --> RelationshipKind
+SvgRelationEdge --> Color32
+
+Cardinality --> CardinalityMin
+Cardinality --> CardinalityMax
+
+SvgExportHelpers ..> Document : builds
+SvgExportHelpers ..> Group : renders
+SvgExportHelpers ..> Rectangle
+SvgExportHelpers ..> Line
+SvgExportHelpers ..> Circle
+SvgExportHelpers ..> Text
+
+note right of SvgExportHelpers
+  This module converts the current model into
+  SVG output using the svg crate.
+  It also computes layout, routes edges,
+  and renders crow's-foot notation.
+end note
+
+@enduml

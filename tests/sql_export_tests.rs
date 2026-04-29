@@ -1,4 +1,5 @@
 use slotmap::SlotMap;
+use stella24::app::exports::sql_export::{SqlExportError, build_oracle_sql};
 use stella24::app::{DomainId, TableId};
 use stella24::model::attribute::{Attribute, AttributeType};
 use stella24::model::constraints::check::Check;
@@ -6,7 +7,6 @@ use stella24::model::constraints::constraint::{ForeignKey, PrimaryKey};
 use stella24::model::datatype::DataType;
 use stella24::model::entities::domain::Domain;
 use stella24::model::entities::table::Table;
-use stella24::sql_export::{build_oracle_sql, SqlExportError};
 
 fn mk_table(title: &str) -> Table {
     Table {
@@ -28,14 +28,22 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
     let mut domains: SlotMap<DomainId, Domain> = SlotMap::with_key();
     let dom_id = domains.insert(Domain {
         name: "dom_code".to_string(),
-        data_type: DataType { base: 1, params: vec![10] },
-        check_constraints: vec![Check { name: "ck_dom".to_string(), condition: "VALUE <> ''".to_string() }],
-        not_null: true,
+        data_type: DataType {
+            base: 1,
+            params: vec![10],
+        },
+        check_constraints: vec![Check {
+            name: "ck_dom".to_string(),
+            condition: "VALUE <> ''".to_string(),
+        }],
     });
     let mut parent = mk_table("parent");
     let parent_attr = parent.attributes.insert(Attribute {
         name: "id".to_string(),
-        attribute_type: AttributeType::Logical(DataType { base: 3, params: vec![5, 0] }),
+        attribute_type: AttributeType::Logical(DataType {
+            base: 3,
+            params: vec![5, 0],
+        }),
         pk: true,
         not_null: true,
         unique: true,
@@ -64,11 +72,11 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
     });
     tables.insert(child);
     let sql = build_oracle_sql(&tables, &domains).expect("sql export");
-    assert!(sql.contains("CREATE DOMAIN \"dom_code\" AS VARCHAR2(10) NOT NULL"));
-    assert!(sql.contains("CONSTRAINT \"ck_dom\" CHECK (VALUE <> '')"));
-    assert!(sql.contains("CREATE TABLE \"child\""));
-    assert!(sql.contains("CONSTRAINT \"fk_child_parent\" REFERENCES \"parent\" (\"id\")"));
-    assert!(sql.contains("\"code\" \"dom_code\""));
+    assert!(sql.contains("CREATE DOMAIN \'dom_code\' AS VARCHAR2(10) NOT NULL"));
+    assert!(sql.contains("CONSTRAINT \'ck_dom\' CHECK (VALUE <> '')"));
+    assert!(sql.contains("CREATE TABLE \'child\'"));
+    assert!(sql.contains("CONSTRAINT \'fk_child_parent\' REFERENCES \'parent\' (\'id\')"));
+    assert!(sql.contains("\'code\' \'dom_code\'"));
     assert!(!sql.contains("DOMCHK_"));
 }
 #[test]
@@ -92,7 +100,10 @@ fn rejects_duplicate_constraint_names() {
     let mut t1 = mk_table("first");
     let a1 = t1.attributes.insert(Attribute {
         name: "id".to_string(),
-        attribute_type: AttributeType::Logical(DataType { base: 3, params: vec![5, 0] }),
+        attribute_type: AttributeType::Logical(DataType {
+            base: 3,
+            params: vec![5, 0],
+        }),
         pk: true,
         not_null: true,
         unique: true,
@@ -103,7 +114,10 @@ fn rejects_duplicate_constraint_names() {
     let mut t2 = mk_table("second");
     let a2 = t2.attributes.insert(Attribute {
         name: "id".to_string(),
-        attribute_type: AttributeType::Logical(DataType { base: 3, params: vec![5, 0] }),
+        attribute_type: AttributeType::Logical(DataType {
+            base: 3,
+            params: vec![5, 0],
+        }),
         pk: true,
         not_null: true,
         unique: true,
@@ -112,5 +126,8 @@ fn rejects_duplicate_constraint_names() {
     tables.insert(t2);
 
     let err = build_oracle_sql(&tables, &domains).unwrap_err();
-    assert!(matches!(err, SqlExportError::DuplicateConstraintName { .. }));
+    assert!(matches!(
+        err,
+        SqlExportError::DuplicateConstraintName { .. }
+    ));
 }

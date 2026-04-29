@@ -280,5 +280,3 @@ fn duplicate_unique_constraints_keep_child_side_one() {
     assert_eq!(edges.len(), 1);
     assert_eq!(edges[0].from_cardinality.max, CardinalityMax::One);
 }
-
-

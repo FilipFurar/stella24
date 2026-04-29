@@ -7,7 +7,7 @@
 use crate::app::{AppStella, DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::constraint::ForeignKey;
-use crate::model::datatype::{DataType, DATA_TYPES};
+use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 use slotmap::{Key, SlotMap};
@@ -38,7 +38,11 @@ pub enum SqlExportError {
     /// A foreign key references a table that doesn't exist
     MissingReferencedTable { table: String, foreign_key: String },
     /// A foreign key references a column that doesn't exist in the target table
-    MissingReferencedColumn { table: String, foreign_key: String, referenced_table: String },
+    MissingReferencedColumn {
+        table: String,
+        foreign_key: String,
+        referenced_table: String,
+    },
     /// A column is marked as a foreign key attribute but has no matching FK constraint
     MissingForeignKeyConstraint { table: String, column: String },
     /// A column belongs to multiple foreign key constraints (ambiguous)
@@ -52,8 +56,12 @@ impl fmt::Display for SqlExportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SqlExportError::EmptyName { kind } => write!(f, "empty {kind} name"),
-            SqlExportError::DuplicateTableName { name } => write!(f, "duplicate table name: {name}"),
-            SqlExportError::DuplicateDomainName { name } => write!(f, "duplicate domain name: {name}"),
+            SqlExportError::DuplicateTableName { name } => {
+                write!(f, "duplicate table name: {name}")
+            }
+            SqlExportError::DuplicateDomainName { name } => {
+                write!(f, "duplicate domain name: {name}")
+            }
             SqlExportError::DuplicateColumnName { table, name } => {
                 write!(f, "duplicate column name {name} in table {table}")
             }
@@ -64,16 +72,32 @@ impl fmt::Display for SqlExportError {
                 write!(f, "empty CHECK condition ({context})")
             }
             SqlExportError::MissingReferencedTable { table, foreign_key } => {
-                write!(f, "foreign key {foreign_key} in table {table} references a missing table")
+                write!(
+                    f,
+                    "foreign key {foreign_key} in table {table} references a missing table"
+                )
             }
-            SqlExportError::MissingReferencedColumn { table, foreign_key, referenced_table } => {
-                write!(f, "foreign key {foreign_key} in table {table} points to a missing column in {referenced_table}")
+            SqlExportError::MissingReferencedColumn {
+                table,
+                foreign_key,
+                referenced_table,
+            } => {
+                write!(
+                    f,
+                    "foreign key {foreign_key} in table {table} points to a missing column in {referenced_table}"
+                )
             }
             SqlExportError::MissingForeignKeyConstraint { table, column } => {
-                write!(f, "column {column} in table {table} is typed as FK but has no matching FK constraint")
+                write!(
+                    f,
+                    "column {column} in table {table} is typed as FK but has no matching FK constraint"
+                )
             }
             SqlExportError::AmbiguousForeignKey { table, column } => {
-                write!(f, "column {column} in table {table} belongs to multiple FK constraints")
+                write!(
+                    f,
+                    "column {column} in table {table} belongs to multiple FK constraints"
+                )
             }
             SqlExportError::UnsupportedDataType { context, base } => {
                 write!(f, "unsupported datatype base {base} ({context})")
@@ -126,7 +150,14 @@ pub fn build_oracle_sql(
     }
 
     for (table_id, table) in sorted_tables(tables) {
-        render_table(&mut out, table_id, table, tables, domains, &mut used_constraints)?;
+        render_table(
+            &mut out,
+            table_id,
+            table,
+            tables,
+            domains,
+            &mut used_constraints,
+        )?;
         writeln!(out).expect("write to string");
     }
     Ok(out)
@@ -147,10 +178,9 @@ fn render_domain(
 ) -> Result<(), SqlExportError> {
     writeln!(
         out,
-        "CREATE DOMAIN {} AS {}{}",
+        "CREATE DOMAIN {} AS {}",
         quote_ident(&domain.name),
         oracle_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
-        if domain.not_null { " NOT NULL" } else { "" }
     )
     .expect("write to string");
 
@@ -246,7 +276,9 @@ fn validate_object_names(
     for (_, table) in sorted_tables(tables) {
         ensure_name("table", &table.title)?;
         if !seen_tables.insert(table.title.clone()) {
-            return Err(SqlExportError::DuplicateTableName { name: table.title.clone() });
+            return Err(SqlExportError::DuplicateTableName {
+                name: table.title.clone(),
+            });
         }
         let mut seen_columns = HashSet::new();
         for (_, attr) in sorted_attrs(table) {
@@ -263,7 +295,9 @@ fn validate_object_names(
     for (_, domain) in sorted_domains(domains) {
         ensure_name("domain", &domain.name)?;
         if !seen_domains.insert(domain.name.clone()) {
-            return Err(SqlExportError::DuplicateDomainName { name: domain.name.clone() });
+            return Err(SqlExportError::DuplicateDomainName {
+                name: domain.name.clone(),
+            });
         }
     }
     Ok(())
@@ -292,7 +326,14 @@ fn render_table(
     writeln!(out, "CREATE TABLE {} (", quote_ident(&table.title)).expect("write to string");
     let mut lines = Vec::new();
     for (attr_id, attr) in sorted_attrs(table) {
-        lines.push(render_column(table, attr_id, attr, tables, domains, used_constraints)?);
+        lines.push(render_column(
+            table,
+            attr_id,
+            attr,
+            tables,
+            domains,
+            used_constraints,
+        )?);
     }
     lines.extend(render_table_constraints(table, tables, used_constraints)?);
     for (i, line) in lines.iter().enumerate() {
@@ -325,7 +366,10 @@ fn render_column(
     domains: &SlotMap<DomainId, Domain>,
     used_constraints: &mut HashSet<String>,
 ) -> Result<String, SqlExportError> {
-    let mut parts = vec![quote_ident(&attr.name), attribute_type_sql(table, attr_id, attr, tables, domains)?];
+    let mut parts = vec![
+        quote_ident(&attr.name),
+        attribute_type_sql(table, attr_id, attr, tables, domains)?,
+    ];
     let inline_pk = exact_pk_name(table, attr_id);
     if let Some(name) = exact_not_null_name(table, attr_id) {
         add_constraint_name(used_constraints, &name)?;
@@ -346,7 +390,8 @@ fn render_column(
         }
     }
     if let Some((fk, ref_table, ref_attr)) = inline_fk(table, attr_id, tables)? {
-        let name = constraint_name_or_fallback(&fk.name, &format!("FK_{}_{}", table.title, attr.name));
+        let name =
+            constraint_name_or_fallback(&fk.name, &format!("FK_{}_{}", table.title, attr.name));
         add_constraint_name(used_constraints, &name)?;
         parts.push(format!(
             "CONSTRAINT {} REFERENCES {} ({})",
@@ -391,7 +436,8 @@ fn render_table_constraints(
         if attrs.is_empty() || attrs.len() == 1 {
             continue;
         }
-        let name = constraint_name_or_fallback(&unique.name, &format!("UQ_{}_{}", table.title, idx + 1));
+        let name =
+            constraint_name_or_fallback(&unique.name, &format!("UQ_{}_{}", table.title, idx + 1));
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} UNIQUE ({})",
@@ -404,7 +450,8 @@ fn render_table_constraints(
         if attrs.is_empty() || attrs.len() == 1 {
             continue;
         }
-        let name = constraint_name_or_fallback(&not_null.name, &format!("NN_{}_{}", table.title, idx + 1));
+        let name =
+            constraint_name_or_fallback(&not_null.name, &format!("NN_{}_{}", table.title, idx + 1));
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} CHECK ({})",
@@ -421,23 +468,43 @@ fn render_table_constraints(
         if local_cols.len() == 1 {
             continue;
         }
-        let name = constraint_name_or_fallback(&fk.name, &format!("FK_{}_{}", table.title, ref_table.title));
+        let name = constraint_name_or_fallback(
+            &fk.name,
+            &format!("FK_{}_{}", table.title, ref_table.title),
+        );
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {} ({})",
             quote_ident(&name),
-            local_cols.iter().map(|c| quote_ident(c)).collect::<Vec<_>>().join(", "),
+            local_cols
+                .iter()
+                .map(|c| quote_ident(c))
+                .collect::<Vec<_>>()
+                .join(", "),
             quote_ident(&ref_table.title),
-            ref_cols.iter().map(|c| quote_ident(c)).collect::<Vec<_>>().join(", ")
+            ref_cols
+                .iter()
+                .map(|c| quote_ident(c))
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     for (idx, check) in table.checks.iter().enumerate() {
         if check.condition.trim().is_empty() {
-            return Err(SqlExportError::EmptyCheckCondition { context: format!("table {} check {}", table.title, idx + 1) });
+            return Err(SqlExportError::EmptyCheckCondition {
+                context: format!("table {} check {}", table.title, idx + 1),
+            });
         }
-        let name = constraint_name_or_fallback(&format!("CHK_{}_{}", table.title, idx + 1), &format!("CHK_{}_{}", table.title, idx + 1));
+        let name = constraint_name_or_fallback(
+            &format!("CHK_{}_{}", table.title, idx + 1),
+            &format!("CHK_{}_{}", table.title, idx + 1),
+        );
         add_constraint_name(used_constraints, &name)?;
-        lines.push(format!("CONSTRAINT {} CHECK ({})", quote_ident(&name), check.condition));
+        lines.push(format!(
+            "CONSTRAINT {} CHECK ({})",
+            quote_ident(&name),
+            check.condition
+        ));
     }
     Ok(lines)
 }
@@ -462,7 +529,9 @@ fn attribute_type_sql(
     domains: &SlotMap<DomainId, Domain>,
 ) -> Result<String, SqlExportError> {
     match attr.attribute_type.clone() {
-        AttributeType::Logical(dt) => oracle_type_sql(&dt, &format!("column {}.{}", table.title, attr.name)),
+        AttributeType::Logical(dt) => {
+            oracle_type_sql(&dt, &format!("column {}.{}", table.title, attr.name))
+        }
         AttributeType::Domain(domain_id) => {
             let Some(domain) = domains.get(domain_id) else {
                 return Ok("NUMBER".to_string());
@@ -479,14 +548,21 @@ fn attribute_type_sql(
                 });
             };
             match referenced_attr.attribute_type.clone() {
-                AttributeType::Logical(dt) => {
-                    oracle_type_sql(&dt, &format!("foreign key target {}.{}", ref_table.title, referenced_attr.name))
-                }
+                AttributeType::Logical(dt) => oracle_type_sql(
+                    &dt,
+                    &format!(
+                        "foreign key target {}.{}",
+                        ref_table.title, referenced_attr.name
+                    ),
+                ),
                 AttributeType::Domain(domain_id) => {
                     let Some(domain) = domains.get(domain_id) else {
                         return Ok("NUMBER".to_string());
                     };
-                    oracle_type_sql(&domain.data_type, &format!("foreign key target domain {}", domain.name))
+                    oracle_type_sql(
+                        &domain.data_type,
+                        &format!("foreign key target domain {}", domain.name),
+                    )
                 }
                 AttributeType::ForeignKeyAttribute(_) => Ok("NUMBER".to_string()),
             }
@@ -510,16 +586,29 @@ fn inline_fk<'a>(
         return Ok(None);
     };
     let Some(ref_table_id) = fk.references else {
-        return Err(SqlExportError::MissingReferencedTable { table: table.title.clone(), foreign_key: fk.name.clone() });
+        return Err(SqlExportError::MissingReferencedTable {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+        });
     };
     let Some(ref_table) = tables.get(ref_table_id) else {
-        return Err(SqlExportError::MissingReferencedTable { table: table.title.clone(), foreign_key: fk.name.clone() });
+        return Err(SqlExportError::MissingReferencedTable {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+        });
     };
     let Some((_, ref_attr_id)) = fk_attr_target(table, attr_id)? else {
-        return Err(SqlExportError::MissingForeignKeyConstraint { table: table.title.clone(), column: table.attributes[attr_id].name.clone() });
+        return Err(SqlExportError::MissingForeignKeyConstraint {
+            table: table.title.clone(),
+            column: table.attributes[attr_id].name.clone(),
+        });
     };
     let Some(ref_attr) = ref_table.attributes.get(ref_attr_id) else {
-        return Err(SqlExportError::MissingReferencedColumn { table: table.title.clone(), foreign_key: fk.name.clone(), referenced_table: ref_table.title.clone() });
+        return Err(SqlExportError::MissingReferencedColumn {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+            referenced_table: ref_table.title.clone(),
+        });
     };
     if fk.local_attrs.len() == 1 && ref_table.pk.attributes.len() == 1 {
         Ok(Some((fk, ref_table, ref_attr)))
@@ -539,18 +628,34 @@ fn fk_columns<'a>(
     tables: &'a SlotMap<TableId, Table>,
 ) -> Result<(&'a Table, Vec<String>, Vec<String>), SqlExportError> {
     let Some(ref_table_id) = fk.references else {
-        return Err(SqlExportError::MissingReferencedTable { table: table.title.clone(), foreign_key: fk.name.clone() });
+        return Err(SqlExportError::MissingReferencedTable {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+        });
     };
     let Some(ref_table) = tables.get(ref_table_id) else {
-        return Err(SqlExportError::MissingReferencedTable { table: table.title.clone(), foreign_key: fk.name.clone() });
+        return Err(SqlExportError::MissingReferencedTable {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+        });
     };
     let local_pairs = fk_attr_pairs(table, fk)?;
     let ref_ids = sorted_attr_ids(&ref_table.pk.attributes);
     if local_pairs.len() != ref_ids.len() {
-        return Err(SqlExportError::MissingReferencedColumn { table: table.title.clone(), foreign_key: fk.name.clone(), referenced_table: ref_table.title.clone() });
+        return Err(SqlExportError::MissingReferencedColumn {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+            referenced_table: ref_table.title.clone(),
+        });
     }
-    let local_cols = local_pairs.iter().map(|(name, _)| name.clone()).collect::<Vec<_>>();
-    let ref_cols = ref_ids.iter().map(|id| ref_table.attributes[*id].name.clone()).collect::<Vec<_>>();
+    let local_cols = local_pairs
+        .iter()
+        .map(|(name, _)| name.clone())
+        .collect::<Vec<_>>();
+    let ref_cols = ref_ids
+        .iter()
+        .map(|id| ref_table.attributes[*id].name.clone())
+        .collect::<Vec<_>>();
     Ok((ref_table, local_cols, ref_cols))
 }
 /// Gets the local and referenced attribute ID pairs for a foreign key constraint.
@@ -560,7 +665,10 @@ fn fk_attr_pairs(table: &Table, fk: &ForeignKey) -> Result<Vec<(String, AttrId)>
     let mut pairs = Vec::new();
     for attr_id in sorted_attr_ids(&fk.local_attrs) {
         let Some((_, ref_attr_id)) = fk_attr_target(table, attr_id)? else {
-            return Err(SqlExportError::MissingForeignKeyConstraint { table: table.title.clone(), column: table.attributes[attr_id].name.clone() });
+            return Err(SqlExportError::MissingForeignKeyConstraint {
+                table: table.title.clone(),
+                column: table.attributes[attr_id].name.clone(),
+            });
         };
         pairs.push((table.attributes[attr_id].name.clone(), ref_attr_id));
     }
@@ -571,17 +679,38 @@ fn fk_attr_pairs(table: &Table, fk: &ForeignKey) -> Result<Vec<(String, AttrId)>
 ///
 /// Returns the referenced table ID and attribute ID if found.
 /// Errors if the column belongs to multiple FK constraints (ambiguous).
-fn fk_attr_target(table: &Table, attr_id: AttrId) -> Result<Option<(TableId, AttrId)>, SqlExportError> {
-    let mut matches = table.fks.values().filter(|fk| fk.local_attrs.contains(&attr_id));
-    let Some(fk) = matches.next() else { return Ok(None); };
+fn fk_attr_target(
+    table: &Table,
+    attr_id: AttrId,
+) -> Result<Option<(TableId, AttrId)>, SqlExportError> {
+    let mut matches = table
+        .fks
+        .values()
+        .filter(|fk| fk.local_attrs.contains(&attr_id));
+    let Some(fk) = matches.next() else {
+        return Ok(None);
+    };
     if matches.next().is_some() {
-        return Err(SqlExportError::AmbiguousForeignKey { table: table.title.clone(), column: table.attributes[attr_id].name.clone() });
+        return Err(SqlExportError::AmbiguousForeignKey {
+            table: table.title.clone(),
+            column: table.attributes[attr_id].name.clone(),
+        });
     }
     let Some(ref_table_id) = fk.references else {
-        return Err(SqlExportError::MissingReferencedTable { table: table.title.clone(), foreign_key: fk.name.clone() });
+        return Err(SqlExportError::MissingReferencedTable {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+        });
     };
-    let Some(AttributeType::ForeignKeyAttribute(ref_attr_id)) = table.attributes.get(attr_id).map(|a| a.attribute_type.clone()) else {
-        return Err(SqlExportError::MissingForeignKeyConstraint { table: table.title.clone(), column: table.attributes[attr_id].name.clone() });
+    let Some(AttributeType::ForeignKeyAttribute(ref_attr_id)) = table
+        .attributes
+        .get(attr_id)
+        .map(|a| a.attribute_type.clone())
+    else {
+        return Err(SqlExportError::MissingForeignKeyConstraint {
+            table: table.title.clone(),
+            column: table.attributes[attr_id].name.clone(),
+        });
     };
     Ok(Some((ref_table_id, ref_attr_id)))
 }
@@ -594,16 +723,28 @@ fn resolve_fk_attr<'a>(
     tables: &'a SlotMap<TableId, Table>,
 ) -> Result<(&'a ForeignKey, &'a Table, AttrId), SqlExportError> {
     let Some(fk) = fk_for_attr(table, attr_id)? else {
-        return Err(SqlExportError::MissingForeignKeyConstraint { table: table.title.clone(), column: table.attributes[attr_id].name.clone() });
+        return Err(SqlExportError::MissingForeignKeyConstraint {
+            table: table.title.clone(),
+            column: table.attributes[attr_id].name.clone(),
+        });
     };
     let Some(ref_table_id) = fk.references else {
-        return Err(SqlExportError::MissingReferencedTable { table: table.title.clone(), foreign_key: fk.name.clone() });
+        return Err(SqlExportError::MissingReferencedTable {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+        });
     };
     let Some(ref_table) = tables.get(ref_table_id) else {
-        return Err(SqlExportError::MissingReferencedTable { table: table.title.clone(), foreign_key: fk.name.clone() });
+        return Err(SqlExportError::MissingReferencedTable {
+            table: table.title.clone(),
+            foreign_key: fk.name.clone(),
+        });
     };
     let Some((_, ref_attr_id)) = fk_attr_target(table, attr_id)? else {
-        return Err(SqlExportError::MissingForeignKeyConstraint { table: table.title.clone(), column: table.attributes[attr_id].name.clone() });
+        return Err(SqlExportError::MissingForeignKeyConstraint {
+            table: table.title.clone(),
+            column: table.attributes[attr_id].name.clone(),
+        });
     };
     Ok((fk, ref_table, ref_attr_id))
 }
@@ -611,31 +752,50 @@ fn resolve_fk_attr<'a>(
 ///
 /// Returns None if the attribute is not a foreign key column.
 /// Errors if the attribute belongs to multiple FK constraints (ambiguous).
-fn fk_for_attr<'a>(table: &'a Table, attr_id: AttrId) -> Result<Option<&'a ForeignKey>, SqlExportError> {
-    let mut matches = table.fks.values().filter(|fk| fk.local_attrs.contains(&attr_id));
-    let Some(fk) = matches.next() else { return Ok(None); };
+fn fk_for_attr(table: &Table, attr_id: AttrId) -> Result<Option<&ForeignKey>, SqlExportError> {
+    let mut matches = table
+        .fks
+        .values()
+        .filter(|fk| fk.local_attrs.contains(&attr_id));
+    let Some(fk) = matches.next() else {
+        return Ok(None);
+    };
     if matches.next().is_some() {
-        return Err(SqlExportError::AmbiguousForeignKey { table: table.title.clone(), column: table.attributes[attr_id].name.clone() });
+        return Err(SqlExportError::AmbiguousForeignKey {
+            table: table.title.clone(),
+            column: table.attributes[attr_id].name.clone(),
+        });
     }
     Ok(Some(fk))
 }
 /// Gets the primary key constraint name if this attribute is the only column in the PK.
 fn exact_pk_name(table: &Table, attr_id: AttrId) -> Option<String> {
     let attrs = sorted_attr_ids(&table.pk.attributes);
-    (attrs.len() == 1 && attrs[0] == attr_id).then(|| constraint_name_or_fallback(&table.pk.name, &format!("PK_{}", table.title)))
+    (attrs.len() == 1 && attrs[0] == attr_id)
+        .then(|| constraint_name_or_fallback(&table.pk.name, &format!("PK_{}", table.title)))
 }
 /// Gets the unique constraint name if this attribute is the only column in the constraint.
 fn exact_unique_name(table: &Table, attr_id: AttrId) -> Option<String> {
     table.uniques.iter().find_map(|u| {
         let attrs = sorted_attr_ids(&u.attributes);
-        (attrs.len() == 1 && attrs[0] == attr_id).then(|| constraint_name_or_fallback(&u.name, &format!("UQ_{}_{}", table.title, table.attributes[attr_id].name)))
+        (attrs.len() == 1 && attrs[0] == attr_id).then(|| {
+            constraint_name_or_fallback(
+                &u.name,
+                &format!("UQ_{}_{}", table.title, table.attributes[attr_id].name),
+            )
+        })
     })
 }
 /// Gets the NOT NULL constraint name if this attribute is the only column in the constraint.
 fn exact_not_null_name(table: &Table, attr_id: AttrId) -> Option<String> {
     table.not_nulls.iter().find_map(|n| {
         let attrs = sorted_attr_ids(&n.attributes);
-        (attrs.len() == 1 && attrs[0] == attr_id).then(|| constraint_name_or_fallback(&n.name, &format!("NN_{}_{}", table.title, table.attributes[attr_id].name)))
+        (attrs.len() == 1 && attrs[0] == attr_id).then(|| {
+            constraint_name_or_fallback(
+                &n.name,
+                &format!("NN_{}_{}", table.title, table.attributes[attr_id].name),
+            )
+        })
     })
 }
 /// Checks if the domain containing this attribute specifies NOT NULL.
@@ -647,14 +807,22 @@ fn domain_not_null(attr: &Attribute, domains: &SlotMap<DomainId, Domain>) -> boo
 /// Returns sorted tables by name (then by insertion order for stability).
 fn sorted_tables(tables: &SlotMap<TableId, Table>) -> Vec<(TableId, &Table)> {
     let mut out = tables.iter().collect::<Vec<_>>();
-    out.sort_by(|(a_id, a), (b_id, b)| a.title.cmp(&b.title).then_with(|| a_id.data().as_ffi().cmp(&b_id.data().as_ffi())));
+    out.sort_by(|(a_id, a), (b_id, b)| {
+        a.title
+            .cmp(&b.title)
+            .then_with(|| a_id.data().as_ffi().cmp(&b_id.data().as_ffi()))
+    });
     out
 }
 
 /// Returns sorted domains by name (then by insertion order for stability).
 fn sorted_domains(domains: &SlotMap<DomainId, Domain>) -> Vec<(DomainId, &Domain)> {
     let mut out = domains.iter().collect::<Vec<_>>();
-    out.sort_by(|(a_id, a), (b_id, b)| a.name.cmp(&b.name).then_with(|| a_id.data().as_ffi().cmp(&b_id.data().as_ffi())));
+    out.sort_by(|(a_id, a), (b_id, b)| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| a_id.data().as_ffi().cmp(&b_id.data().as_ffi()))
+    });
     out
 }
 
@@ -673,7 +841,11 @@ fn sorted_attr_ids(set: &std::collections::HashSet<AttrId>) -> Vec<AttrId> {
 }
 /// Joins attribute names into a comma-separated, quoted list suitable for SQL.
 fn join_attr_names(table: &Table, attrs: &[AttrId]) -> String {
-    attrs.iter().map(|id| quote_ident(&table.attributes[*id].name)).collect::<Vec<_>>().join(", ")
+    attrs
+        .iter()
+        .map(|id| quote_ident(&table.attributes[*id].name))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Validates that a name is non-empty and within the identifier length limit.
@@ -682,29 +854,41 @@ fn ensure_name(kind: &'static str, name: &str) -> Result<(), SqlExportError> {
         return Err(SqlExportError::EmptyName { kind });
     }
     if name.len() > IDENTIFIER_LIMIT {
-        return Err(SqlExportError::IdentifierTooLong { kind, name: name.to_string() });
+        return Err(SqlExportError::IdentifierTooLong {
+            kind,
+            name: name.to_string(),
+        });
     }
     Ok(())
 }
 /// Adds a constraint name to the used set, ensuring no duplicates and respecting identifier limits.
 fn add_constraint_name(used: &mut HashSet<String>, name: &str) -> Result<(), SqlExportError> {
     if name.len() > IDENTIFIER_LIMIT {
-        return Err(SqlExportError::IdentifierTooLong { kind: "constraint", name: name.to_string() });
+        return Err(SqlExportError::IdentifierTooLong {
+            kind: "constraint",
+            name: name.to_string(),
+        });
     }
     if !used.insert(name.to_string()) {
-        return Err(SqlExportError::DuplicateConstraintName { name: name.to_string() });
+        return Err(SqlExportError::DuplicateConstraintName {
+            name: name.to_string(),
+        });
     }
     Ok(())
 }
 /// Returns the constraint name if non-empty, otherwise uses the fallback name.
 fn constraint_name_or_fallback(name: &str, fallback: &str) -> String {
-    if name.trim().is_empty() { fallback.to_string() } else { name.to_string() }
+    if name.trim().is_empty() {
+        fallback.to_string()
+    } else {
+        name.to_string()
+    }
 }
 
 /// Quotes an identifier with double quotes, escaping any embedded quotes by doubling them.
 /// This follows Oracle's identifier quoting rules.
 fn quote_ident(name: &str) -> String {
-    format!("\"{}\"", name.replace('"', "\"\""))
+    format!("\'{}\'", name.replace('\'', "\'\'"))
 }
 
 /// Converts a DataType to its Oracle SQL representation.
@@ -713,23 +897,31 @@ fn quote_ident(name: &str) -> String {
 /// - CHAR: CHAR(length)
 /// - VARCHAR: VARCHAR2(length)
 /// - BOOL: NUMBER(1)
-/// - INTEGER: NUMBER(precision) or NUMBER(precision, scale)
+/// - NUMBER(precision) or NUMBER(precision, scale)
 /// - DATE: DATE
 fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportError> {
     let Some(def) = DATA_TYPES.get(dt.base) else {
-        return Err(SqlExportError::UnsupportedDataType { context: context.to_string(), base: dt.base });
+        return Err(SqlExportError::UnsupportedDataType {
+            context: context.to_string(),
+            base: dt.base,
+        });
     };
     let sql = match def.name {
         "CHAR" => format!("CHAR({})", dt.params.get(0).copied().unwrap_or(1)),
         "VARCHAR" => format!("VARCHAR2({})", dt.params.get(0).copied().unwrap_or(1)),
         "BOOL" => "NUMBER(1)".to_string(),
-        "INTEGER" => match dt.params.as_slice() {
+        "NUMBER" => match dt.params.as_slice() {
             [precision, scale] => format!("NUMBER({}, {})", precision, scale),
             [precision] => format!("NUMBER({})", precision),
             _ => "NUMBER".to_string(),
         },
         "DATE" => "DATE".to_string(),
-        other => return Err(SqlExportError::UnsupportedDataType { context: format!("{} ({other})", context), base: dt.base }),
+        other => {
+            return Err(SqlExportError::UnsupportedDataType {
+                context: format!("{} ({other})", context),
+                base: dt.base,
+            });
+        }
     };
     Ok(sql)
 }

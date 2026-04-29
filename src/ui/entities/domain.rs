@@ -1,7 +1,7 @@
 // ui/entities/domain.rs
 
-use crate::app::DomainId;
 use crate::app::Command;
+use crate::app::DomainId;
 use crate::model::constraints::check::Check;
 use crate::model::datatype::{DATA_TYPES, DataType};
 use crate::model::entities::domain::Domain;
@@ -62,8 +62,6 @@ impl Domain {
             }
         });
 
-        ui.checkbox(&mut self.not_null, "NOT NULL");
-
         ui.separator();
         ui.label("Check constraints:");
 
@@ -79,7 +77,10 @@ impl Domain {
         }
 
         for i in to_delete.into_iter().rev() {
-            changes.commands.push(Command::DeleteDomainCheck { domain: id, index: i });
+            changes.commands.push(Command::DeleteDomainCheck {
+                domain: id,
+                index: i,
+            });
         }
 
         if ui.button("Add Check").clicked() {

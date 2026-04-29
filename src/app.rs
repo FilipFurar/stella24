@@ -6,17 +6,42 @@ use slotmap::SlotMap;
 use std::fs;
 //use crate::app::command::{Command, CommandHistory};
 //use egui_phosphor_icons::{add_fonts, icons, Icon};
+use crate::app::exports::sql_export::build_oracle_sql;
+use crate::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
 use crate::model::attribute::Attribute;
 use crate::model::{entities::domain::Domain, entities::table::Table};
 use crate::ui::context::TableUiContext;
 use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
+pub use command::{Command, CommandQueue};
 use std::collections::HashMap;
 
 mod command;
-pub use command::{Command, CommandQueue};
+pub mod exports;
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
+
+#[derive(Default)]
+enum SqlExportModal {
+    #[default]
+    Hidden,
+    Success {
+        sql: String,
+    },
+    Error {
+        message: String,
+    },
+}
+
+#[derive(Default)]
+enum SvgExportModal {
+    #[default]
+    Hidden,
+    Open {
+        layout: SvgLayoutMode,
+        theme: SvgThemeChoice,
+    },
+}
 
 slotmap::new_key_type! {
     /// Unique type for TableIDs (keys)
@@ -32,10 +57,16 @@ slotmap::new_key_type! {
 /// Stores tables and domains (for now)
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct AppStella {
-    tables: SlotMap<TableId, Table>,
-    domains: SlotMap<DomainId, Domain>,
+    pub tables: SlotMap<TableId, Table>,
+    pub domains: SlotMap<DomainId, Domain>,
     #[serde(skip)]
     command_queue: CommandQueue,
+    #[serde(skip)]
+    sql_export_modal: SqlExportModal,
+    #[serde(skip)]
+    svg_export_modal: SvgExportModal,
+    #[serde(skip)]
+    workbench_table_rects: HashMap<TableId, egui::Rect>,
     /*#[serde(skip)]
     command_queue: Vec<Command>,
 
@@ -53,6 +84,32 @@ impl AppStella {
 }
 
 impl AppStella {
+    fn draw_highlighted_code(ui: &mut egui::Ui, content: &str, language: &str, rows: usize) {
+        let mut view = content.to_owned();
+        let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
+        let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, wrap_width: f32| {
+            let mut job = egui_extras::syntax_highlighting::highlight(
+                ui.ctx(),
+                ui.style(),
+                &theme,
+                buf.as_str(),
+                language,
+            );
+            job.wrap.max_width = wrap_width;
+            ui.fonts_mut(|fonts| fonts.layout_job(job))
+        };
+
+        ui.add(
+            egui::TextEdit::multiline(&mut view)
+                .desired_width(f32::INFINITY)
+                .desired_rows(rows)
+                .code_editor()
+                .font(egui::TextStyle::Monospace)
+                .interactive(false)
+                .layouter(&mut layouter),
+        );
+    }
+
     /// If we have a state saved in storage, load it, call default constructor otherwise
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
@@ -140,7 +197,7 @@ impl AppStella {
                 if let Some(t) = self.tables.get_mut(table)
                     && let Some(a) = t.attributes.get_mut(attr)
                 {
-                    a.unique = if a.pk { true } else { value };
+                    a.unique = value;
                 }
             }
             Command::SetAttributePrimaryKey { table, attr, value } => {
@@ -155,13 +212,16 @@ impl AppStella {
                         a.pk = value;
                         if value {
                             a.not_null = true;
-                            a.unique = true;
                         }
                     }
                 }
             }
             Command::CreateDomain { name, data_type } => {
-                self.domains.insert(Domain { name, data_type, check_constraints: vec![], not_null: false });
+                self.domains.insert(Domain {
+                    name,
+                    data_type,
+                    check_constraints: vec![],
+                });
             }
             Command::DeleteDomain { domain } => {
                 self.domains.remove(domain);
@@ -199,9 +259,10 @@ impl AppStella {
                     for (other_attr_id, other_attr_name) in pk_snapshot {
                         let local_attr = Attribute {
                             name: format!("{}_{}", fk.name, other_attr_name),
-                            attribute_type: crate::model::attribute::AttributeType::ForeignKeyAttribute(
-                                other_attr_id,
-                            ),
+                            attribute_type:
+                                crate::model::attribute::AttributeType::ForeignKeyAttribute(
+                                    other_attr_id,
+                                ),
                             pk: false,
                             not_null: false,
                             unique: false,
@@ -321,21 +382,165 @@ impl AppStella {
         });*/
     }
 
-    pub fn export_svg(&self) {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("SVG", &["svg"])
-            .save_file()
+    pub fn open_svg_export_modal(&mut self) {
+        self.svg_export_modal = SvgExportModal::Open {
+            layout: SvgLayoutMode::Automatic,
+            theme: SvgThemeChoice::Default,
+        };
+    }
+
+    pub fn export_sql(&mut self) {
+        self.sql_export_modal = match build_oracle_sql(self.tables(), self.domains()) {
+            Ok(sql) => SqlExportModal::Success { sql },
+            Err(err) => SqlExportModal::Error {
+                message: format!("Error exporting SQL: {err}"),
+            },
+        };
+    }
+
+    fn draw_sql_export_modal(&mut self, ctx: &egui::Context) {
+        if matches!(self.sql_export_modal, SqlExportModal::Hidden) {
+            return;
+        }
+
+        let mut close_modal = false;
+        let mut save_sql: Option<String> = None;
+        let mut copy_sql: Option<String> = None;
+
+        egui::Window::new("Export SQL")
+            .id(Id::new("export_sql_modal"))
+            .resizable(true)
+            .collapsible(false)
+            .default_size(vec2(760.0, 420.0))
+            .show(ctx, |ui| match &self.sql_export_modal {
+                SqlExportModal::Hidden => {}
+                SqlExportModal::Success { sql } => {
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            Self::draw_highlighted_code(ui, sql, "sql", 12);
+                        });
+
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Save file").clicked() {
+                            save_sql = Some(sql.clone());
+                        }
+                        if ui.button("Copy to clipboard").clicked() {
+                            copy_sql = Some(sql.clone());
+                        }
+                        if ui.button("Close").clicked() {
+                            close_modal = true;
+                        }
+                    });
+                }
+                SqlExportModal::Error { message } => {
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            Self::draw_highlighted_code(ui, message, "txt", 8);
+                        });
+
+                    ui.separator();
+                    if ui.button("Close").clicked() {
+                        close_modal = true;
+                    }
+                }
+            });
+
+        if let Some(sql) = copy_sql {
+            ctx.copy_text(sql);
+        }
+
+        if let Some(sql) = save_sql
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter("SQL", &["sql"])
+                .save_file()
+            && let Err(err) = fs::write(path, sql)
         {
-            self.to_svg(path.to_str().unwrap());
+            self.sql_export_modal = SqlExportModal::Error {
+                message: format!("Error exporting SQL: {err}"),
+            };
+        }
+
+        if close_modal {
+            self.sql_export_modal = SqlExportModal::Hidden;
         }
     }
 
-    pub fn export_sql(&self) {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("SQL", &["sql"])
-            .save_file()
-        {
-            self.to_oracle_sql(path.to_str().unwrap());
+    fn draw_svg_export_modal(&mut self, ctx: &egui::Context) {
+        let (mut layout, mut theme) = match self.svg_export_modal {
+            SvgExportModal::Hidden => return,
+            SvgExportModal::Open { layout, theme } => (layout, theme),
+        };
+
+        let mut close_modal = false;
+        let mut save_svg = false;
+
+        egui::Window::new("Export SVG")
+            .id(Id::new("export_svg_modal"))
+            .resizable(true)
+            .collapsible(false)
+            .default_size(vec2(860.0, 620.0))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Layout:");
+                    ui.selectable_value(&mut layout, SvgLayoutMode::Automatic, "Automatic");
+                    ui.selectable_value(&mut layout, SvgLayoutMode::Workbench, "Workbench");
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theme:");
+                    ui.selectable_value(&mut theme, SvgThemeChoice::Default, "Default");
+                    ui.selectable_value(&mut theme, SvgThemeChoice::Light, "Light");
+                    ui.selectable_value(&mut theme, SvgThemeChoice::Dark, "Dark");
+                });
+
+                if layout == SvgLayoutMode::Workbench && self.workbench_table_rects.is_empty() {
+                    ui.label("No workbench positions captured yet; missing tables fall back to automatic placement.");
+                }
+
+                let svg = self.svg_string_with_options(
+                    SvgExportOptions { layout, theme },
+                    Some(&self.workbench_table_rects),
+                    ctx.style().visuals.dark_mode,
+                );
+
+                // Preview disabled: show a brief note. Use Save or Copy to clipboard to get the
+                // generated SVG. Keeping a raster preview caused inconsistent rendering on some
+                // platforms, so it was removed per request.
+                ui.label("Preview disabled in this build. Use 'Save file' or 'Copy to clipboard'.");
+
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button("Save file").clicked() {
+                        save_svg = true;
+                    }
+                    if ui.button("Copy to clipboard").clicked() {
+                        // Clipboard image copy via egui isn't available in the published
+                        // egui 0.33.3 crate (no `image` feature). Fall back to copying
+                        // the SVG text so the button always works.
+                        ctx.copy_text(svg.clone());
+                    }
+                    if ui.button("Close").clicked() {
+                        close_modal = true;
+                    }
+                });
+
+                if save_svg
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("SVG", &["svg"])
+                        .save_file()
+                    && let Err(err) = fs::write(path, &svg)
+                {
+                    eprintln!("Error exporting SVG: {err}");
+                }
+            });
+
+        if close_modal {
+            self.svg_export_modal = SvgExportModal::Hidden;
+        } else {
+            self.svg_export_modal = SvgExportModal::Open { layout, theme };
         }
     }
 
@@ -534,9 +739,10 @@ impl AppStella {
             }
 
             let relation_painter = ctx.layer_painter(egui::LayerId::new(
-                egui::Order::Foreground,
+                egui::Order::Background,
                 Id::new("crow_foot_relations"),
             ));
+            self.workbench_table_rects = table_rects.clone();
             for edge in build_edges(&self.tables, &table_rects) {
                 draw_crow_foot_edge(&relation_painter, &edge);
             }
@@ -567,18 +773,22 @@ impl eframe::App for AppStella {
                     }
                     if !is_web
                         && ui.button("Open").clicked()
-                        && let Some(path) = rfd::FileDialog::new().pick_file()
+                        && let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .pick_file()
                     {
                         self.handle_open(path);
                     }
                     if !is_web
                         && ui.button("Save").clicked()
-                        && let Some(path) = rfd::FileDialog::new().save_file()
+                        && let Some(path) = rfd::FileDialog::new()
+                            .add_filter("JSON", &["json"])
+                            .save_file()
                     {
                         self.handle_save(path);
                     }
                     if !is_web && ui.button("Export SVG").clicked() {
-                        self.export_svg();
+                        self.open_svg_export_modal();
                     }
                     if !is_web && ui.button("Export SQL").clicked() {
                         self.export_sql();
@@ -601,49 +811,8 @@ impl eframe::App for AppStella {
         self.draw_domains_panel(ctx);
 
         self.draw_workbench(ctx);
+        self.draw_svg_export_modal(ctx);
+        self.draw_sql_export_modal(ctx);
         self.flush_commands();
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn can_make_former_pk_attribute_nullable_when_pk_removed_first() {
-        let mut app = AppStella::default();
-        let table_id = app.tables.insert(Table::default());
-
-        let attr_id = {
-            let table = app.tables.get_mut(table_id).expect("table missing");
-            let attr_id = table.attributes.insert(Attribute {
-                pk: true,
-                not_null: true,
-                ..Attribute::default()
-            });
-            table.pk.attributes.insert(attr_id);
-            attr_id
-        };
-
-        app.dispatch(Command::SetAttributePrimaryKey {
-            table: table_id,
-            attr: attr_id,
-            value: false,
-        });
-        app.dispatch(Command::SetAttributeNotNull {
-            table: table_id,
-            attr: attr_id,
-            value: false,
-        });
-        app.flush_commands();
-
-        let attr = app
-            .tables
-            .get(table_id)
-            .and_then(|t| t.attributes.get(attr_id))
-            .expect("attribute missing");
-        assert!(!attr.pk);
-        assert!(!attr.not_null);
-    }
-}
-

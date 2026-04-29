@@ -11,17 +11,22 @@ pub struct Table {
     pub title: String,
 
     /// Table columns, contain "physical" attributes
+    #[serde(default)]
     pub attributes: SlotMap<AttrId, Attribute>,
 
     /// Primary key constraint, contains only Ids of attributes that the PK is made out of
+    #[serde(default)]
     pub pk: PrimaryKey,
 
     /// Stores ForeignKey constraints
+    #[serde(default)]
     pub fks: SlotMap<FkId, ForeignKey>,
 
     /// Vector of Unique constraints, does not contain the values itself, only I
+    #[serde(default)]
     pub uniques: Vec<Unique>,
 
+    #[serde(default)]
     pub not_nulls: Vec<NotNull>,
 
     #[serde(default)]
@@ -115,7 +120,8 @@ impl Table {
         let unique = self.uniques.remove(index);
         for attr_id in &unique.attributes {
             let still_unique = self.pk.attributes.contains(attr_id)
-                || self.uniques
+                || self
+                    .uniques
                     .iter()
                     .any(|candidate| candidate.attributes.contains(attr_id));
             if !still_unique && let Some(attr) = self.attributes.get_mut(*attr_id) {

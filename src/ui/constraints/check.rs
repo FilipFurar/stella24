@@ -5,12 +5,7 @@ use std::hash::Hash;
 
 const CHECK_COLOR: Color32 = Color32::from_rgb(149, 117, 205);
 
-pub fn draw_check(
-    ui: &mut Ui,
-    check: &mut Check,
-    id_source: impl Hash,
-    language: &str,
-) -> bool {
+pub fn draw_check(ui: &mut Ui, check: &mut Check, id_source: impl Hash, language: &str) -> bool {
     let mut delete = false;
     let id_salt = &id_source;
     let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
@@ -57,5 +52,3 @@ pub fn draw_check(
 
     delete
 }
-
-

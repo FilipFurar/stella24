@@ -88,8 +88,20 @@ pub fn draw_crow_foot_edge(painter: &Painter, edge: &CrowFootEdge) {
         }
     }
 
-    draw_endpoint(painter, edge.from, edge.to - edge.from, edge.from_cardinality, stroke);
-    draw_endpoint(painter, edge.to, edge.from - edge.to, edge.to_cardinality, stroke);
+    draw_endpoint(
+        painter,
+        edge.from,
+        edge.to - edge.from,
+        edge.from_cardinality,
+        stroke,
+    );
+    draw_endpoint(
+        painter,
+        edge.to,
+        edge.from - edge.to,
+        edge.to_cardinality,
+        stroke,
+    );
 }
 
 /// Builds drawable crow's-foot edges from FK metadata and table window rectangles.
@@ -134,10 +146,13 @@ pub fn build_edges(
 
 fn parent_side_cardinality(from_table: &Table, fk: &ForeignKey) -> Cardinality {
     let mandatory = !fk.local_attrs.is_empty()
-        && fk
-        .local_attrs
-        .iter()
-        .all(|attr_id| from_table.attributes.get(*attr_id).map(|a| a.not_null).unwrap_or(false));
+        && fk.local_attrs.iter().all(|attr_id| {
+            from_table
+                .attributes
+                .get(*attr_id)
+                .map(|a| a.not_null)
+                .unwrap_or(false)
+        });
 
     Cardinality {
         min: if mandatory {
@@ -290,6 +305,3 @@ fn draw_dotted_line(painter: &Painter, from: Pos2, to: Pos2, stroke: Stroke) {
         offset += DOT_LEN + GAP_LEN;
     }
 }
-
-
-

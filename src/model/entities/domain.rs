@@ -1,16 +1,18 @@
 // model/entities/domain.rs
 
-use crate::model::constraints::check::Check;
 use super::super::datatype::DataType;
+use crate::model::constraints::check::Check;
 
 /// SQL Domain
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct Domain {
     pub name: String,
+
+    #[serde(default)]
     pub data_type: DataType,
+
     #[serde(default)]
     pub check_constraints: Vec<Check>,
-    pub not_null: bool,
 }
 
 impl Default for Domain {
@@ -22,7 +24,6 @@ impl Default for Domain {
                 params: vec![5],
             },
             check_constraints: vec![],
-            not_null: false,
         }
     }
 }
