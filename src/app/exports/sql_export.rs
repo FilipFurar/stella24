@@ -178,10 +178,9 @@ fn render_domain(
 ) -> Result<(), SqlExportError> {
     writeln!(
         out,
-        "CREATE DOMAIN {} AS {}{}",
+        "CREATE DOMAIN {} AS {}",
         quote_ident(&domain.name),
         oracle_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
-        if domain.not_null { " NOT NULL" } else { "" }
     )
     .expect("write to string");
 
@@ -753,10 +752,7 @@ fn resolve_fk_attr<'a>(
 ///
 /// Returns None if the attribute is not a foreign key column.
 /// Errors if the attribute belongs to multiple FK constraints (ambiguous).
-fn fk_for_attr<'a>(
-    table: &'a Table,
-    attr_id: AttrId,
-) -> Result<Option<&'a ForeignKey>, SqlExportError> {
+fn fk_for_attr(table: &Table, attr_id: AttrId) -> Result<Option<&ForeignKey>, SqlExportError> {
     let mut matches = table
         .fks
         .values()

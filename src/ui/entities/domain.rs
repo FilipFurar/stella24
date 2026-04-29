@@ -62,8 +62,6 @@ impl Domain {
             }
         });
 
-        ui.checkbox(&mut self.not_null, "NOT NULL");
-
         ui.separator();
         ui.label("Check constraints:");
 

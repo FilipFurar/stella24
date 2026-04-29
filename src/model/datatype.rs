@@ -17,6 +17,15 @@ pub struct DataType {
     pub params: Vec<u32>,
 }
 
+impl Default for DataType {
+    fn default() -> Self {
+        Self {
+            base: 1,
+            params: vec![1],
+        }
+    }
+}
+
 /// Possible built-in data types
 pub static DATA_TYPES: &[DataTypeDef] = &[
     DataTypeDef {
