@@ -785,4 +785,8 @@ impl eframe::App for AppStella {
         self.draw_sql_export_modal(ctx);
         self.flush_commands();
     }
+    /// Called by the framework to save state before shutdown.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
+    }
 }
