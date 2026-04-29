@@ -493,7 +493,7 @@ fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
             .set("x", (r.left() + 12.0) / 0.45)
             .set("y", title_y / 0.45)
             .set("fill", theme.title_text)
-            .set("font-family", "Inter, Segoe UI, Arial, sans-serif")
+            .set("font-family", "sans-serif")
             .set("font-size", 30)
             .set("font-weight", 700)
             .set("transform", "scale(0.45)"),
@@ -919,7 +919,7 @@ fn svg_text(
         .set("x", x)
         .set("y", y)
         .set("fill", fill)
-        .set("font-family", "Inter, Segoe UI, Arial, sans-serif")
+        .set("font-family", "sans-serif")
         .set("font-size", font_size)
         .set("text-anchor", anchor);
 

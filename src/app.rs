@@ -481,7 +481,7 @@ impl AppStella {
             .id(Id::new("export_svg_modal"))
             .resizable(true)
             .collapsible(false)
-            .default_size(vec2(860.0, 520.0))
+            .default_size(vec2(860.0, 620.0))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Layout:");
@@ -506,23 +506,10 @@ impl AppStella {
                     ctx.style().visuals.dark_mode,
                 );
 
-                egui::ScrollArea::vertical()
-                    .max_height(280.0)
-                    .show(ui, |ui| {
-                        match egui_extras::image::load_svg_bytes(svg.as_bytes(), &Default::default()) {
-                            Ok(color_image) => {
-                                let texture = ctx.load_texture(
-                                    "svg_preview",
-                                    color_image,
-                                    egui::TextureOptions::default(),
-                                );
-                                ui.image(&texture);
-                            }
-                            Err(err) => {
-                                ui.label(format!("Failed to render SVG: {}", err));
-                            }
-                        }
-                    });
+                // Preview disabled: show a brief note. Use Save or Copy to clipboard to get the
+                // generated SVG. Keeping a raster preview caused inconsistent rendering on some
+                // platforms, so it was removed per request.
+                ui.label("Preview disabled in this build. Use 'Save file' or 'Copy to clipboard'.");
 
                 ui.separator();
                 ui.horizontal(|ui| {
@@ -530,6 +517,9 @@ impl AppStella {
                         save_svg = true;
                     }
                     if ui.button("Copy to clipboard").clicked() {
+                        // Clipboard image copy via egui isn't available in the published
+                        // egui 0.33.3 crate (no `image` feature). Fall back to copying
+                        // the SVG text so the button always works.
                         ctx.copy_text(svg.clone());
                     }
                     if ui.button("Close").clicked() {
