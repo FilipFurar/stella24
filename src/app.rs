@@ -481,7 +481,6 @@ impl AppStella {
             .id(Id::new("export_svg_modal"))
             .resizable(true)
             .collapsible(false)
-            .default_size(vec2(860.0, 620.0))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Layout:");
@@ -497,7 +496,7 @@ impl AppStella {
                 });
 
                 if layout == SvgLayoutMode::Workbench && self.workbench_table_rects.is_empty() {
-                    ui.label("No workbench positions captured yet; missing tables fall back to automatic placement.");
+                    ui.label("No workbench positions.");
                 }
 
                 let svg = self.svg_string_with_options(
@@ -506,20 +505,12 @@ impl AppStella {
                     ctx.style().visuals.dark_mode,
                 );
 
-                // Preview disabled: show a brief note. Use Save or Copy to clipboard to get the
-                // generated SVG. Keeping a raster preview caused inconsistent rendering on some
-                // platforms, so it was removed per request.
-                ui.label("Preview disabled in this build. Use 'Save file' or 'Copy to clipboard'.");
-
                 ui.separator();
                 ui.horizontal(|ui| {
                     if ui.button("Save file").clicked() {
                         save_svg = true;
                     }
                     if ui.button("Copy to clipboard").clicked() {
-                        // Clipboard image copy via egui isn't available in the published
-                        // egui 0.33.3 crate (no `image` feature). Fall back to copying
-                        // the SVG text so the button always works.
                         ctx.copy_text(svg.clone());
                     }
                     if ui.button("Close").clicked() {
@@ -651,7 +642,7 @@ impl AppStella {
                     .id(window_id)
                     .constrain_to(workbench_rect)
                     .resizable(true)
-                    .collapsible(false)
+                    .collapsible(true)
                     .default_size(vec2(300.0, 200.0))
                     .show(ctx, |ui| {
                         let ui_ctx = TableUiContext::from_app(&self.tables, &self.domains, id);
