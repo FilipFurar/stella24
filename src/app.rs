@@ -1,11 +1,9 @@
-// app.rs
+//! Main application state and UI event handling.
 
 use egui::{Color32, Id, vec2};
 use gethostname::gethostname;
 use slotmap::SlotMap;
 use std::fs;
-//use crate::app::command::{Command, CommandHistory};
-//use egui_phosphor_icons::{add_fonts, icons, Icon};
 use crate::app::exports::sql_export::build_oracle_sql;
 use crate::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
 use crate::model::attribute::Attribute;
@@ -53,8 +51,7 @@ slotmap::new_key_type! {
     pub struct DomainId;
 }
 
-/// Main application struct
-/// Stores tables and domains (for now)
+/// Main application state for the ER diagram editor.
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct AppStella {
     pub tables: SlotMap<TableId, Table>,
@@ -67,17 +64,15 @@ pub struct AppStella {
     svg_export_modal: SvgExportModal,
     #[serde(skip)]
     workbench_table_rects: HashMap<TableId, egui::Rect>,
-    /*#[serde(skip)]
-    command_queue: Vec<Command>,
-
-    #[serde(skip)]
-    history: CommandHistory,*/
 }
 
 impl AppStella {
+    /// Returns the current table collection.
     pub fn tables(&self) -> &SlotMap<TableId, Table> {
         &self.tables
     }
+
+    /// Returns the current domain collection.
     pub fn domains(&self) -> &SlotMap<DomainId, Domain> {
         &self.domains
     }
@@ -110,7 +105,7 @@ impl AppStella {
         );
     }
 
-    /// If we have a state saved in storage, load it, call default constructor otherwise
+    /// Restores the app state from persistence storage when available.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
             let app: Self = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
@@ -120,12 +115,12 @@ impl AppStella {
         }
     }
 
-    /// Queue a state change to be applied after UI collection.
+    /// Enqueues a command to be applied after the current UI frame.
     pub fn dispatch(&mut self, cmd: Command) {
         self.command_queue.push(cmd);
     }
 
-    /// Apply all queued commands in FIFO order.
+    /// Applies all queued commands in FIFO order.
     pub fn flush_commands(&mut self) {
         if self.command_queue.is_empty() {
             return;
@@ -341,7 +336,7 @@ impl AppStella {
         }
     }
 
-    /// Save file to disk
+    /// Saves the current application state to a JSON file.
     pub fn handle_save(&mut self, path: std::path::PathBuf) {
         if let Ok(json) = serde_json::to_string(&self)
             && let Err(err) = fs::write(&path, json)
@@ -350,7 +345,7 @@ impl AppStella {
         }
     }
 
-    /// Open file on disk
+    /// Loads application state from a JSON file.
     pub fn handle_open(&mut self, path: std::path::PathBuf) {
         if let Ok(json) = fs::read_to_string(path)
             && let Ok(state) = serde_json::from_str::<AppStella>(&json)
@@ -360,28 +355,13 @@ impl AppStella {
         }
     }
 
-    /// Creates a new canvas
+    /// Clears the current canvas and starts a fresh diagram.
     pub fn handle_new(&mut self) {
-        /*egui::Window::new("Save the current file?")
-        .id(Id::from("new_confirm_save"))
-        .resizable(true)
-        .collapsible(false)
-        .default_size(vec2(300.0, 200.0))
-        .show(ctx, |ui| {
-            if ui.button("Save").clicked() {
-                if let Some(path) = rfd::FileDialog::new().save_file() {
-                self.handle_save(path);
-                self.items.clear();
-            }
-        }
-            if ui.button("Don't save").clicked() {*/
-
         self.dispatch(Command::NewCanvas);
         self.flush_commands();
-        /*}
-        });*/
     }
 
+    /// Opens the SVG export modal with default layout and theme choices.
     pub fn open_svg_export_modal(&mut self) {
         self.svg_export_modal = SvgExportModal::Open {
             layout: SvgLayoutMode::Automatic,
@@ -389,6 +369,7 @@ impl AppStella {
         };
     }
 
+    /// Opens the SQL export modal and prepares Oracle SQL for the current model.
     pub fn export_sql(&mut self) {
         self.sql_export_modal = match build_oracle_sql(self.tables(), self.domains()) {
             Ok(sql) => SqlExportModal::Success { sql },
@@ -666,8 +647,6 @@ impl AppStella {
                                 continue;
                             }
 
-                            // Apply PK toggles first so NN/U commands in the same frame
-                            // observe the final PK state for this attribute.
                             if let Some(value) = row.pk_change {
                                 table_commands.push(Command::SetAttributePrimaryKey {
                                     table: id,
@@ -753,7 +732,7 @@ impl AppStella {
 }
 
 impl eframe::App for AppStella {
-    /// Runs every frame
+    /// Renders one frame of the application.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {

@@ -1,3 +1,5 @@
+//! SVG export scene model and renderer for ER diagrams.
+
 use crate::AppStella;
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
@@ -13,8 +15,7 @@ use std::fs;
 use svg::Document;
 use svg::node::element::{Circle, Group, Line, Rectangle, Text as SvgText};
 
-/// Represents a side of a rectangle used for edge anchor placement.
-/// Used to determine which edge of a table card a relationship line connects to.
+/// Rectangle side used when placing relationship anchors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Side {
     Left,
@@ -23,22 +24,32 @@ enum Side {
     Bottom,
 }
 
+/// Chooses how table cards are positioned in the exported SVG.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SvgLayoutMode {
+    /// Places tables in the automatic grid layout.
     Automatic,
+    /// Reuses the current workbench window positions.
     Workbench,
 }
 
+/// Selects the color theme used for the exported SVG.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SvgThemeChoice {
+    /// Follows the application's current theme.
     Default,
+    /// Forces a light SVG theme.
     Light,
+    /// Forces a dark SVG theme.
     Dark,
 }
 
+/// Options controlling SVG export layout and theme.
 #[derive(Clone, Copy, Debug)]
 pub struct SvgExportOptions {
+    /// Layout mode for table placement.
     pub layout: SvgLayoutMode,
+    /// Theme choice used when rendering the SVG.
     pub theme: SvgThemeChoice,
 }
 
@@ -99,99 +110,78 @@ fn resolve_theme(choice: SvgThemeChoice, default_dark_mode: bool) -> SvgTheme {
     }
 }
 
-/// Represents a complete SVG diagram scene containing tables and relationships.
-///
-/// This is the top-level structure that models the entire ER diagram as an SVG export.
-/// It contains dimensions for the canvas and collections of table nodes and relationships
-/// that can be rendered to SVG format.
+/// Complete SVG scene with canvas dimensions, tables, and relations.
 #[derive(Clone, Debug)]
 pub struct SvgScene {
-    /// Canvas width in pixels
+    /// Canvas width in pixels.
     pub width: f32,
-    /// Canvas height in pixels
+    /// Canvas height in pixels.
     pub height: f32,
-    /// All table cards in the diagram
+    /// All table cards in the diagram.
     pub tables: Vec<SvgTableNode>,
-    /// All relationship edges in the diagram
+    /// All relationship edges in the diagram.
     pub relations: Vec<SvgRelationEdge>,
 }
 
-/// Represents a single table card in the SVG diagram.
-///
-/// Contains the table's metadata, attributes, constraints, and position/size information.
-/// Used for rendering individual table cards in the ER diagram.
+/// A table card rendered into the SVG scene.
 #[derive(Clone, Debug)]
 pub struct SvgTableNode {
-    /// Unique identifier for the table
+    /// Unique identifier for the table.
     pub id: TableId,
-    /// Table name/title
+    /// Table name/title.
     pub title: String,
-    /// All attribute rows in the table
+    /// All attribute rows in the table.
     pub attributes: Vec<SvgAttributeRow>,
-    /// All table-level constraints (PK, FK, UNIQUE, CHECK, etc.)
+    /// All table-level constraints.
     pub table_constraints: Vec<SvgTableConstraintRow>,
-    /// Position and dimensions of the table card on the canvas
+    /// Position and dimensions of the table card on the canvas.
     pub rect: Rect,
 }
 
-/// Represents a single row in a table's attribute/column section.
-///
-/// Contains the column name, data type, and any inline constraints (PK, NN, U).
+/// A single attribute row shown in a table card.
 #[derive(Clone, Debug)]
 pub struct SvgAttributeRow {
-    /// Column/attribute name
+    /// Column/attribute name.
     pub name: String,
-    /// Data type as a displayable string (e.g., "VARCHAR(50)", "NUMBER", or domain name)
+    /// Data type as a displayable string.
     pub datatype: String,
-    /// Inline constraint flags (e.g., "PK, NN" or "U")
+    /// Inline constraint flags.
     pub constraints: String,
 }
 
-/// Represents a single table-level constraint in the constraints section.
-///
-/// Table-level constraints include multi-column PRIMARY KEYs, UNIQUE constraints,
-/// FOREIGN KEYs, and CHECK constraints.
+/// A formatted table-level constraint row.
 #[derive(Clone, Debug)]
 pub struct SvgTableConstraintRow {
-    /// Formatted constraint description (e.g., "FK fk_child (parent_id) -> parent")
+    /// Formatted constraint description.
     pub text: String,
 }
 
-/// Represents a relationship edge (crow's foot notation) between two tables.
-///
-/// Contains both the visual routing of the line and semantic information about
-/// the relationship's cardinality and type (identifying/non-identifying).
+/// A relationship edge rendered with crow's-foot notation.
 #[derive(Clone, Debug)]
 pub struct SvgRelationEdge {
-    /// Starting point of the edge (on the child/referencing table)
+    /// Starting point of the edge.
     pub from: Pos2,
-    /// Ending point of the edge (on the parent/referenced table)
+    /// Ending point of the edge.
     pub to: Pos2,
-    /// Routing path waypoints between from and to (may contain intermediate points)
+    /// Routing path waypoints between the endpoints.
     pub route: Vec<Pos2>,
-    /// Cardinality at the source (child) end
+    /// Cardinality at the source end.
     pub from_cardinality: Cardinality,
-    /// Cardinality at the target (parent) end
+    /// Cardinality at the target end.
     pub to_cardinality: Cardinality,
-    /// Relationship type (identifying = solid, non-identifying = dashed)
+    /// Relationship type.
     pub kind: RelationshipKind,
-    /// Color of the edge
+    /// Color of the edge.
     pub color: Color32,
 }
 
 impl AppStella {
-    /// Exports the current data model to an SVG file.
-    ///
-    /// Generates a complete ER diagram as an SVG image and writes it to the specified path.
-    /// The diagram includes all tables, attributes, constraints, and relationships with
-    /// crow's foot notation. Layout is automatic with multi-column grid positioning.
-    ///
-    /// # Arguments
-    /// * `path` - File path where the SVG will be written
+    /// Writes the current model to an SVG file using the default export settings.
     pub fn to_svg(&self, path: &str) {
         self.to_svg_with_options(path, SvgExportOptions::default(), None, true);
     }
 
+    /// Writes the current model to an SVG file using explicit export options.
     pub fn to_svg_with_options(
         &self,
         path: &str,
@@ -205,6 +195,7 @@ impl AppStella {
         }
     }
 
+    /// Returns the SVG document as a string for the given export options.
     pub fn svg_string_with_options(
         &self,
         options: SvgExportOptions,
@@ -217,21 +208,12 @@ impl AppStella {
     }
 }
 
-/// Converts the application's data model into an SVG scene.
-///
-/// Transforms tables, domains, and relationships from the application model
-/// into a drawable SVG scene. Handles layout, edge routing, anchor distribution,
-/// and deduplication of relationships.
-///
-/// # Arguments
-/// * `app` - The application instance containing all model data
-///
-/// # Returns
-/// A complete `SvgScene` ready for rendering to SVG format.
+/// Builds an SVG scene from the current application state.
 pub fn model_to_svg_scene(app: &AppStella) -> SvgScene {
     model_to_svg_scene_with_layout(app, SvgLayoutMode::Automatic, None)
 }
 
+/// Builds an SVG scene using the requested layout and optional workbench rects.
 pub fn model_to_svg_scene_with_layout(
     app: &AppStella,
     layout: SvgLayoutMode,
