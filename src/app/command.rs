@@ -9,6 +9,8 @@ use crate::model::datatype::DataType;
 pub enum Command {
     // App/file lifecycle
     NewCanvas,
+    Undo,
+    Redo,
 
     // Table lifecycle
     CreateTable {

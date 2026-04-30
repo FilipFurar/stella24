@@ -1,6 +1,6 @@
 //! Main application state and UI event handling.
 
-use egui::{Color32, Id, vec2};
+use egui::{Color32, Id, Key, KeyboardShortcut, Modifiers, vec2};
 use gethostname::gethostname;
 use slotmap::SlotMap;
 use std::fs;
@@ -41,6 +41,20 @@ enum SvgExportModal {
     },
 }
 
+#[derive(serde::Serialize)]
+struct HistorySnapshotRef<'a> {
+    tables: &'a SlotMap<TableId, Table>,
+    domains: &'a SlotMap<DomainId, Domain>,
+    workbench_table_rects: HashMap<TableId, [f32; 4]>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct HistorySnapshotOwned {
+    tables: SlotMap<TableId, Table>,
+    domains: SlotMap<DomainId, Domain>,
+    workbench_table_rects: HashMap<TableId, [f32; 4]>,
+}
+
 slotmap::new_key_type! {
     /// Unique type for TableIDs (keys)
     pub struct TableId;
@@ -64,6 +78,14 @@ pub struct AppStella {
     svg_export_modal: SvgExportModal,
     #[serde(skip)]
     workbench_table_rects: HashMap<TableId, egui::Rect>,
+    #[serde(skip)]
+    undo_stack: Vec<String>,
+    #[serde(skip)]
+    redo_stack: Vec<String>,
+    #[serde(skip)]
+    frame_snapshot: Option<String>,
+    #[serde(skip)]
+    history_blocked_this_frame: bool,
 }
 
 impl AppStella {
@@ -79,6 +101,105 @@ impl AppStella {
 }
 
 impl AppStella {
+    fn snapshot_history_state(&self) -> Option<String> {
+        let snapshot = HistorySnapshotRef {
+            tables: &self.tables,
+            domains: &self.domains,
+            workbench_table_rects: self
+                .workbench_table_rects
+                .iter()
+                .map(|(id, rect)| (*id, [rect.min.x, rect.min.y, rect.max.x, rect.max.y]))
+                .collect(),
+        };
+
+        serde_json::to_string(&snapshot).ok()
+    }
+
+    fn restore_history_state(&mut self, snapshot: &str) -> bool {
+        let Ok(snapshot) = serde_json::from_str::<HistorySnapshotOwned>(snapshot) else {
+            return false;
+        };
+
+        self.tables = snapshot.tables;
+        self.domains = snapshot.domains;
+        self.workbench_table_rects = snapshot
+            .workbench_table_rects
+            .into_iter()
+            .map(|(id, rect)| {
+                (
+                    id,
+                    egui::Rect::from_min_max(
+                        egui::pos2(rect[0], rect[1]),
+                        egui::pos2(rect[2], rect[3]),
+                    ),
+                )
+            })
+            .collect();
+        true
+    }
+
+    fn begin_history_frame(&mut self) {
+        self.frame_snapshot = self.snapshot_history_state();
+        self.history_blocked_this_frame = false;
+    }
+
+    fn finish_history_frame(&mut self) {
+        if self.history_blocked_this_frame {
+            self.frame_snapshot = None;
+            return;
+        }
+
+        let Some(previous_state) = self.frame_snapshot.take() else {
+            return;
+        };
+
+        if let Some(current_state) = self.snapshot_history_state()
+            && current_state != previous_state
+        {
+            self.undo_stack.push(previous_state);
+            self.redo_stack.clear();
+        }
+    }
+
+    fn clear_history(&mut self) {
+        self.undo_stack.clear();
+        self.redo_stack.clear();
+        self.frame_snapshot = None;
+        self.history_blocked_this_frame = true;
+    }
+
+    fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
+    }
+
+    fn undo(&mut self) {
+        if let Some(previous_state) = self.undo_stack.pop() {
+            if let Some(current_state) = self.snapshot_history_state() {
+                self.redo_stack.push(current_state);
+            }
+
+            if self.restore_history_state(&previous_state) {
+                self.history_blocked_this_frame = true;
+            }
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(next_state) = self.redo_stack.pop() {
+            if let Some(current_state) = self.snapshot_history_state() {
+                self.undo_stack.push(current_state);
+            }
+
+            if self.restore_history_state(&next_state) {
+                self.history_blocked_this_frame = true;
+            }
+        }
+    }
+
     fn draw_highlighted_code(ui: &mut egui::Ui, content: &str, language: &str, rows: usize) {
         let mut view = content.to_owned();
         let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
@@ -134,9 +255,16 @@ impl AppStella {
 
     fn execute(&mut self, cmd: Command) {
         match cmd {
+            Command::Undo => {
+                self.undo();
+            }
+            Command::Redo => {
+                self.redo();
+            }
             Command::NewCanvas => {
                 self.tables.clear();
                 self.domains.clear();
+                self.workbench_table_rects.clear();
             }
             Command::CreateTable { title } => {
                 self.tables.insert(Table {
@@ -352,6 +480,8 @@ impl AppStella {
         {
             self.tables = state.tables;
             self.domains = state.domains;
+            self.workbench_table_rects = state.workbench_table_rects;
+            self.clear_history();
         }
     }
 
@@ -359,6 +489,7 @@ impl AppStella {
     pub fn handle_new(&mut self) {
         self.dispatch(Command::NewCanvas);
         self.flush_commands();
+        self.clear_history();
     }
 
     /// Opens the SVG export modal with default layout and theme choices.
@@ -734,9 +865,21 @@ impl AppStella {
 impl eframe::App for AppStella {
     /// Renders one frame of the application.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.begin_history_frame();
+
+        let is_web = cfg!(target_arch = "wasm32");
+        let undo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Z);
+        let redo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::R);
+
+        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
+            self.dispatch(Command::Undo);
+        }
+        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&redo_shortcut)) {
+            self.dispatch(Command::Redo);
+        }
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                let is_web = cfg!(target_arch = "wasm32");
                 ui.menu_button("File", |ui| {
                     if ui.button("New").clicked() {
                         self.handle_new();
@@ -767,6 +910,20 @@ impl eframe::App for AppStella {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
+                ui.menu_button("Edit", |ui| {
+                    if ui
+                        .add_enabled(self.can_undo(), egui::Button::new("Undo (Ctrl+Z)"))
+                        .clicked()
+                    {
+                        self.dispatch(Command::Undo);
+                    }
+                    if ui
+                        .add_enabled(self.can_redo(), egui::Button::new("Redo (Ctrl+R)"))
+                        .clicked()
+                    {
+                        self.dispatch(Command::Redo);
+                    }
+                });
                 ui.separator();
                 egui::widgets::global_theme_preference_buttons(ui);
 
@@ -784,5 +941,6 @@ impl eframe::App for AppStella {
         self.draw_svg_export_modal(ctx);
         self.draw_sql_export_modal(ctx);
         self.flush_commands();
+        self.finish_history_frame();
     }
 }

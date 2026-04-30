@@ -203,7 +203,7 @@ impl Table {
         }
 
         for i in to_delete.into_iter().rev() {
-            self.uniques.remove(i);
+            self.remove_unique(i);
             if self.current_unique == Some(i) {
                 self.current_unique = None;
             } else if let Some(current) = self.current_unique
@@ -368,16 +368,16 @@ impl Table {
             if ui.button("Add").clicked() {
                 changes.add_attribute = true;
             }
-            if ui.button("Add FK").clicked() {
+            if ui.button("New FK").clicked() {
                 self.current_fk = Some(ForeignKey::new());
             }
-            if ui.button("Add U").clicked() {
+            if ui.button("New Unique").clicked() {
                 changes.commands.push(Command::AddUnique {
                     table: table_id,
                     unique: Unique::new(),
                 });
             }
-            if ui.button("Add Check").clicked() {
+            if ui.button("New Check").clicked() {
                 changes.commands.push(Command::AddTableCheck {
                     table: table_id,
                     check: Check::new(),
