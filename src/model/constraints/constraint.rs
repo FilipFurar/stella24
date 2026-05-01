@@ -6,7 +6,7 @@ use std::collections::HashSet;
 slotmap::new_key_type! {
     pub struct FkId;
 }
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct PrimaryKey {
     pub name: String,
     pub attributes: HashSet<AttrId>,
@@ -25,13 +25,13 @@ pub struct ForeignKey {
     pub local_attrs: HashSet<AttrId>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Unique {
     pub name: String,
     pub attributes: HashSet<AttrId>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct NotNull {
     pub name: String,
     pub attributes: HashSet<AttrId>,
