@@ -1,12 +1,12 @@
+use egui::Rect;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use stella24::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
-use stella24::app::TableId;
 use stella24::AppStella;
-use egui::Rect;
+use stella24::app::TableId;
+use stella24::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
 
 fn temp_file(name: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -206,5 +206,3 @@ fn svg_export_theme_choice_changes_table_colors() {
 
     let _ = fs::remove_file(input_path);
 }
-
-

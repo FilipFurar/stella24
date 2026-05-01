@@ -1,14 +1,14 @@
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
+use slotmap::SlotMap;
 use std::cell::RefCell;
 use std::rc::Rc;
+use stella24::app::TableId;
 use stella24::model::attribute::Attribute;
 use stella24::model::constraints::constraint::ForeignKey;
-use stella24::model::entities::table::Table;
 use stella24::model::constraints::constraint::Unique;
+use stella24::model::entities::table::Table;
 use stella24::ui::context::TableUiContext;
-use stella24::app::TableId;
-use slotmap::SlotMap;
 use stella24::ui::entities::table::TableChanges;
 
 #[test]
@@ -137,4 +137,3 @@ fn clicking_add_button_sets_add_attribute_change() {
     assert!(changes.is_some());
     assert!(changes.as_ref().unwrap().add_attribute);
 }
-

@@ -395,9 +395,7 @@ fn render_column(
         add_constraint_name(used_constraints, &name)?;
         parts.push(format!(
             "CONSTRAINT {} REFERENCES {} ({})",
-            name,
-            ref_table.title,
-            ref_attr.name
+            name, ref_table.title, ref_attr.name
         ));
     }
     Ok(parts.join(" "))
@@ -500,11 +498,7 @@ fn render_table_constraints(
             &format!("CHK_{}_{}", table.title, idx + 1),
         );
         add_constraint_name(used_constraints, &name)?;
-        lines.push(format!(
-            "CONSTRAINT {} CHECK ({})",
-            name,
-            check.condition
-        ));
+        lines.push(format!("CONSTRAINT {} CHECK ({})", name, check.condition));
     }
     Ok(lines)
 }
@@ -884,7 +878,6 @@ fn constraint_name_or_fallback(name: &str, fallback: &str) -> String {
         name.to_string()
     }
 }
-
 
 /// Converts a DataType to its Oracle SQL representation.
 ///

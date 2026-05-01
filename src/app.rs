@@ -1,9 +1,5 @@
 //! Main application state and UI event handling.
 
-use egui::{Color32, Id, Key, KeyboardShortcut, Modifiers, vec2};
-use gethostname::gethostname;
-use slotmap::SlotMap;
-use std::fs;
 use crate::app::exports::sql_export::build_oracle_sql;
 use crate::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
 use crate::model::attribute::Attribute;
@@ -11,7 +7,11 @@ use crate::model::{entities::domain::Domain, entities::table::Table};
 use crate::ui::context::TableUiContext;
 use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 pub use command::{Command, CommandQueue};
+use egui::{Color32, Id, Key, KeyboardShortcut, Modifiers, vec2};
+use gethostname::gethostname;
+use slotmap::SlotMap;
 use std::collections::HashMap;
+use std::fs;
 
 mod command;
 pub mod exports;
@@ -113,7 +113,7 @@ impl AppStella {
                 .desired_rows(rows)
                 .code_editor()
                 .font(egui::TextStyle::Monospace)
-                .interactive(false)
+                .interactive(true)
                 .layouter(&mut layouter),
         );
     }
@@ -171,7 +171,9 @@ impl AppStella {
                 if let Some(item) = self.redo_history.pop() {
                     match item {
                         UndoItem::Inverse(cmd_to_apply) => {
-                            if let Some(undo_item) = self.apply_inverse_without_recording(cmd_to_apply) {
+                            if let Some(undo_item) =
+                                self.apply_inverse_without_recording(cmd_to_apply)
+                            {
                                 self.undo_history.push(undo_item);
                             }
                         }
@@ -229,55 +231,105 @@ impl AppStella {
     fn compute_inverse_pre(&self, cmd: &Command) -> Option<Command> {
         use Command::*;
         match cmd {
-            RenameTable { table, .. } => {
-                self.tables.get(*table).map(|t| RenameTable { table: *table, title: t.title.clone() })
-            }
+            RenameTable { table, .. } => self.tables.get(*table).map(|t| RenameTable {
+                table: *table,
+                title: t.title.clone(),
+            }),
             RenameAttribute { table, attr, .. } => {
                 if let Some(t) = self.tables.get(*table) {
-                    t.attributes.get(*attr).map(|a| RenameAttribute { table: *table, attr: *attr, name: a.name.clone() })
-                } else { None }
+                    t.attributes.get(*attr).map(|a| RenameAttribute {
+                        table: *table,
+                        attr: *attr,
+                        name: a.name.clone(),
+                    })
+                } else {
+                    None
+                }
             }
             SetAttributeType { table, attr, .. } => {
                 if let Some(t) = self.tables.get(*table) {
-                    t.attributes.get(*attr).map(|a| SetAttributeType { table: *table, attr: *attr, attribute_type: a.attribute_type.clone() })
-                } else { None }
+                    t.attributes.get(*attr).map(|a| SetAttributeType {
+                        table: *table,
+                        attr: *attr,
+                        attribute_type: a.attribute_type.clone(),
+                    })
+                } else {
+                    None
+                }
             }
             SetAttributeNotNull { table, attr, .. } => {
                 if let Some(t) = self.tables.get(*table) {
-                    t.attributes.get(*attr).map(|a| SetAttributeNotNull { table: *table, attr: *attr, value: a.not_null })
-                } else { None }
+                    t.attributes.get(*attr).map(|a| SetAttributeNotNull {
+                        table: *table,
+                        attr: *attr,
+                        value: a.not_null,
+                    })
+                } else {
+                    None
+                }
             }
             SetAttributeUnique { table, attr, .. } => {
                 if let Some(t) = self.tables.get(*table) {
-                    t.attributes.get(*attr).map(|a| SetAttributeUnique { table: *table, attr: *attr, value: a.unique })
-                } else { None }
+                    t.attributes.get(*attr).map(|a| SetAttributeUnique {
+                        table: *table,
+                        attr: *attr,
+                        value: a.unique,
+                    })
+                } else {
+                    None
+                }
             }
             SetAttributePrimaryKey { table, attr, .. } => {
                 if let Some(t) = self.tables.get(*table) {
-                    t.attributes.get(*attr).map(|a| SetAttributePrimaryKey { table: *table, attr: *attr, value: a.pk })
-                } else { None }
+                    t.attributes.get(*attr).map(|a| SetAttributePrimaryKey {
+                        table: *table,
+                        attr: *attr,
+                        value: a.pk,
+                    })
+                } else {
+                    None
+                }
             }
-            RenamePrimaryKey { table, .. } => {
-                self.tables.get(*table).map(|t| RenamePrimaryKey { table: *table, name: t.pk.name.clone() })
-            }
-            RenameDomain { domain, .. } => {
-                self.domains.get(*domain).map(|d| RenameDomain { domain: *domain, name: d.name.clone() })
-            }
-            SetDomainType { domain, .. } => {
-                self.domains.get(*domain).map(|d| SetDomainType { domain: *domain, data_type: d.data_type.clone() })
-            }
-            SetForeignKeyReference { table, fk, .. } => {
-                self.tables.get(*table).and_then(|t| t.fks.get(*fk)).map(|f| SetForeignKeyReference { table: *table, fk: *fk, references: f.references })
-            }
-            RenameUnique { table, index, .. } => {
-                self.tables.get(*table).and_then(|t| t.uniques.get(*index)).map(|u| RenameUnique { table: *table, index: *index, name: u.name.clone() })
-            }
-            AddUniqueAttribute { table, index, attr } => {
-                Some(RemoveUniqueAttribute { table: *table, index: *index, attr: *attr })
-            }
-            RemoveUniqueAttribute { table, index, attr } => {
-                Some(AddUniqueAttribute { table: *table, index: *index, attr: *attr })
-            }
+            RenamePrimaryKey { table, .. } => self.tables.get(*table).map(|t| RenamePrimaryKey {
+                table: *table,
+                name: t.pk.name.clone(),
+            }),
+            RenameDomain { domain, .. } => self.domains.get(*domain).map(|d| RenameDomain {
+                domain: *domain,
+                name: d.name.clone(),
+            }),
+            SetDomainType { domain, .. } => self.domains.get(*domain).map(|d| SetDomainType {
+                domain: *domain,
+                data_type: d.data_type.clone(),
+            }),
+            SetForeignKeyReference { table, fk, .. } => self
+                .tables
+                .get(*table)
+                .and_then(|t| t.fks.get(*fk))
+                .map(|f| SetForeignKeyReference {
+                    table: *table,
+                    fk: *fk,
+                    references: f.references,
+                }),
+            RenameUnique { table, index, .. } => self
+                .tables
+                .get(*table)
+                .and_then(|t| t.uniques.get(*index))
+                .map(|u| RenameUnique {
+                    table: *table,
+                    index: *index,
+                    name: u.name.clone(),
+                }),
+            AddUniqueAttribute { table, index, attr } => Some(RemoveUniqueAttribute {
+                table: *table,
+                index: *index,
+                attr: *attr,
+            }),
+            RemoveUniqueAttribute { table, index, attr } => Some(AddUniqueAttribute {
+                table: *table,
+                index: *index,
+                attr: *attr,
+            }),
             _ => None,
         }
     }
@@ -912,7 +964,6 @@ impl AppStella {
 impl eframe::App for AppStella {
     /// Renders one frame of the application.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
         let is_web = cfg!(target_arch = "wasm32");
         let undo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Z);
         let redo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::R);
