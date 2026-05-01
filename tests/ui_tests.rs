@@ -125,7 +125,9 @@ fn clicking_add_button_sets_add_attribute_change() {
 
     let mut harness = Harness::new_ui(move |ui| {
         let changes = table_for_ui.borrow_mut().draw(ui, &ctx, table_id);
-        *result_for_ui.borrow_mut() = Some(changes);
+        if changes.add_attribute {
+            *result_for_ui.borrow_mut() = Some(changes);
+        }
     });
 
     harness.get_by_label("Add").click();

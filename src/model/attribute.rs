@@ -9,7 +9,7 @@ slotmap::new_key_type! {
 }
 
 /// Field is one row in your table
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Attribute {
     /// Field name
     pub name: String,

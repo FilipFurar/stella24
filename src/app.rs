@@ -1,6 +1,6 @@
 //! Main application state and UI event handling.
 
-use egui::{Color32, Id, vec2};
+use egui::{Color32, Id, Key, KeyboardShortcut, Modifiers, vec2};
 use gethostname::gethostname;
 use slotmap::SlotMap;
 use std::fs;
@@ -18,8 +18,9 @@ pub mod exports;
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
+const MAX_HISTORY_STATES: usize = 100;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 enum SqlExportModal {
     #[default]
     Hidden,
@@ -31,7 +32,7 @@ enum SqlExportModal {
     },
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 enum SvgExportModal {
     #[default]
     Hidden,
@@ -39,6 +40,14 @@ enum SvgExportModal {
         layout: SvgLayoutMode,
         theme: SvgThemeChoice,
     },
+}
+
+/// Undo history item: either an inverse command that can be executed to undo,
+/// or a snapshot of the previous app state.
+#[derive(Clone)]
+enum UndoItem {
+    Inverse(Command),
+    Snapshot(AppStella),
 }
 
 slotmap::new_key_type! {
@@ -52,7 +61,7 @@ slotmap::new_key_type! {
 }
 
 /// Main application state for the ER diagram editor.
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Default, Clone)]
 pub struct AppStella {
     pub tables: SlotMap<TableId, Table>,
     pub domains: SlotMap<DomainId, Domain>,
@@ -64,6 +73,10 @@ pub struct AppStella {
     svg_export_modal: SvgExportModal,
     #[serde(skip)]
     workbench_table_rects: HashMap<TableId, egui::Rect>,
+    #[serde(skip)]
+    undo_history: Vec<UndoItem>,
+    #[serde(skip)]
+    redo_history: Vec<UndoItem>,
 }
 
 impl AppStella {
@@ -134,9 +147,160 @@ impl AppStella {
 
     fn execute(&mut self, cmd: Command) {
         match cmd {
+            Command::Undo => {
+                if let Some(item) = self.undo_history.pop() {
+                    match item {
+                        UndoItem::Inverse(inv_cmd) => {
+                            // Apply inverse without recording it to undo_history; compute redo item
+                            if let Some(redo_item) = self.apply_inverse_without_recording(inv_cmd) {
+                                self.redo_history.push(redo_item);
+                            }
+                        }
+                        UndoItem::Snapshot(prev_state) => {
+                            // Push current snapshot to redo and restore previous state
+                            let current = self.clone_without_histories();
+                            self.redo_history.push(UndoItem::Snapshot(current));
+                            self.tables = prev_state.tables;
+                            self.domains = prev_state.domains;
+                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                        }
+                    }
+                }
+            }
+            Command::Redo => {
+                if let Some(item) = self.redo_history.pop() {
+                    match item {
+                        UndoItem::Inverse(cmd_to_apply) => {
+                            if let Some(undo_item) = self.apply_inverse_without_recording(cmd_to_apply) {
+                                self.undo_history.push(undo_item);
+                            }
+                        }
+                        UndoItem::Snapshot(prev_state) => {
+                            let current = self.clone_without_histories();
+                            self.undo_history.push(UndoItem::Snapshot(current));
+                            self.tables = prev_state.tables;
+                            self.domains = prev_state.domains;
+                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                        }
+                    }
+                }
+            }
+            other => {
+                // For normal commands: try to compute a cheap inverse before applying.
+                // If we cannot, fall back to snapshotting the whole state.
+                self.redo_history.clear();
+                if let Some(pre_inv) = self.compute_inverse_pre(&other) {
+                    // We were able to compute inverse based on current state
+                    self.execute_command(other);
+                    self.push_undo_item(UndoItem::Inverse(pre_inv));
+                } else {
+                    let snapshot = self.clone_without_histories();
+                    self.execute_command(other);
+                    self.push_undo_item(UndoItem::Snapshot(snapshot));
+                }
+            }
+        }
+    }
+
+    fn push_undo_item(&mut self, item: UndoItem) {
+        self.undo_history.push(item);
+        if self.undo_history.len() > MAX_HISTORY_STATES {
+            self.undo_history.remove(0);
+        }
+    }
+
+    /// Applies a command without recording to undo_history. Returns an UndoItem that
+    /// represents the inverse of the command applied (suitable for pushing to the other stack).
+    fn apply_inverse_without_recording(&mut self, cmd: Command) -> Option<UndoItem> {
+        // Try to compute a cheap inverse for cmd given current state
+        if let Some(pre_inv) = self.compute_inverse_pre(&cmd) {
+            self.execute_command(cmd);
+            Some(UndoItem::Inverse(pre_inv))
+        } else {
+            // Snapshot fallback
+            let snapshot = self.clone_without_histories();
+            self.execute_command(cmd);
+            Some(UndoItem::Snapshot(snapshot))
+        }
+    }
+
+    /// Compute an inverse command from the current state for commands that can be inverted
+    /// cheaply. Returns None when snapshot fallback should be used.
+    fn compute_inverse_pre(&self, cmd: &Command) -> Option<Command> {
+        use Command::*;
+        match cmd {
+            RenameTable { table, .. } => {
+                self.tables.get(*table).map(|t| RenameTable { table: *table, title: t.title.clone() })
+            }
+            RenameAttribute { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| RenameAttribute { table: *table, attr: *attr, name: a.name.clone() })
+                } else { None }
+            }
+            SetAttributeType { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributeType { table: *table, attr: *attr, attribute_type: a.attribute_type.clone() })
+                } else { None }
+            }
+            SetAttributeNotNull { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributeNotNull { table: *table, attr: *attr, value: a.not_null })
+                } else { None }
+            }
+            SetAttributeUnique { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributeUnique { table: *table, attr: *attr, value: a.unique })
+                } else { None }
+            }
+            SetAttributePrimaryKey { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributePrimaryKey { table: *table, attr: *attr, value: a.pk })
+                } else { None }
+            }
+            RenamePrimaryKey { table, .. } => {
+                self.tables.get(*table).map(|t| RenamePrimaryKey { table: *table, name: t.pk.name.clone() })
+            }
+            RenameDomain { domain, .. } => {
+                self.domains.get(*domain).map(|d| RenameDomain { domain: *domain, name: d.name.clone() })
+            }
+            SetDomainType { domain, .. } => {
+                self.domains.get(*domain).map(|d| SetDomainType { domain: *domain, data_type: d.data_type.clone() })
+            }
+            SetForeignKeyReference { table, fk, .. } => {
+                self.tables.get(*table).and_then(|t| t.fks.get(*fk)).map(|f| SetForeignKeyReference { table: *table, fk: *fk, references: f.references })
+            }
+            RenameUnique { table, index, .. } => {
+                self.tables.get(*table).and_then(|t| t.uniques.get(*index)).map(|u| RenameUnique { table: *table, index: *index, name: u.name.clone() })
+            }
+            AddUniqueAttribute { table, index, attr } => {
+                Some(RemoveUniqueAttribute { table: *table, index: *index, attr: *attr })
+            }
+            RemoveUniqueAttribute { table, index, attr } => {
+                Some(AddUniqueAttribute { table: *table, index: *index, attr: *attr })
+            }
+            _ => None,
+        }
+    }
+
+    fn clone_without_histories(&self) -> Self {
+        AppStella {
+            tables: self.tables.clone(),
+            domains: self.domains.clone(),
+            command_queue: CommandQueue::default(),
+            sql_export_modal: SqlExportModal::default(),
+            svg_export_modal: SvgExportModal::default(),
+            workbench_table_rects: self.workbench_table_rects.clone(),
+            undo_history: Vec::new(),
+            redo_history: Vec::new(),
+        }
+    }
+
+    fn execute_command(&mut self, cmd: Command) {
+        match cmd {
             Command::NewCanvas => {
                 self.tables.clear();
                 self.domains.clear();
+                self.workbench_table_rects.clear();
             }
             Command::CreateTable { title } => {
                 self.tables.insert(Table {
@@ -352,6 +516,10 @@ impl AppStella {
         {
             self.tables = state.tables;
             self.domains = state.domains;
+            self.workbench_table_rects = state.workbench_table_rects;
+            self.undo_history.clear();
+            self.redo_history.clear();
+            self.command_queue = CommandQueue::default();
         }
     }
 
@@ -359,6 +527,16 @@ impl AppStella {
     pub fn handle_new(&mut self) {
         self.dispatch(Command::NewCanvas);
         self.flush_commands();
+    }
+
+    /// Returns true if an undo operation is available.
+    pub fn can_undo(&self) -> bool {
+        !self.undo_history.is_empty()
+    }
+
+    /// Returns true if a redo operation is available.
+    pub fn can_redo(&self) -> bool {
+        !self.redo_history.is_empty()
     }
 
     /// Opens the SVG export modal with default layout and theme choices.
@@ -734,9 +912,20 @@ impl AppStella {
 impl eframe::App for AppStella {
     /// Renders one frame of the application.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+
+        let is_web = cfg!(target_arch = "wasm32");
+        let undo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Z);
+        let redo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::R);
+
+        if !is_web && self.can_undo() && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
+            self.dispatch(Command::Undo);
+        }
+        if !is_web && self.can_redo() && ctx.input_mut(|i| i.consume_shortcut(&redo_shortcut)) {
+            self.dispatch(Command::Redo);
+        }
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
-                let is_web = cfg!(target_arch = "wasm32");
                 ui.menu_button("File", |ui| {
                     if ui.button("New").clicked() {
                         self.handle_new();
@@ -765,6 +954,22 @@ impl eframe::App for AppStella {
                     }
                     if !is_web && ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+                ui.menu_button("Edit", |ui| {
+                    if ui
+                        .add_enabled(self.can_undo(), egui::Button::new("Undo (Ctrl+Z)"))
+                        .clicked()
+                    {
+                        self.dispatch(Command::Undo);
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(self.can_redo(), egui::Button::new("Redo (Ctrl+R)"))
+                        .clicked()
+                    {
+                        self.dispatch(Command::Redo);
+                        ui.close();
                     }
                 });
                 ui.separator();

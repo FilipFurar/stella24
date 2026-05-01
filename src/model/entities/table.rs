@@ -5,7 +5,7 @@ use crate::model::constraints::constraint::{FkId, ForeignKey, NotNull, PrimaryKe
 use slotmap::SlotMap;
 
 /// SQL Table
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Table {
     /// Title (name) of the database
     pub title: String,

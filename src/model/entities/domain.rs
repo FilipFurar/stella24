@@ -4,7 +4,7 @@ use super::super::datatype::DataType;
 use crate::model::constraints::check::Check;
 
 /// SQL Domain
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct Domain {
     pub name: String,
 

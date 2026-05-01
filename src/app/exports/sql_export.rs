@@ -179,7 +179,7 @@ fn render_domain(
     writeln!(
         out,
         "CREATE DOMAIN {} AS {}",
-        quote_ident(&domain.name),
+        domain.name,
         oracle_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
     )
     .expect("write to string");
@@ -203,7 +203,7 @@ fn render_domain(
         writeln!(
             out,
             "    CONSTRAINT {} CHECK ({}){}",
-            quote_ident(&name),
+            name,
             check.condition,
             if idx + 1 == domain.check_constraints.len() {
                 ";"
@@ -323,7 +323,7 @@ fn render_table(
     used_constraints: &mut HashSet<String>,
 ) -> Result<(), SqlExportError> {
     let _ = table_id;
-    writeln!(out, "CREATE TABLE {} (", quote_ident(&table.title)).expect("write to string");
+    writeln!(out, "CREATE TABLE {} (", table.title).expect("write to string");
     let mut lines = Vec::new();
     for (attr_id, attr) in sorted_attrs(table) {
         lines.push(render_column(
@@ -367,24 +367,24 @@ fn render_column(
     used_constraints: &mut HashSet<String>,
 ) -> Result<String, SqlExportError> {
     let mut parts = vec![
-        quote_ident(&attr.name),
+        attr.name.clone(),
         attribute_type_sql(table, attr_id, attr, tables, domains)?,
     ];
     let inline_pk = exact_pk_name(table, attr_id);
     if let Some(name) = exact_not_null_name(table, attr_id) {
         add_constraint_name(used_constraints, &name)?;
-        parts.push(format!("CONSTRAINT {} NOT NULL", quote_ident(&name)));
+        parts.push(format!("CONSTRAINT {} NOT NULL", name));
     } else if attr.not_null || domain_not_null(attr, domains) {
         parts.push("NOT NULL".to_string());
     }
     if let Some(name) = inline_pk.clone() {
         add_constraint_name(used_constraints, &name)?;
-        parts.push(format!("CONSTRAINT {} PRIMARY KEY", quote_ident(&name)));
+        parts.push(format!("CONSTRAINT {} PRIMARY KEY", name));
     }
     if inline_pk.is_none() {
         if let Some(name) = exact_unique_name(table, attr_id) {
             add_constraint_name(used_constraints, &name)?;
-            parts.push(format!("CONSTRAINT {} UNIQUE", quote_ident(&name)));
+            parts.push(format!("CONSTRAINT {} UNIQUE", name));
         } else if attr.unique && !attr.pk {
             parts.push("UNIQUE".to_string());
         }
@@ -395,9 +395,9 @@ fn render_column(
         add_constraint_name(used_constraints, &name)?;
         parts.push(format!(
             "CONSTRAINT {} REFERENCES {} ({})",
-            quote_ident(&name),
-            quote_ident(&ref_table.title),
-            quote_ident(&ref_attr.name)
+            name,
+            ref_table.title,
+            ref_attr.name
         ));
     }
     Ok(parts.join(" "))
@@ -427,7 +427,7 @@ fn render_table_constraints(
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} PRIMARY KEY ({})",
-            quote_ident(&name),
+            name,
             join_attr_names(table, &pk_attrs)
         ));
     }
@@ -441,7 +441,7 @@ fn render_table_constraints(
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} UNIQUE ({})",
-            quote_ident(&name),
+            name,
             join_attr_names(table, &attrs)
         ));
     }
@@ -455,10 +455,10 @@ fn render_table_constraints(
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} CHECK ({})",
-            quote_ident(&name),
+            name,
             attrs
                 .iter()
-                .map(|id| format!("{} IS NOT NULL", quote_ident(&table.attributes[*id].name)))
+                .map(|id| format!("{} IS NOT NULL", table.attributes[*id].name))
                 .collect::<Vec<_>>()
                 .join(" AND ")
         ));
@@ -475,16 +475,16 @@ fn render_table_constraints(
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {} ({})",
-            quote_ident(&name),
+            name,
             local_cols
                 .iter()
-                .map(|c| quote_ident(c))
+                .map(|c| c.clone())
                 .collect::<Vec<_>>()
                 .join(", "),
-            quote_ident(&ref_table.title),
+            ref_table.title,
             ref_cols
                 .iter()
-                .map(|c| quote_ident(c))
+                .map(|c| c.clone())
                 .collect::<Vec<_>>()
                 .join(", ")
         ));
@@ -502,7 +502,7 @@ fn render_table_constraints(
         add_constraint_name(used_constraints, &name)?;
         lines.push(format!(
             "CONSTRAINT {} CHECK ({})",
-            quote_ident(&name),
+            name,
             check.condition
         ));
     }
@@ -536,7 +536,7 @@ fn attribute_type_sql(
             let Some(domain) = domains.get(domain_id) else {
                 return Ok("NUMBER".to_string());
             };
-            Ok(quote_ident(&domain.name))
+            Ok(domain.name.clone())
         }
         AttributeType::ForeignKeyAttribute(_) => {
             let (fk, ref_table, ref_attr_id) = resolve_fk_attr(table, attr_id, tables)?;
@@ -843,7 +843,7 @@ fn sorted_attr_ids(set: &std::collections::HashSet<AttrId>) -> Vec<AttrId> {
 fn join_attr_names(table: &Table, attrs: &[AttrId]) -> String {
     attrs
         .iter()
-        .map(|id| quote_ident(&table.attributes[*id].name))
+        .map(|id| table.attributes[*id].name.clone())
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -885,11 +885,6 @@ fn constraint_name_or_fallback(name: &str, fallback: &str) -> String {
     }
 }
 
-/// Quotes an identifier with double quotes, escaping any embedded quotes by doubling them.
-/// This follows Oracle's identifier quoting rules.
-fn quote_ident(name: &str) -> String {
-    format!("\'{}\'", name.replace('\'', "\'\'"))
-}
 
 /// Converts a DataType to its Oracle SQL representation.
 ///

@@ -5,10 +5,12 @@ use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::datatype::DataType;
 
 /// Possible commands to dispatch as enum variants
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Command {
     // App/file lifecycle
     NewCanvas,
+    Undo,
+    Redo,
 
     // Table lifecycle
     CreateTable {
@@ -140,7 +142,7 @@ pub enum Command {
 }
 
 /// Queue for command batching per frame.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct CommandQueue {
     pending: Vec<Command>,
 }
