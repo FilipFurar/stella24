@@ -288,11 +288,20 @@ fn map_tables_to_nodes(
     let mut row_max: f32 = 0.0;
 
     for (id, table) in tables {
-        let attributes = table
-            .attributes
-            .values()
-            .map(|a| format_attribute_row(a, domains))
-            .collect::<Vec<_>>();
+        let attributes = if table.attr_order.is_empty() {
+            table
+                .attributes
+                .values()
+                .map(|a| format_attribute_row(a, domains))
+                .collect::<Vec<_>>()
+        } else {
+            table
+                .attr_order
+                .iter()
+                .filter_map(|&id| table.attributes.get(id))
+                .map(|a| format_attribute_row(a, domains))
+                .collect::<Vec<_>>()
+        };
         let table_constraints = format_table_constraints(table, tables);
 
         let attr_h = (attributes.len() as f32 * 24.0).max(24.0);
@@ -646,8 +655,8 @@ fn format_table_constraints(
 
 /// Extracts and sorts attribute names from a set of attribute IDs.
 ///
-/// Performs a lookup of attribute names from the table and returns them sorted
-/// alphabetically for consistent, readable constraint display.
+/// Performs a lookup of attribute names from the table
+/// sorted by user
 ///
 /// # Arguments
 /// * `table` - The table containing the attributes
@@ -659,12 +668,20 @@ fn sorted_attr_names(
     table: &crate::model::entities::table::Table,
     ids: &HashSet<AttrId>,
 ) -> Vec<String> {
-    let mut names = ids
-        .iter()
-        .filter_map(|id| table.attributes.get(*id).map(|attr| attr.name.clone()))
-        .collect::<Vec<_>>();
-    names.sort();
-    names
+    if table.attr_order.is_empty() {
+        let mut names = ids
+            .iter()
+            .filter_map(|id| table.attributes.get(*id).map(|attr| attr.name.clone()))
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    } else {
+        table.attr_order
+            .iter()
+            .filter(|id| ids.contains(id))
+            .filter_map(|id| table.attributes.get(*id).map(|attr| attr.name.clone()))
+            .collect()
+    }
 }
 
 /// Renders a single relationship edge with crow's foot notation.

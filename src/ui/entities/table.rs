@@ -1,14 +1,16 @@
 // ui/entities/table.rs
 
+use std::collections::HashSet;
+use eframe::emath::{pos2, vec2, Rect};
 use crate::app::{Command, TableId};
-use crate::model::attribute::AttrId;
+use crate::model::attribute::{AttrId, AttributeType};
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
 use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
 use eframe::epaint::Color32;
-use egui::{Id, Modal, RichText, Stroke, Ui};
+use egui::{Area, Id, Modal, RichText, Sense, Stroke, Ui};
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
@@ -290,33 +292,161 @@ impl Table {
     }
 
     /// Draw all attributes
+    /// Helper to format AttributeType for the ghost preview
+    fn format_attr_type(attr_type: &AttributeType) -> String {
+        match attr_type {
+            AttributeType::Logical(dt) => format!("{:?}", dt), // or however DataType displays
+            AttributeType::Domain(_) => "Domain".to_string(),
+            AttributeType::ForeignKeyAttribute(_) => "FK".to_string(),
+        }
+    }
+
     fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
         let mut result = Vec::new();
-        let attrs_in_table_uniques: std::collections::HashSet<AttrId> = self
+
+        // AttrOrder is synced with SlotMap
+        let existing: HashSet<_> = self.attributes.keys().collect();
+        self.attr_order.retain(|id| existing.contains(id));
+        for id in self.attributes.keys() {
+            if !self.attr_order.contains(&id) {
+                self.attr_order.push(id);
+            }
+        }
+
+        let attrs_in_table_uniques: HashSet<AttrId> = self
             .uniques
             .iter()
             .flat_map(|unique| unique.attributes.iter().copied())
             .collect();
 
-        for (id, attr) in self.attributes_mut() {
-            let disable_inline_unique = attrs_in_table_uniques.contains(&id);
-            let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
-            if changes.rename_changed
-                || changes.type_changed
-                || changes.not_null_changed
-                || changes.unique_changed
-                || changes.pk_change.is_some()
-                || changes.delete
-            {
-                result.push(AttributeRowChanges {
-                    attr_id: id,
-                    rename_changed: changes.rename_changed,
-                    type_changed: changes.type_changed,
-                    not_null_changed: changes.not_null_changed,
-                    unique_changed: changes.unique_changed,
-                    pk_change: changes.pk_change,
-                    delete: changes.delete,
+        let mut row_rects: Vec<(AttrId, Rect)> = Vec::new();
+        let mut drop_index: Option<usize> = None;
+        let mut dragged_row_rect: Option<Rect> = None;
+
+        // Draw every row in the explicit order
+        for (index, &id) in self.attr_order.iter().enumerate() {
+            let Some(attr) = self.attributes.get_mut(id) else { continue };
+
+            let is_dragged = self.dragged_attr == Some(id);
+
+            let row_response = ui.scope(|ui| {
+                ui.horizontal(|ui| {
+                    // Drag handle
+                    let handle = ui
+                        .add(egui::Label::new("≡").sense(Sense::drag()))
+                        .on_hover_text("Drag to reorder")
+                        .on_hover_cursor(egui::CursorIcon::Grab);
+                    if handle.drag_started() {
+                        self.dragged_attr = Some(id);
+                        self.dragged_from_index = Some(index);
+                    }
+
+                    // ── Your existing attribute editor, untouched ──
+                    let disable_inline_unique = attrs_in_table_uniques.contains(&id);
+                    let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
+
+                    if changes.rename_changed
+                        || changes.type_changed
+                        || changes.not_null_changed
+                        || changes.unique_changed
+                        || changes.pk_change.is_some()
+                        || changes.delete
+                    {
+                        result.push(AttributeRowChanges {
+                            attr_id: id,
+                            rename_changed: changes.rename_changed,
+                            type_changed: changes.type_changed,
+                            not_null_changed: changes.not_null_changed,
+                            unique_changed: changes.unique_changed,
+                            pk_change: changes.pk_change,
+                            delete: changes.delete,
+                        });
+                    }
                 });
+            });
+
+            let rect = row_response.response.rect;
+            row_rects.push((id, rect));
+
+            if is_dragged {
+                dragged_row_rect = Some(rect);
+            }
+
+            // Detect drop zone
+            if self.dragged_attr.is_some() && !is_dragged {
+                if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                    if rect.contains(pointer_pos) {
+                        let center_y = rect.center().y;
+                        drop_index = Some(if pointer_pos.y > center_y {
+                            index + 1
+                        } else {
+                            index
+                        });
+                    }
+                }
+            }
+        }
+
+
+        // Draw insertion line
+        if let Some(idx) = drop_index {
+            let y = if idx == 0 {
+                row_rects.first().map(|(_, r)| r.top())
+            } else {
+                row_rects.get(idx.saturating_sub(1)).map(|(_, r)| r.bottom())
+            }
+                .unwrap_or_else(|| ui.min_rect().top());
+
+            if let Some((_, first_rect)) = row_rects.first() {
+                let color = ui.visuals().selection.bg_fill;
+                ui.painter().line_segment(
+                    [pos2(first_rect.left(), y), pos2(first_rect.right(), y)],
+                    Stroke::new(2.0, color),
+                );
+            }
+        }
+
+        // Floating ghost
+        if let Some(dragged_id) = self.dragged_attr {
+            if let Some(attr) = self.attributes.get(dragged_id) {
+                if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                    Area::new(Id::new("attr_drag_ghost"))
+                        .fixed_pos(pointer_pos - vec2(0.0, 12.0))
+                        .interactable(false)
+                        .show(ui.ctx(), |ui| {
+                            let frame = egui::Frame::popup(ui.style());
+                            frame.show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label("≡");
+                                    ui.label(format!(
+                                        "{} : {}",
+                                        attr.name,
+                                        Self::format_attr_type(&attr.attribute_type)
+                                    ));
+                                });
+                            });
+                        });
+                }
+            }
+
+            // ── 7. On mouse release: apply reorder ────────────────────────────
+            if ui.input(|i| i.pointer.any_released()) {
+                if let Some(from_idx) = self.dragged_from_index {
+                    let to_idx = drop_index.unwrap_or(from_idx);
+
+                    if from_idx != to_idx {
+                        let id = self.attr_order.remove(from_idx);
+                        let to_idx = if to_idx > from_idx {
+                            to_idx - 1
+                        } else {
+                            to_idx
+                        };
+                        let to_idx = to_idx.min(self.attr_order.len());
+                        self.attr_order.insert(to_idx, id);
+                    }
+                }
+                self.dragged_attr = None;
+                self.dragged_from_index = None;
             }
         }
 

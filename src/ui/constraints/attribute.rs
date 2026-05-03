@@ -252,7 +252,17 @@ impl AttributeType {
                     }
                 }
                 AttributeType::Domain(domain_id) => {
-                    let selected = ctx.domain_name(*domain_id).expect("err");
+                    let name_option = ctx.domain_name(*domain_id);
+                    let mut selected: &str = "";
+
+                    if name_option.is_some() {
+                        selected = ctx.domain_name(*domain_id).expect("err");
+
+                    }
+                    if name_option.is_none() {
+                        selected = "";
+                    }
+
                     egui::ComboBox::from_id_salt(format!("domain_{}", id.data().as_ffi()))
                         .selected_text(selected)
                         .show_ui(ui, |ui| {

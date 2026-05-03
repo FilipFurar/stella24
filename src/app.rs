@@ -968,11 +968,30 @@ impl eframe::App for AppStella {
         let undo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Z);
         let redo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::R);
 
+        let new_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::N);
+        let open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
+        let save_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::S);
+
+
         if !is_web && self.can_undo() && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
             self.dispatch(Command::Undo);
         }
         if !is_web && self.can_redo() && ctx.input_mut(|i| i.consume_shortcut(&redo_shortcut)) {
             self.dispatch(Command::Redo);
+        }
+        
+        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&new_shortcut)) {
+            self.handle_new();
+        }
+        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&open_shortcut)) {
+            if let Some(path) = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file() {
+                self.handle_open(path);
+            }
+        }
+        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&save_shortcut)) {
+            if let Some(path) = rfd::FileDialog::new().add_filter("JSON", &["json"]).save_file() {
+                self.handle_save(path);
+            }
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
