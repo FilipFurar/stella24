@@ -20,6 +20,9 @@ fn mk_table(title: &str) -> Table {
         open_modal: false,
         current_fk: None,
         current_unique: None,
+        attr_order: vec![],
+        dragged_attr: None,
+        dragged_from_index: None,
     }
 }
 #[test]

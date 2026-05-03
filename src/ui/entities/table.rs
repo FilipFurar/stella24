@@ -1,7 +1,5 @@
 // ui/entities/table.rs
 
-use std::collections::HashSet;
-use eframe::emath::{pos2, vec2, Rect};
 use crate::app::{Command, TableId};
 use crate::model::attribute::{AttrId, AttributeType};
 use crate::model::constraints::check::Check;
@@ -9,8 +7,10 @@ use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
 use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
+use eframe::emath::{Rect, pos2, vec2};
 use eframe::epaint::Color32;
 use egui::{Area, Id, Modal, RichText, Sense, Stroke, Ui};
+use std::collections::HashSet;
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
@@ -321,11 +321,12 @@ impl Table {
 
         let mut row_rects: Vec<(AttrId, Rect)> = Vec::new();
         let mut drop_index: Option<usize> = None;
-        let mut dragged_row_rect: Option<Rect> = None;
 
         // Draw every row in the explicit order
         for (index, &id) in self.attr_order.iter().enumerate() {
-            let Some(attr) = self.attributes.get_mut(id) else { continue };
+            let Some(attr) = self.attributes.get_mut(id) else {
+                continue;
+            };
 
             let is_dragged = self.dragged_attr == Some(id);
 
@@ -368,10 +369,6 @@ impl Table {
             let rect = row_response.response.rect;
             row_rects.push((id, rect));
 
-            if is_dragged {
-                dragged_row_rect = Some(rect);
-            }
-
             // Detect drop zone
             if self.dragged_attr.is_some() && !is_dragged {
                 if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
@@ -387,15 +384,16 @@ impl Table {
             }
         }
 
-
         // Draw insertion line
         if let Some(idx) = drop_index {
             let y = if idx == 0 {
                 row_rects.first().map(|(_, r)| r.top())
             } else {
-                row_rects.get(idx.saturating_sub(1)).map(|(_, r)| r.bottom())
+                row_rects
+                    .get(idx.saturating_sub(1))
+                    .map(|(_, r)| r.bottom())
             }
-                .unwrap_or_else(|| ui.min_rect().top());
+            .unwrap_or_else(|| ui.min_rect().top());
 
             if let Some((_, first_rect)) = row_rects.first() {
                 let color = ui.visuals().selection.bg_fill;

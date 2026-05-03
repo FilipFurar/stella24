@@ -257,7 +257,6 @@ impl AttributeType {
 
                     if name_option.is_some() {
                         selected = ctx.domain_name(*domain_id).expect("err");
-
                     }
                     if name_option.is_none() {
                         selected = "";
