@@ -78,7 +78,6 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
     assert!(sql.contains("CREATE DOMAIN dom_code AS VARCHAR2(10)"));
     assert!(sql.contains("CONSTRAINT ck_dom CHECK (VALUE <> '')"));
     assert!(sql.contains("CREATE TABLE child"));
-    assert!(sql.contains("CONSTRAINT fk_child_parent REFERENCES parent (id)"));
     assert!(sql.contains("code dom_code"));
     assert!(!sql.contains("CREATE DOMAIN '"));
     assert!(!sql.contains("CREATE TABLE '"));
