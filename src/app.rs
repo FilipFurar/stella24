@@ -753,6 +753,7 @@ impl AppStella {
     }*/
 
     fn draw_workbench_menu(&mut self, ctx: &egui::Context) {
+
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
             ui.add_space(3.0);
             egui::MenuBar::new().ui(ui, |ui| {
@@ -971,6 +972,22 @@ impl eframe::App for AppStella {
         let new_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::N);
         let open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
         let save_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::S);
+
+        let new_table_shortcut = KeyboardShortcut::new(Modifiers::SHIFT, Key::T);
+        let new_domain_shortcut = KeyboardShortcut::new(Modifiers::SHIFT, Key::D);
+
+        if ctx.input_mut(|i| i.consume_shortcut(&new_table_shortcut)) {
+            self.dispatch(Command::CreateTable {
+                title: Table::default().title,
+            })
+        }
+
+        if ctx.input_mut(|i| i.consume_shortcut(&new_domain_shortcut)) {
+            self.dispatch(Command::CreateDomain {
+                name: "".to_string(),
+                data_type: Default::default(),
+            })
+        }
 
         if !is_web && self.can_undo() && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
             self.dispatch(Command::Undo);

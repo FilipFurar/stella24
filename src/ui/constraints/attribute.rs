@@ -53,7 +53,9 @@ impl Attribute {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     if ui
-                        .add(egui::TextEdit::singleline(&mut self.name).desired_width(75.0))
+                        .add(egui::TextEdit::singleline(&mut self.name)
+                            .desired_width(0.0)
+                            .clip_text(false))
                         .changed()
                     {
                         changes.rename_changed = true;
