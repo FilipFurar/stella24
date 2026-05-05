@@ -40,7 +40,7 @@ pub struct NotNull {
 impl PrimaryKey {
     pub fn new() -> Self {
         Self {
-            name: "primary_key".to_string(),
+            name: "".to_string(),
             attributes: HashSet::new(),
         }
     }

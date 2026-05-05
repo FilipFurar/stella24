@@ -352,10 +352,60 @@ pub fn model_to_svg_scene_with_layout(
     }
 }
 
+/// Estimates the minimum width needed to display a table without text overflow.
+///
+/// Calculates pixel width needed for:
+/// - Title text (scaled by 0.45x in SVG rendering)
+/// - Attribute row widths (name + datatype + inline constraints with spacing)
+/// - Table constraint row widths (which start at name_x and flow right)
+///
+fn estimate_table_width(
+    title: &str,
+    attributes: &[SvgAttributeRow],
+    constraints: &[SvgTableConstraintRow],
+) -> f32 {
+    // Approximate character pixel widths at SVG font sizes
+    const CHAR_WIDTH_TITLE: f32 = 18.0;  // font-size 30, scaled to 0.45 = ~13.5, but accounting for non-mono
+    const CHAR_WIDTH_BODY: f32 = 7.0;   // font-size 12
+    const CHAR_WIDTH_CONSTRAINT: f32 = 6.5;  // font-size 11
+
+    // Padding: left (12px) + right (12px)
+    const HORIZONTAL_PADDING: f32 = 24.0;
+
+    // Minimum width floor
+    const MIN_WIDTH: f32 = 200.0;
+
+    // Estimate title width (with scale 0.45 applied in render_table)
+    let title_width = (title.len() as f32 * CHAR_WIDTH_TITLE * 0.45).max(80.0);
+
+    // Estimate attribute rows: name + type + constraints with column spacing
+    let max_attr_width = attributes.iter()
+        .map(|attr| {
+            let name_w = attr.name.len() as f32 * CHAR_WIDTH_BODY;
+            let type_w = attr.datatype.len() as f32 * CHAR_WIDTH_BODY;
+            let constraint_w = attr.constraints.len() as f32 * CHAR_WIDTH_BODY;
+            // name_x at left (12px), datatype_x at 50% of width, constraints_x at right
+            // Very rough: assume name takes ~30%, type takes ~30%, constraints takes ~20%
+            // Plus spacing between columns
+            name_w + type_w + constraint_w + 60.0
+        })
+        .fold(0.0_f32, f32::max);
+
+    // Estimate constraint rows (rendered at name_x, flowing right to near right edge)
+    let max_constraint_width = constraints.iter()
+        .map(|c| c.text.len() as f32 * CHAR_WIDTH_CONSTRAINT + 24.0)  // +24 for left padding and margin
+        .fold(0.0_f32, f32::max);
+
+    title_width
+        .max(max_attr_width)
+        .max(max_constraint_width)
+        .max(MIN_WIDTH) + HORIZONTAL_PADDING
+}
+
 /// Converts all tables and domains from the model into SVG table nodes with automatic layout.
 ///
 /// Lays out tables in a multi-column grid (3 columns per row) with automatic
-/// height calculation based on attributes and constraints. Extracts and formats
+/// height and width calculation based on content. Extracts and formats
 /// attributes and table-level constraints.
 ///
 /// # Arguments
@@ -391,6 +441,8 @@ fn map_tables_to_nodes(
         };
         let table_constraints = format_table_constraints(table, tables);
 
+        // Calculate dimensions
+        let table_width = estimate_table_width(&table.title, &attributes, &table_constraints);
         let attr_h = (attributes.len() as f32 * 24.0).max(24.0);
         let constraints_h = if table_constraints.is_empty() {
             0.0
@@ -398,6 +450,7 @@ fn map_tables_to_nodes(
             28.0 + table_constraints.len() as f32 * 18.0
         };
         let h = 66.0 + attr_h + constraints_h;
+
         if col == 3 {
             col = 0;
             x = 40.0;
@@ -405,7 +458,7 @@ fn map_tables_to_nodes(
             row_max = 0.0;
         }
 
-        let rect = Rect::from_min_size(pos2(x, y), vec2(300.0, h));
+        let rect = Rect::from_min_size(pos2(x, y), vec2(table_width, h));
         row_max = row_max.max(h);
 
         out.push(SvgTableNode {
@@ -416,7 +469,7 @@ fn map_tables_to_nodes(
             rect,
         });
 
-        x += 380.0;
+        x += table_width + 40.0;  // Add spacing proportional to actual table width
         col += 1;
     }
 
@@ -443,7 +496,15 @@ fn map_tables_to_nodes_with_rects(
     let mut nodes = map_tables_to_nodes(tables, domains);
     for node in &mut nodes {
         if let Some(rect) = table_rects.get(&node.id) {
-            node.rect = *rect;
+            // Preserve the automatically calculated minimum width/height
+            // but allow the workbench rect to provide position and optionally
+            // a larger canvas size. This prevents a too-small workbench
+            // rectangle from causing content overflow while still respecting
+            // the user's placement.
+            let min_rect = node.rect;
+            let new_width = rect.width().max(min_rect.width());
+            let new_height = rect.height().max(min_rect.height());
+            node.rect = Rect::from_min_size(pos2(rect.left(), rect.top()), vec2(new_width, new_height));
         }
     }
     nodes

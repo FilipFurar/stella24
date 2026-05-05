@@ -1,15 +1,15 @@
 // ui/entities/table.rs
 
 use crate::app::{Command, TableId};
-use crate::model::attribute::{AttrId, AttributeType};
+use crate::model::attribute::{AttrId};
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
 use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
-use eframe::emath::{Rect, pos2, vec2};
+use eframe::emath::{Rect, pos2};
 use eframe::epaint::Color32;
-use egui::{Area, Id, Modal, RichText, Sense, Stroke, Ui};
+use egui::{Id, Modal, RichText, Sense, Stroke, Ui};
 use std::collections::HashSet;
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
@@ -132,7 +132,7 @@ impl Table {
                     ui.horizontal(|ui| {
                         ui.add(egui::Label::new(RichText::new("🔑").color(RED)));
 
-                        ui.add(egui::TextEdit::singleline(&mut self.pk.name).desired_width(75.0));
+                        ui.add(egui::TextEdit::singleline(&mut self.pk.name).desired_width(10.0).clip_text(false));
                     });
                     for att in &self.pk.attributes {
                         if let Some(a) = self.attributes.get(*att) {
@@ -291,15 +291,7 @@ impl Table {
         commands
     }
 
-    /// Draw all attributes
-    /// Helper to format AttributeType for the ghost preview
-    fn format_attr_type(attr_type: &AttributeType) -> String {
-        match attr_type {
-            AttributeType::Logical(dt) => format!("{:?}", dt), // or however DataType displays
-            AttributeType::Domain(_) => "Domain".to_string(),
-            AttributeType::ForeignKeyAttribute(_) => "FK".to_string(),
-        }
-    }
+
 
     fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
         let mut result = Vec::new();
@@ -342,7 +334,6 @@ impl Table {
                         self.dragged_from_index = Some(index);
                     }
 
-                    // ── Your existing attribute editor, untouched ──
                     let disable_inline_unique = attrs_in_table_uniques.contains(&id);
                     let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
 
@@ -405,29 +396,8 @@ impl Table {
         }
 
         // Floating ghost
-        if let Some(dragged_id) = self.dragged_attr {
-            if let Some(attr) = self.attributes.get(dragged_id) {
-                if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
-                    Area::new(Id::new("attr_drag_ghost"))
-                        .fixed_pos(pointer_pos - vec2(0.0, 12.0))
-                        .interactable(false)
-                        .show(ui.ctx(), |ui| {
-                            let frame = egui::Frame::popup(ui.style());
-                            frame.show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label("≡");
-                                    ui.label(format!(
-                                        "{} : {}",
-                                        attr.name,
-                                        Self::format_attr_type(&attr.attribute_type)
-                                    ));
-                                });
-                            });
-                        });
-                }
-            }
+        if self.dragged_attr.is_some() {
 
-            // ── 7. On mouse release: apply reorder ────────────────────────────
             if ui.input(|i| i.pointer.any_released()) {
                 if let Some(from_idx) = self.dragged_from_index {
                     let to_idx = drop_index.unwrap_or(from_idx);

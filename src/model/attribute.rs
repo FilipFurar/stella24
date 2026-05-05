@@ -79,7 +79,7 @@ pub enum AttributeType {
 impl Default for Attribute {
     fn default() -> Self {
         Self {
-            name: "id".to_string(),
+            name: "".to_string(),
             attribute_type: AttributeType::Logical(DataType {
                 base: 0,
                 params: vec![1],

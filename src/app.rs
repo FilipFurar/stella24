@@ -973,8 +973,8 @@ impl eframe::App for AppStella {
         let open_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::O);
         let save_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::S);
 
-        let new_table_shortcut = KeyboardShortcut::new(Modifiers::SHIFT, Key::T);
-        let new_domain_shortcut = KeyboardShortcut::new(Modifiers::SHIFT, Key::D);
+        let new_table_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::T);
+        let new_domain_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::D);
 
         if ctx.input_mut(|i| i.consume_shortcut(&new_table_shortcut)) {
             self.dispatch(Command::CreateTable {

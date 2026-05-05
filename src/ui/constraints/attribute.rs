@@ -54,7 +54,7 @@ impl Attribute {
                 ui.horizontal(|ui| {
                     if ui
                         .add(egui::TextEdit::singleline(&mut self.name)
-                            .desired_width(0.0)
+                            .desired_width(10.0)
                             .clip_text(false))
                         .changed()
                     {
