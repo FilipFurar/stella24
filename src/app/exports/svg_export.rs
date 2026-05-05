@@ -669,36 +669,20 @@ fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
     let constraints_x = r.right() - 12.0;
     let mut y = r.top() + 54.0;
     for attr in &table.attributes {
-        group = group.add(svg_text(
-            name_x,
-            y,
-            theme.body_text,
-            12,
-            "start",
-            Some("middle"),
-            None,
-            &attr.name,
-        ));
-        group = group.add(svg_text(
-            datatype_x,
-            y,
-            theme.body_text,
-            12,
-            "middle",
-            Some("middle"),
-            None,
-            &attr.datatype,
-        ));
+        let name_style = SvgTextStyle::new(theme.body_text, 12, "start").with_baseline("middle");
+        group = group.add(svg_text(name_x, y, &attr.name, name_style));
+
+        let type_style = SvgTextStyle::new(theme.body_text, 12, "middle").with_baseline("middle");
+        group = group.add(svg_text(datatype_x, y, &attr.datatype, type_style));
+
         if !attr.constraints.is_empty() {
+            let constraint_style =
+                SvgTextStyle::new(theme.body_text, 12, "end").with_baseline("middle");
             group = group.add(svg_text(
                 constraints_x,
                 y,
-                theme.body_text,
-                12,
-                "end",
-                Some("middle"),
-                None,
                 &attr.constraints,
+                constraint_style,
             ));
         }
         y += 18.0;
@@ -717,29 +701,16 @@ fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
         );
 
         y = sep_y + 14.0;
-        group = group.add(svg_text(
-            name_x,
-            y,
-            theme.section_title_text,
-            11,
-            "start",
-            Some("middle"),
-            Some("600"),
-            "Table constraints",
-        ));
+        let section_style = SvgTextStyle::new(theme.section_title_text, 11, "start")
+            .with_baseline("middle")
+            .with_weight("600");
+        group = group.add(svg_text(name_x, y, "Table constraints", section_style));
 
         y += 16.0;
         for constraint in &table.table_constraints {
-            group = group.add(svg_text(
-                name_x,
-                y,
-                theme.constraint_text,
-                11,
-                "start",
-                Some("middle"),
-                None,
-                &constraint.text,
-            ));
+            let constraint_style =
+                SvgTextStyle::new(theme.constraint_text, 11, "start").with_baseline("middle");
+            group = group.add(svg_text(name_x, y, &constraint.text, constraint_style));
             y += 16.0;
         }
     }
@@ -1161,29 +1132,53 @@ fn render_line(a: Pos2, b: Pos2, color: &str) -> Line {
 ///
 /// # Returns
 /// An SVG [`SvgText`] element.
-fn svg_text(
-    x: f32,
-    y: f32,
-    fill: &str,
+/// Options for styling SVG text elements.
+#[derive(Clone, Copy)]
+struct SvgTextStyle {
+    fill: &'static str,
     font_size: u32,
-    anchor: &str,
-    dominant_baseline: Option<&str>,
-    font_weight: Option<&str>,
-    content: &str,
-) -> SvgText {
+    anchor: &'static str,
+    dominant_baseline: Option<&'static str>,
+    font_weight: Option<&'static str>,
+}
+
+impl SvgTextStyle {
+    fn new(fill: &'static str, font_size: u32, anchor: &'static str) -> Self {
+        Self {
+            fill,
+            font_size,
+            anchor,
+            dominant_baseline: None,
+            font_weight: None,
+        }
+    }
+
+    fn with_baseline(mut self, baseline: &'static str) -> Self {
+        self.dominant_baseline = Some(baseline);
+        self
+    }
+
+    fn with_weight(mut self, weight: &'static str) -> Self {
+        self.font_weight = Some(weight);
+        self
+    }
+}
+
+/// Creates an SVG text element with the given position and style.
+fn svg_text(x: f32, y: f32, content: &str, style: SvgTextStyle) -> SvgText {
     let mut text = SvgText::new(content.to_owned())
         .set("x", x)
         .set("y", y)
-        .set("fill", fill)
+        .set("fill", style.fill)
         .set("font-family", "sans-serif")
-        .set("font-size", font_size)
-        .set("text-anchor", anchor);
+        .set("font-size", style.font_size)
+        .set("text-anchor", style.anchor);
 
-    if let Some(dominant_baseline) = dominant_baseline {
-        text = text.set("dominant-baseline", dominant_baseline);
+    if let Some(baseline) = style.dominant_baseline {
+        text = text.set("dominant-baseline", baseline);
     }
-    if let Some(font_weight) = font_weight {
-        text = text.set("font-weight", font_weight);
+    if let Some(weight) = style.font_weight {
+        text = text.set("font-weight", weight);
     }
 
     text

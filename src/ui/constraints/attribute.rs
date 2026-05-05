@@ -65,10 +65,9 @@ impl Attribute {
 
                     if let AttributeType::Logical(_) | AttributeType::Domain(_) =
                         &self.attribute_type
+                        && self.attribute_type.draw_compact(ui, id, ctx)
                     {
-                        if self.attribute_type.draw_compact(ui, id, ctx) {
-                            changes.type_changed = true;
-                        }
+                        changes.type_changed = true;
                     }
 
                     ui.add_enabled_ui(!self.pk, |ui| {
@@ -83,11 +82,9 @@ impl Attribute {
                         }
                     });
 
-                    if self.pk {
-                        if !self.not_null {
-                            self.not_null = true;
-                            changes.not_null_changed = true;
-                        }
+                    if self.pk && !self.not_null {
+                        self.not_null = true;
+                        changes.not_null_changed = true;
                     }
 
                     let mut is_pk = self.pk;

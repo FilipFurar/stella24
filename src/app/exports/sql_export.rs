@@ -708,8 +708,8 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
         });
     };
     let sql = match def.name {
-        "CHAR" => format!("CHAR({})", dt.params.get(0).copied().unwrap_or(1)),
-        "VARCHAR" => format!("VARCHAR2({})", dt.params.get(0).copied().unwrap_or(1)),
+        "CHAR" => format!("CHAR({})", dt.params.first().copied().unwrap_or(1)),
+        "VARCHAR" => format!("VARCHAR2({})", dt.params.first().copied().unwrap_or(1)),
         "BOOL" => "NUMBER(1)".to_string(),
         "NUMBER" => match dt.params.as_slice() {
             [precision, scale] => format!("NUMBER({}, {})", precision, scale),

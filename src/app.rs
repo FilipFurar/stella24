@@ -998,21 +998,21 @@ impl eframe::App for AppStella {
         if !is_web && ctx.input_mut(|i| i.consume_shortcut(&new_shortcut)) {
             self.handle_new();
         }
-        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&open_shortcut)) {
-            if let Some(path) = rfd::FileDialog::new()
+        if !is_web
+            && ctx.input_mut(|i| i.consume_shortcut(&open_shortcut))
+            && let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .pick_file()
-            {
-                self.handle_open(path);
-            }
+        {
+            self.handle_open(path);
         }
-        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&save_shortcut)) {
-            if let Some(path) = rfd::FileDialog::new()
+        if !is_web
+            && ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
+            && let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .save_file()
-            {
-                self.handle_save(path);
-            }
+        {
+            self.handle_save(path);
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {

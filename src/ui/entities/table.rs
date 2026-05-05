@@ -57,10 +57,7 @@ impl Table {
 
     fn handle_fk_modal(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Option<ForeignKey> {
         // Take ownership out of Option, put back if not closing
-        let mut fk = match self.current_fk.take() {
-            Some(fk) => fk,
-            None => return None,
-        };
+        let mut fk = self.current_fk.take()?;
 
         let mut should_close = false;
         let mut save_to_fks = false;
@@ -363,17 +360,17 @@ impl Table {
             row_rects.push((id, rect));
 
             // Detect drop zone
-            if self.dragged_attr.is_some() && !is_dragged {
-                if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
-                    if rect.contains(pointer_pos) {
-                        let center_y = rect.center().y;
-                        drop_index = Some(if pointer_pos.y > center_y {
-                            index + 1
-                        } else {
-                            index
-                        });
-                    }
-                }
+            if self.dragged_attr.is_some()
+                && !is_dragged
+                && let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos())
+                && rect.contains(pointer_pos)
+            {
+                let center_y = rect.center().y;
+                drop_index = Some(if pointer_pos.y > center_y {
+                    index + 1
+                } else {
+                    index
+                });
             }
         }
 
@@ -398,25 +395,23 @@ impl Table {
         }
 
         // Floating ghost
-        if self.dragged_attr.is_some() {
-            if ui.input(|i| i.pointer.any_released()) {
-                if let Some(from_idx) = self.dragged_from_index {
-                    let to_idx = drop_index.unwrap_or(from_idx);
+        if self.dragged_attr.is_some() && ui.input(|i| i.pointer.any_released()) {
+            if let Some(from_idx) = self.dragged_from_index {
+                let to_idx = drop_index.unwrap_or(from_idx);
 
-                    if from_idx != to_idx {
-                        let id = self.attr_order.remove(from_idx);
-                        let to_idx = if to_idx > from_idx {
-                            to_idx - 1
-                        } else {
-                            to_idx
-                        };
-                        let to_idx = to_idx.min(self.attr_order.len());
-                        self.attr_order.insert(to_idx, id);
-                    }
+                if from_idx != to_idx {
+                    let id = self.attr_order.remove(from_idx);
+                    let to_idx = if to_idx > from_idx {
+                        to_idx - 1
+                    } else {
+                        to_idx
+                    };
+                    let to_idx = to_idx.min(self.attr_order.len());
+                    self.attr_order.insert(to_idx, id);
                 }
-                self.dragged_attr = None;
-                self.dragged_from_index = None;
             }
+            self.dragged_attr = None;
+            self.dragged_from_index = None;
         }
 
         result

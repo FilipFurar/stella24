@@ -80,8 +80,7 @@ fn deleting_unique_from_ui_removes_unique_and_unsets_attribute_flag() {
 
     let attr_id = {
         let mut t = table.borrow_mut();
-        let id = t.attributes.insert(Attribute::default());
-        id
+        t.attributes.insert(Attribute::default())
     };
 
     // add a unique that references the attribute
