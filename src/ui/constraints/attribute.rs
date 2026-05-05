@@ -53,7 +53,11 @@ impl Attribute {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     if ui
-                        .add(egui::TextEdit::singleline(&mut self.name).desired_width(75.0))
+                        .add(
+                            egui::TextEdit::singleline(&mut self.name)
+                                .desired_width(10.0)
+                                .clip_text(false),
+                        )
                         .changed()
                     {
                         changes.rename_changed = true;
@@ -61,10 +65,9 @@ impl Attribute {
 
                     if let AttributeType::Logical(_) | AttributeType::Domain(_) =
                         &self.attribute_type
+                        && self.attribute_type.draw_compact(ui, id, ctx)
                     {
-                        if self.attribute_type.draw_compact(ui, id, ctx) {
-                            changes.type_changed = true;
-                        }
+                        changes.type_changed = true;
                     }
 
                     ui.add_enabled_ui(!self.pk, |ui| {
@@ -79,11 +82,9 @@ impl Attribute {
                         }
                     });
 
-                    if self.pk {
-                        if !self.not_null {
-                            self.not_null = true;
-                            changes.not_null_changed = true;
-                        }
+                    if self.pk && !self.not_null {
+                        self.not_null = true;
+                        changes.not_null_changed = true;
                     }
 
                     let mut is_pk = self.pk;
@@ -252,7 +253,16 @@ impl AttributeType {
                     }
                 }
                 AttributeType::Domain(domain_id) => {
-                    let selected = ctx.domain_name(*domain_id).expect("err");
+                    let name_option = ctx.domain_name(*domain_id);
+                    let mut selected: &str = "";
+
+                    if name_option.is_some() {
+                        selected = ctx.domain_name(*domain_id).expect("err");
+                    }
+                    if name_option.is_none() {
+                        selected = "";
+                    }
+
                     egui::ComboBox::from_id_salt(format!("domain_{}", id.data().as_ffi()))
                         .selected_text(selected)
                         .show_ui(ui, |ui| {

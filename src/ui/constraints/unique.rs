@@ -11,7 +11,11 @@ impl Unique {
     pub fn draw(&mut self, ui: &mut Ui, attributes: &SlotMap<AttrId, Attribute>) {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new("U").color(GREEN));
-            ui.text_edit_singleline(&mut self.name);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.name)
+                    .desired_width(10.0)
+                    .clip_text(false),
+            );
         });
         for attr_id in &self.attributes {
             if let Some(attr) = attributes.get(*attr_id) {

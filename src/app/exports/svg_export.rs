@@ -1,4 +1,9 @@
 //! SVG export scene model and renderer for ER diagrams.
+//!
+//! This module converts the in-memory database schema into a scalable vector graphics (SVG)
+//! representation suitable for documentation, printing, or sharing. It supports automatic
+//! grid-based table layout, workbench position reuse, light/dark themes, and crow's-foot
+//! relationship notation with orthogonal edge routing.
 
 use crate::AppStella;
 use crate::app::{DomainId, TableId};
@@ -16,35 +21,51 @@ use svg::Document;
 use svg::node::element::{Circle, Group, Line, Rectangle, Text as SvgText};
 
 /// Rectangle side used when placing relationship anchors.
+///
+/// Determines which edge of a table card a relationship line attaches to.
+/// Used by the anchor distribution algorithm to spread multiple connections
+/// evenly along a side and avoid visual overlap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Side {
+    /// Left edge of the table card.
     Left,
+    /// Right edge of the table card.
     Right,
+    /// Top edge of the table card.
     Top,
+    /// Bottom edge of the table card.
     Bottom,
 }
 
 /// Chooses how table cards are positioned in the exported SVG.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SvgLayoutMode {
-    /// Places tables in the automatic grid layout.
+    /// Places tables in a multi-column grid with automatic spacing.
+    ///
+    /// Tables are arranged left-to-right, top-to-bottom in rows of three.
+    /// Row height is determined by the tallest table in that row.
     Automatic,
-    /// Reuses the current workbench window positions.
+    /// Reuses the current workbench window positions from the live editor.
+    ///
+    /// Each table is placed at the same screen coordinates it occupied in the GUI.
+    /// Falls back to automatic layout if workbench positions are unavailable.
     Workbench,
 }
 
 /// Selects the color theme used for the exported SVG.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SvgThemeChoice {
-    /// Follows the application's current theme.
+    /// Follows the application's current dark/light mode setting.
     Default,
-    /// Forces a light SVG theme.
+    /// Forces a light background with dark text.
     Light,
-    /// Forces a dark SVG theme.
+    /// Forces a dark background with light text.
     Dark,
 }
 
 /// Options controlling SVG export layout and theme.
+///
+/// Passed to [`AppStella::svg_string_with_options`] to customize the output.
 #[derive(Clone, Copy, Debug)]
 pub struct SvgExportOptions {
     /// Layout mode for table placement.
@@ -54,6 +75,7 @@ pub struct SvgExportOptions {
 }
 
 impl Default for SvgExportOptions {
+    /// Returns default options: automatic layout with the application's current theme.
     fn default() -> Self {
         Self {
             layout: SvgLayoutMode::Automatic,
@@ -62,17 +84,27 @@ impl Default for SvgExportOptions {
     }
 }
 
+/// Internal color palette for a specific theme variant.
+///
+/// Contains hex color strings for all visual elements in the diagram.
 #[derive(Clone, Copy, Debug)]
 struct SvgTheme {
+    /// Fill color for table card backgrounds.
     table_fill: &'static str,
+    /// Stroke color for table card borders.
     table_stroke: &'static str,
+    /// Text color for table titles.
     title_text: &'static str,
+    /// Text color for attribute names, types, and inline constraints.
     body_text: &'static str,
+    /// Text color for the "Table constraints" section header.
     section_title_text: &'static str,
+    /// Text color for individual table-level constraint descriptions.
     constraint_text: &'static str,
 }
 
 impl SvgTheme {
+    /// Returns the dark theme palette.
     fn dark() -> Self {
         Self {
             table_fill: "#2b2b2b",
@@ -84,6 +116,7 @@ impl SvgTheme {
         }
     }
 
+    /// Returns the light theme palette.
     fn light() -> Self {
         Self {
             table_fill: "#f7f7f7",
@@ -96,6 +129,10 @@ impl SvgTheme {
     }
 }
 
+/// Resolves a [`SvgThemeChoice`] into a concrete [`SvgTheme`].
+///
+/// If [`SvgThemeChoice::Default`] is selected, the theme is determined by
+/// the application's current dark mode state.
 fn resolve_theme(choice: SvgThemeChoice, default_dark_mode: bool) -> SvgTheme {
     match choice {
         SvgThemeChoice::Default => {
@@ -111,77 +148,106 @@ fn resolve_theme(choice: SvgThemeChoice, default_dark_mode: bool) -> SvgTheme {
 }
 
 /// Complete SVG scene with canvas dimensions, tables, and relations.
+///
+/// This intermediate representation separates model-to-scene conversion
+/// from actual SVG XML generation, enabling testing and alternative renderers.
 #[derive(Clone, Debug)]
 pub struct SvgScene {
     /// Canvas width in pixels.
     pub width: f32,
     /// Canvas height in pixels.
     pub height: f32,
-    /// All table cards in the diagram.
+    /// All table cards in the diagram, positioned on the canvas.
     pub tables: Vec<SvgTableNode>,
-    /// All relationship edges in the diagram.
+    /// All relationship edges in the diagram, with routing waypoints.
     pub relations: Vec<SvgRelationEdge>,
 }
 
 /// A table card rendered into the SVG scene.
+///
+/// Contains all visual information needed to draw one table, including
+/// its title, attributes, constraints, and screen rectangle.
 #[derive(Clone, Debug)]
 pub struct SvgTableNode {
-    /// Unique identifier for the table.
+    /// Unique identifier for the table (matches the model's [`TableId`]).
     pub id: TableId,
-    /// Table name/title.
+    /// Table name displayed as the card header.
     pub title: String,
-    /// All attribute rows in the table.
+    /// All attribute rows shown in the body of the card.
     pub attributes: Vec<SvgAttributeRow>,
-    /// All table-level constraints.
+    /// All table-level constraints shown below the attribute list.
     pub table_constraints: Vec<SvgTableConstraintRow>,
     /// Position and dimensions of the table card on the canvas.
     pub rect: Rect,
 }
 
 /// A single attribute row shown in a table card.
+///
+/// Formatted for direct SVG text rendering with three columns:
+/// name (left), data type (center), inline constraints (right).
 #[derive(Clone, Debug)]
 pub struct SvgAttributeRow {
     /// Column/attribute name.
     pub name: String,
-    /// Data type as a displayable string.
+    /// Data type as a displayable string (e.g., "VARCHAR2(50)" or "EMAIL").
     pub datatype: String,
-    /// Inline constraint flags.
+    /// Inline constraint flags, comma-separated (e.g., "PK, NN, U" or empty).
     pub constraints: String,
 }
 
 /// A formatted table-level constraint row.
+///
+/// Represents constraints that span multiple columns (PK, UQ, NN, FK, CHECK)
+/// and are displayed in a separate section below the attributes.
 #[derive(Clone, Debug)]
 pub struct SvgTableConstraintRow {
-    /// Formatted constraint description.
+    /// Formatted constraint description (e.g., "FK ref_student (id_student) -> student").
     pub text: String,
 }
 
 /// A relationship edge rendered with crow's-foot notation.
+///
+/// Connects two table cards with an orthogonal polyline route and
+/// cardinality symbols at each endpoint.
 #[derive(Clone, Debug)]
 pub struct SvgRelationEdge {
-    /// Starting point of the edge.
+    /// Starting anchor point on the source table card.
     pub from: Pos2,
-    /// Ending point of the edge.
+    /// Ending anchor point on the target table card.
     pub to: Pos2,
-    /// Routing path waypoints between the endpoints.
+    /// Routing path waypoints between the endpoints, including start and end.
+    ///
+    /// The route is orthogonal (only horizontal and vertical segments).
     pub route: Vec<Pos2>,
-    /// Cardinality at the source end.
+    /// Cardinality at the source end (e.g., 0..1, 1..N).
     pub from_cardinality: Cardinality,
     /// Cardinality at the target end.
     pub to_cardinality: Cardinality,
-    /// Relationship type.
+    /// Relationship type: identifying (solid line) or non-identifying (dashed).
     pub kind: RelationshipKind,
-    /// Color of the edge.
+    /// Color of the edge line and endpoint symbols.
     pub color: Color32,
 }
 
 impl AppStella {
     /// Writes the current model to an SVG file using the default export settings.
+    ///
+    /// Convenience wrapper around [`to_svg_with_options`] with automatic layout
+    /// and the application's current theme. Errors are printed to stderr.
+    ///
+    /// # Arguments
+    /// * `path` — File path where the SVG will be written.
     pub fn to_svg(&self, path: &str) {
         self.to_svg_with_options(path, SvgExportOptions::default(), None, true);
     }
 
     /// Writes the current model to an SVG file using explicit export options.
+    ///
+    /// # Arguments
+    /// * `path` — File path where the SVG will be written.
+    /// * `options` — Layout and theme configuration.
+    /// * `workbench_rects` — Optional map of table positions from the live editor.
+    /// * `default_dark_mode` — Whether the application is currently in dark mode.
     pub fn to_svg_with_options(
         &self,
         path: &str,
@@ -196,6 +262,17 @@ impl AppStella {
     }
 
     /// Returns the SVG document as a string for the given export options.
+    ///
+    /// This is the main entry point for SVG generation. It builds the scene
+    /// and then renders it to XML.
+    ///
+    /// # Arguments
+    /// * `options` — Layout and theme configuration.
+    /// * `workbench_rects` — Optional map of table positions from the live editor.
+    /// * `default_dark_mode` — Whether the application is currently in dark mode.
+    ///
+    /// # Returns
+    /// A complete SVG document as an XML string.
     pub fn svg_string_with_options(
         &self,
         options: SvgExportOptions,
@@ -208,12 +285,22 @@ impl AppStella {
     }
 }
 
-/// Builds an SVG scene from the current application state.
+/// Builds an SVG scene from the current application state using automatic layout.
+///
+/// Convenience wrapper that always uses the automatic grid layout.
 pub fn model_to_svg_scene(app: &AppStella) -> SvgScene {
     model_to_svg_scene_with_layout(app, SvgLayoutMode::Automatic, None)
 }
 
 /// Builds an SVG scene using the requested layout and optional workbench rects.
+///
+/// # Arguments
+/// * `app` — The application state containing tables, domains, and relationships.
+/// * `layout` — Whether to use automatic grid layout or reuse workbench positions.
+/// * `workbench_rects` — Optional map of table screen rectangles from the live editor.
+///
+/// # Returns
+/// A fully constructed [`SvgScene`] ready for rendering to XML.
 pub fn model_to_svg_scene_with_layout(
     app: &AppStella,
     layout: SvgLayoutMode,
@@ -265,18 +352,71 @@ pub fn model_to_svg_scene_with_layout(
     }
 }
 
-/// Converts all tables and domains from the model into SVG table nodes.
+/// Estimates the minimum width needed to display a table without text overflow.
+///
+/// Calculates pixel width needed for:
+/// - Title text (scaled by 0.45x in SVG rendering)
+/// - Attribute row widths (name + datatype + inline constraints with spacing)
+/// - Table constraint row widths (which start at name_x and flow right)
+///
+fn estimate_table_width(
+    title: &str,
+    attributes: &[SvgAttributeRow],
+    constraints: &[SvgTableConstraintRow],
+) -> f32 {
+    // Approximate character pixel widths at SVG font sizes
+    const CHAR_WIDTH_TITLE: f32 = 18.0; // font-size 30, scaled to 0.45 = ~13.5, but accounting for non-mono
+    const CHAR_WIDTH_BODY: f32 = 7.0; // font-size 12
+    const CHAR_WIDTH_CONSTRAINT: f32 = 6.5; // font-size 11
+
+    // Padding: left (12px) + right (12px)
+    const HORIZONTAL_PADDING: f32 = 24.0;
+
+    // Minimum width floor
+    const MIN_WIDTH: f32 = 200.0;
+
+    // Estimate title width (with scale 0.45 applied in render_table)
+    let title_width = (title.len() as f32 * CHAR_WIDTH_TITLE * 0.45).max(80.0);
+
+    // Estimate attribute rows: name + type + constraints with column spacing
+    let max_attr_width = attributes
+        .iter()
+        .map(|attr| {
+            let name_w = attr.name.len() as f32 * CHAR_WIDTH_BODY;
+            let type_w = attr.datatype.len() as f32 * CHAR_WIDTH_BODY;
+            let constraint_w = attr.constraints.len() as f32 * CHAR_WIDTH_BODY;
+            // name_x at left (12px), datatype_x at 50% of width, constraints_x at right
+            // Very rough: assume name takes ~30%, type takes ~30%, constraints takes ~20%
+            // Plus spacing between columns
+            name_w + type_w + constraint_w + 60.0
+        })
+        .fold(0.0_f32, f32::max);
+
+    // Estimate constraint rows (rendered at name_x, flowing right to near right edge)
+    let max_constraint_width = constraints
+        .iter()
+        .map(|c| c.text.len() as f32 * CHAR_WIDTH_CONSTRAINT + 24.0) // +24 for left padding and margin
+        .fold(0.0_f32, f32::max);
+
+    title_width
+        .max(max_attr_width)
+        .max(max_constraint_width)
+        .max(MIN_WIDTH)
+        + HORIZONTAL_PADDING
+}
+
+/// Converts all tables and domains from the model into SVG table nodes with automatic layout.
 ///
 /// Lays out tables in a multi-column grid (3 columns per row) with automatic
-/// height calculation based on attributes and constraints. Extracts and formats
+/// height and width calculation based on content. Extracts and formats
 /// attributes and table-level constraints.
 ///
 /// # Arguments
-/// * `tables` - All tables in the model
-/// * `domains` - All domains in the model (used for attribute type resolution)
+/// * `tables` — All tables in the model.
+/// * `domains` — All domains in the model (used for attribute type resolution).
 ///
 /// # Returns
-/// A vector of `SvgTableNode` with positioned rectangles and formatted content.
+/// A vector of [`SvgTableNode`] with positioned rectangles and formatted content.
 fn map_tables_to_nodes(
     tables: &SlotMap<TableId, crate::model::entities::table::Table>,
     domains: &SlotMap<DomainId, Domain>,
@@ -288,13 +428,24 @@ fn map_tables_to_nodes(
     let mut row_max: f32 = 0.0;
 
     for (id, table) in tables {
-        let attributes = table
-            .attributes
-            .values()
-            .map(|a| format_attribute_row(a, domains))
-            .collect::<Vec<_>>();
+        let attributes = if table.attr_order.is_empty() {
+            table
+                .attributes
+                .values()
+                .map(|a| format_attribute_row(a, domains))
+                .collect::<Vec<_>>()
+        } else {
+            table
+                .attr_order
+                .iter()
+                .filter_map(|&id| table.attributes.get(id))
+                .map(|a| format_attribute_row(a, domains))
+                .collect::<Vec<_>>()
+        };
         let table_constraints = format_table_constraints(table, tables);
 
+        // Calculate dimensions
+        let table_width = estimate_table_width(&table.title, &attributes, &table_constraints);
         let attr_h = (attributes.len() as f32 * 24.0).max(24.0);
         let constraints_h = if table_constraints.is_empty() {
             0.0
@@ -302,6 +453,7 @@ fn map_tables_to_nodes(
             28.0 + table_constraints.len() as f32 * 18.0
         };
         let h = 66.0 + attr_h + constraints_h;
+
         if col == 3 {
             col = 0;
             x = 40.0;
@@ -309,7 +461,7 @@ fn map_tables_to_nodes(
             row_max = 0.0;
         }
 
-        let rect = Rect::from_min_size(pos2(x, y), vec2(300.0, h));
+        let rect = Rect::from_min_size(pos2(x, y), vec2(table_width, h));
         row_max = row_max.max(h);
 
         out.push(SvgTableNode {
@@ -320,13 +472,25 @@ fn map_tables_to_nodes(
             rect,
         });
 
-        x += 380.0;
+        x += table_width + 40.0; // Add spacing proportional to actual table width
         col += 1;
     }
 
     out
 }
 
+/// Overrides automatic layout positions with workbench screen coordinates.
+///
+/// Takes nodes produced by [`map_tables_to_nodes`] and replaces their rectangles
+/// with the positions from the live editor, if available.
+///
+/// # Arguments
+/// * `tables` — All tables in the model.
+/// * `domains` — All domains in the model.
+/// * `table_rects` — Map of table IDs to their workbench screen rectangles.
+///
+/// # Returns
+/// A vector of [`SvgTableNode`] with workbench positions where available.
 fn map_tables_to_nodes_with_rects(
     tables: &SlotMap<TableId, crate::model::entities::table::Table>,
     domains: &SlotMap<DomainId, Domain>,
@@ -335,7 +499,16 @@ fn map_tables_to_nodes_with_rects(
     let mut nodes = map_tables_to_nodes(tables, domains);
     for node in &mut nodes {
         if let Some(rect) = table_rects.get(&node.id) {
-            node.rect = *rect;
+            // Preserve the automatically calculated minimum width/height
+            // but allow the workbench rect to provide position and optionally
+            // a larger canvas size. This prevents a too-small workbench
+            // rectangle from causing content overflow while still respecting
+            // the user's placement.
+            let min_rect = node.rect;
+            let new_width = rect.width().max(min_rect.width());
+            let new_height = rect.height().max(min_rect.height());
+            node.rect =
+                Rect::from_min_size(pos2(rect.left(), rect.top()), vec2(new_width, new_height));
         }
     }
     nodes
@@ -347,11 +520,11 @@ fn map_tables_to_nodes_with_rects(
 /// Data types are resolved from domains or shown as logical type names with parameters.
 ///
 /// # Arguments
-/// * `attr` - The attribute to format
-/// * `domains` - Domain collection for type resolution
+/// * `attr` — The attribute to format.
+/// * `domains` — Domain collection for type resolution.
 ///
 /// # Returns
-/// A formatted `SvgAttributeRow` ready for rendering.
+/// A formatted [`SvgAttributeRow`] ready for rendering.
 fn format_attribute_row(attr: &Attribute, domains: &SlotMap<DomainId, Domain>) -> SvgAttributeRow {
     let mut flags = Vec::new();
     if attr.pk {
@@ -399,14 +572,12 @@ fn format_attribute_row(attr: &Attribute, domains: &SlotMap<DomainId, Domain>) -
     }
 }
 
-/// Renders an SVG scene to XML string format.
+/// Renders an SVG scene to XML string format using the dark theme.
 ///
-/// Produces valid SVG markup that can be written to a file or displayed in a viewer.
-/// Includes proper XML declaration, SVG header with viewBox, and grouped elements
-/// for relations and tables.
+/// Convenience wrapper around [`render_svg_scene_with_theme`].
 ///
 /// # Arguments
-/// * `scene` - The SVG scene to render
+/// * `scene` — The SVG scene to render.
 ///
 /// # Returns
 /// A complete SVG document as a string.
@@ -414,6 +585,18 @@ pub fn render_svg_scene(scene: &SvgScene) -> String {
     render_svg_scene_with_theme(scene, SvgTheme::dark())
 }
 
+/// Renders an SVG scene to XML string format with a specific theme.
+///
+/// Produces valid SVG markup that can be written to a file or displayed in a viewer.
+/// Includes proper XML declaration, SVG header with viewBox, and grouped elements
+/// for relations and tables.
+///
+/// # Arguments
+/// * `scene` — The SVG scene to render.
+/// * `theme` — Color palette to use.
+///
+/// # Returns
+/// A complete SVG document as an XML string.
 fn render_svg_scene_with_theme(scene: &SvgScene, theme: SvgTheme) -> String {
     let relations = scene
         .relations
@@ -446,13 +629,13 @@ fn render_svg_scene_with_theme(scene: &SvgScene, theme: SvgTheme) -> String {
 ///
 /// Produces a rounded-rectangle background with a title header, attribute rows
 /// with name/type/constraints columns, and a table-constraints section if present.
-/// Uses dark theme colors for accessibility.
 ///
 /// # Arguments
-/// * `table` - The table node to render
+/// * `table` — The table node to render.
+/// * `theme` — Color palette for fill, stroke, and text colors.
 ///
 /// # Returns
-/// SVG XML string containing the table group and all its content.
+/// An SVG [`Group`] containing the complete table card.
 fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
     let r = table.rect;
     let mut group = Group::new()
@@ -486,36 +669,20 @@ fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
     let constraints_x = r.right() - 12.0;
     let mut y = r.top() + 54.0;
     for attr in &table.attributes {
-        group = group.add(svg_text(
-            name_x,
-            y,
-            theme.body_text,
-            12,
-            "start",
-            Some("middle"),
-            None,
-            &attr.name,
-        ));
-        group = group.add(svg_text(
-            datatype_x,
-            y,
-            theme.body_text,
-            12,
-            "middle",
-            Some("middle"),
-            None,
-            &attr.datatype,
-        ));
+        let name_style = SvgTextStyle::new(theme.body_text, 12, "start").with_baseline("middle");
+        group = group.add(svg_text(name_x, y, &attr.name, name_style));
+
+        let type_style = SvgTextStyle::new(theme.body_text, 12, "middle").with_baseline("middle");
+        group = group.add(svg_text(datatype_x, y, &attr.datatype, type_style));
+
         if !attr.constraints.is_empty() {
+            let constraint_style =
+                SvgTextStyle::new(theme.body_text, 12, "end").with_baseline("middle");
             group = group.add(svg_text(
                 constraints_x,
                 y,
-                theme.body_text,
-                12,
-                "end",
-                Some("middle"),
-                None,
                 &attr.constraints,
+                constraint_style,
             ));
         }
         y += 18.0;
@@ -534,29 +701,16 @@ fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
         );
 
         y = sep_y + 14.0;
-        group = group.add(svg_text(
-            name_x,
-            y,
-            theme.section_title_text,
-            11,
-            "start",
-            Some("middle"),
-            Some("600"),
-            "Table constraints",
-        ));
+        let section_style = SvgTextStyle::new(theme.section_title_text, 11, "start")
+            .with_baseline("middle")
+            .with_weight("600");
+        group = group.add(svg_text(name_x, y, "Table constraints", section_style));
 
         y += 16.0;
         for constraint in &table.table_constraints {
-            group = group.add(svg_text(
-                name_x,
-                y,
-                theme.constraint_text,
-                11,
-                "start",
-                Some("middle"),
-                None,
-                &constraint.text,
-            ));
+            let constraint_style =
+                SvgTextStyle::new(theme.constraint_text, 11, "start").with_baseline("middle");
+            group = group.add(svg_text(name_x, y, &constraint.text, constraint_style));
             y += 16.0;
         }
     }
@@ -571,8 +725,8 @@ fn render_table(table: &SvgTableNode, theme: SvgTheme) -> Group {
 /// shown inline with attributes are excluded.
 ///
 /// # Arguments
-/// * `table` - The table to extract constraints from
-/// * `tables` - All tables (used for FK reference resolution)
+/// * `table` — The table to extract constraints from.
+/// * `tables` — All tables (used for FK reference resolution).
 ///
 /// # Returns
 /// A vector of formatted constraint rows.
@@ -646,38 +800,46 @@ fn format_table_constraints(
 
 /// Extracts and sorts attribute names from a set of attribute IDs.
 ///
-/// Performs a lookup of attribute names from the table and returns them sorted
-/// alphabetically for consistent, readable constraint display.
+/// Names are returned in the table's explicit attribute order if available,
+/// otherwise sorted alphabetically for stable output.
 ///
 /// # Arguments
-/// * `table` - The table containing the attributes
-/// * `ids` - Set of attribute IDs to resolve
+/// * `table` — The table containing the attributes.
+/// * `ids` — Set of attribute IDs to resolve.
 ///
 /// # Returns
-/// A sorted vector of attribute names.
+/// A vector of attribute names in display order.
 fn sorted_attr_names(
     table: &crate::model::entities::table::Table,
     ids: &HashSet<AttrId>,
 ) -> Vec<String> {
-    let mut names = ids
-        .iter()
-        .filter_map(|id| table.attributes.get(*id).map(|attr| attr.name.clone()))
-        .collect::<Vec<_>>();
-    names.sort();
-    names
+    if table.attr_order.is_empty() {
+        let mut names = ids
+            .iter()
+            .filter_map(|id| table.attributes.get(*id).map(|attr| attr.name.clone()))
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    } else {
+        table
+            .attr_order
+            .iter()
+            .filter(|id| ids.contains(id))
+            .filter_map(|id| table.attributes.get(*id).map(|attr| attr.name.clone()))
+            .collect()
+    }
 }
 
-/// Renders a single relationship edge with crow's foot notation.
+/// Renders a single relationship edge with crow's-foot notation.
 ///
 /// Produces SVG elements for the line, endpoints with cardinality symbols
-/// (circles, bars, crow's feet), and the appropriate styling (solid for identifying,
-/// dashed for non-identifying).
+/// (circles, bars, crow's feet), and the appropriate styling.
 ///
 /// # Arguments
-/// * `rel` - The relationship edge to render
+/// * `rel` — The relationship edge to render.
 ///
 /// # Returns
-/// SVG XML string for the complete relationship line with endpoints.
+/// An SVG [`Group`] containing the complete relationship edge.
 fn render_relation(rel: &SvgRelationEdge) -> Group {
     let color = color_hex(rel.color);
     let mut group = Group::new()
@@ -720,19 +882,19 @@ fn render_relation(rel: &SvgRelationEdge) -> Group {
 /// Renders the visual endpoint (cardinality symbol) of a relationship.
 ///
 /// Produces the appropriate SVG geometry for the cardinality constraint:
-/// - Circles for "zero" cardinality min
-/// - Bars for "one" cardinality min
-/// - Crow's feet for "many" cardinality max
-/// - Bars for "one" cardinality max
+/// - Circle for "zero" minimum cardinality.
+/// - Bar for "one" minimum cardinality.
+/// - Crow's foot for "many" maximum cardinality.
+/// - Bar for "one" maximum cardinality.
 ///
 /// # Arguments
-/// * `point` - Endpoint position
-/// * `direction` - Direction vector along the relationship line
-/// * `card` - Cardinality constraint (min and max)
-/// * `color` - Color for the endpoint
+/// * `point` — Endpoint position on the table card edge.
+/// * `direction` — Direction vector along the relationship line (outward from table).
+/// * `card` — Cardinality constraint (min and max).
+/// * `color` — Stroke color for the endpoint symbols.
 ///
 /// # Returns
-/// SVG XML string for the endpoint symbols.
+/// An SVG [`Group`] containing the endpoint symbols.
 fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &str) -> Group {
     if direction == Vec2::ZERO {
         return Group::new();
@@ -780,12 +942,12 @@ fn render_endpoint(point: Pos2, mut direction: Vec2, card: Cardinality, color: &
 /// with optional dashing for non-identifying relationships.
 ///
 /// # Arguments
-/// * `points` - Waypoints along the route
-/// * `color` - Line color
-/// * `dash` - Optional stroke-dasharray attribute (empty or " stroke-dasharray=\"4 6\"")
+/// * `points` — Waypoints along the route.
+/// * `color` — Line stroke color.
+/// * `dashed` — Whether to use a dashed stroke (for non-identifying relationships).
 ///
 /// # Returns
-/// SVG XML string for the line segments.
+/// An SVG [`Group`] containing the line segments.
 fn render_route(points: &[Pos2], color: &str, dashed: bool) -> Group {
     let mut group = Group::new();
     for win in points.windows(2) {
@@ -804,6 +966,15 @@ fn render_route(points: &[Pos2], color: &str, dashed: bool) -> Group {
     group
 }
 
+/// Renders a perpendicular bar symbol (used for "one" cardinality).
+///
+/// # Arguments
+/// * `center` — Center point of the bar.
+/// * `normal` — Perpendicular direction vector to the relationship line.
+/// * `color` — Stroke color.
+///
+/// # Returns
+/// An SVG [`Line`] element.
 fn render_bar(center: Pos2, normal: Vec2, color: &str) -> Line {
     let half = normal * 5.0;
     let a = center - half;
@@ -817,6 +988,16 @@ fn render_bar(center: Pos2, normal: Vec2, color: &str) -> Line {
         .set("stroke-width", 1.8)
 }
 
+/// Renders a crow's foot symbol (used for "many" cardinality).
+///
+/// # Arguments
+/// * `apex` — Tip of the crow's foot (pointing toward the relationship line).
+/// * `direction` — Direction vector along the relationship line.
+/// * `normal` — Perpendicular direction vector.
+/// * `color` — Stroke color.
+///
+/// # Returns
+/// An SVG [`Group`] containing three line segments.
 fn render_crow_foot(apex: Pos2, direction: Vec2, normal: Vec2, color: &str) -> Group {
     let root = apex - direction * 8.0;
     let left = root + normal * 6.0;
@@ -829,10 +1010,24 @@ fn render_crow_foot(apex: Pos2, direction: Vec2, normal: Vec2, color: &str) -> G
         .add(render_line(apex, right, color))
 }
 
+/// Converts an egui [`Color32`] to a hex color string.
+///
+/// # Arguments
+/// * `c` — The color to convert.
+///
+/// # Returns
+/// A hex string in the format `"#RRGGBB"`.
 fn color_hex(c: Color32) -> String {
     format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())
 }
 
+/// Returns a human-readable label for a cardinality pair.
+///
+/// # Arguments
+/// * `c` — The cardinality constraint.
+///
+/// # Returns
+/// A string like `"0..1"`, `"0..N"`, `"1..1"`, or `"1..N"`.
 fn cardinality_label(c: Cardinality) -> &'static str {
     match (c.min, c.max) {
         (CardinalityMin::Zero, CardinalityMax::One) => "0..1",
@@ -842,6 +1037,13 @@ fn cardinality_label(c: Cardinality) -> &'static str {
     }
 }
 
+/// Returns a human-readable label for a relationship kind.
+///
+/// # Arguments
+/// * `kind` — The relationship type.
+///
+/// # Returns
+/// `"identifying"` or `"non-identifying"`.
 fn relation_kind_label(kind: RelationshipKind) -> &'static str {
     if kind == RelationshipKind::Identifying {
         "identifying"
@@ -850,6 +1052,16 @@ fn relation_kind_label(kind: RelationshipKind) -> &'static str {
     }
 }
 
+/// Removes duplicate relationship edges from the scene.
+///
+/// Two edges are considered duplicates if they connect the same points
+/// with the same kind, cardinalities, and color.
+///
+/// # Arguments
+/// * `relations` — The raw list of edges (may contain duplicates).
+///
+/// # Returns
+/// A deduplicated vector of edges.
 fn deduplicate_relations(relations: Vec<SvgRelationEdge>) -> Vec<SvgRelationEdge> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
@@ -873,10 +1085,29 @@ fn deduplicate_relations(relations: Vec<SvgRelationEdge>) -> Vec<SvgRelationEdge
     out
 }
 
+/// Quantizes a float coordinate for deduplication comparison.
+///
+/// Rounds to one decimal place to avoid floating-point jitter creating
+/// false non-duplicates.
+///
+/// # Arguments
+/// * `v` — The coordinate to quantize.
+///
+/// # Returns
+/// The quantized value as an integer (value × 10).
 fn quant(v: f32) -> i32 {
     (v * 10.0).round() as i32
 }
 
+/// Renders a simple line segment.
+///
+/// # Arguments
+/// * `a` — Start point.
+/// * `b` — End point.
+/// * `color` — Stroke color.
+///
+/// # Returns
+/// An SVG [`Line`] element.
 fn render_line(a: Pos2, b: Pos2, color: &str) -> Line {
     Line::new()
         .set("x1", a.x)
@@ -887,34 +1118,80 @@ fn render_line(a: Pos2, b: Pos2, color: &str) -> Line {
         .set("stroke-width", 1.8)
 }
 
-fn svg_text(
-    x: f32,
-    y: f32,
-    fill: &str,
+/// Creates an SVG text element with common styling.
+///
+/// # Arguments
+/// * `x` — X coordinate.
+/// * `y` — Y coordinate.
+/// * `fill` — Text color (hex string).
+/// * `font_size` — Font size in pixels.
+/// * `anchor` — Text anchor (`"start"`, `"middle"`, or `"end"`).
+/// * `dominant_baseline` — Optional dominant baseline alignment.
+/// * `font_weight` — Optional font weight (e.g., `"600"`).
+/// * `content` — The text content.
+///
+/// # Returns
+/// An SVG [`SvgText`] element.
+/// Options for styling SVG text elements.
+#[derive(Clone, Copy)]
+struct SvgTextStyle {
+    fill: &'static str,
     font_size: u32,
-    anchor: &str,
-    dominant_baseline: Option<&str>,
-    font_weight: Option<&str>,
-    content: &str,
-) -> SvgText {
+    anchor: &'static str,
+    dominant_baseline: Option<&'static str>,
+    font_weight: Option<&'static str>,
+}
+
+impl SvgTextStyle {
+    fn new(fill: &'static str, font_size: u32, anchor: &'static str) -> Self {
+        Self {
+            fill,
+            font_size,
+            anchor,
+            dominant_baseline: None,
+            font_weight: None,
+        }
+    }
+
+    fn with_baseline(mut self, baseline: &'static str) -> Self {
+        self.dominant_baseline = Some(baseline);
+        self
+    }
+
+    fn with_weight(mut self, weight: &'static str) -> Self {
+        self.font_weight = Some(weight);
+        self
+    }
+}
+
+/// Creates an SVG text element with the given position and style.
+fn svg_text(x: f32, y: f32, content: &str, style: SvgTextStyle) -> SvgText {
     let mut text = SvgText::new(content.to_owned())
         .set("x", x)
         .set("y", y)
-        .set("fill", fill)
+        .set("fill", style.fill)
         .set("font-family", "sans-serif")
-        .set("font-size", font_size)
-        .set("text-anchor", anchor);
+        .set("font-size", style.font_size)
+        .set("text-anchor", style.anchor);
 
-    if let Some(dominant_baseline) = dominant_baseline {
-        text = text.set("dominant-baseline", dominant_baseline);
+    if let Some(baseline) = style.dominant_baseline {
+        text = text.set("dominant-baseline", baseline);
     }
-    if let Some(font_weight) = font_weight {
-        text = text.set("font-weight", font_weight);
+    if let Some(weight) = style.font_weight {
+        text = text.set("font-weight", weight);
     }
 
     text
 }
 
+/// Distributes relationship anchor points evenly along table card edges.
+///
+/// When multiple edges connect to the same side of a table, they are spaced
+/// evenly to avoid overlap and improve readability.
+///
+/// # Arguments
+/// * `edges` — All relationship edges (modified in place).
+/// * `rects` — Map of table IDs to their screen rectangles.
 fn distribute_edge_anchors(edges: &mut [CrowFootEdge], rects: &HashMap<TableId, Rect>) {
     let mut groups: HashMap<(TableId, Side), Vec<(usize, bool)>> = HashMap::new();
 
@@ -956,6 +1233,16 @@ fn distribute_edge_anchors(edges: &mut [CrowFootEdge], rects: &HashMap<TableId, 
     }
 }
 
+/// Determines which table card side a point lies on.
+///
+/// Uses a small epsilon tolerance to handle floating-point imprecision.
+///
+/// # Arguments
+/// * `point` — The point to test.
+/// * `rects` — Map of table IDs to their screen rectangles.
+///
+/// # Returns
+/// `Some((table_id, side))` if the point is on a table edge, `None` otherwise.
 fn endpoint_table_side(point: Pos2, rects: &HashMap<TableId, Rect>) -> Option<(TableId, Side)> {
     for (id, rect) in rects {
         let eps = 0.5;
@@ -988,6 +1275,19 @@ fn endpoint_table_side(point: Pos2, rects: &HashMap<TableId, Rect>) -> Option<(T
     None
 }
 
+/// Returns the coordinate used for sorting endpoints on a shared side.
+///
+/// When distributing anchors along a vertical side (left/right), endpoints
+/// are sorted by their Y coordinate. For horizontal sides (top/bottom),
+/// they are sorted by X.
+///
+/// # Arguments
+/// * `edge` — The relationship edge.
+/// * `is_from` — Whether we're looking at the `from` endpoint.
+/// * `side` — Which side of the table the endpoint is on.
+///
+/// # Returns
+/// The coordinate value used for sorting.
 fn opposite_coord(edge: &CrowFootEdge, is_from: bool, side: Side) -> f32 {
     let other = if is_from { edge.to } else { edge.from };
     match side {
@@ -996,6 +1296,19 @@ fn opposite_coord(edge: &CrowFootEdge, is_from: bool, side: Side) -> f32 {
     }
 }
 
+/// Calculates an evenly-spaced anchor point along a table card edge.
+///
+/// Divides the available edge length (minus padding) into `count + 1` segments
+/// and places the anchor at the `slot` position.
+///
+/// # Arguments
+/// * `rect` — The table card rectangle.
+/// * `side` — Which edge to place the anchor on.
+/// * `slot` — Zero-based index of this anchor among all anchors on this side.
+/// * `count` — Total number of anchors on this side.
+///
+/// # Returns
+/// The calculated anchor position.
 fn slotted_anchor(rect: Rect, side: Side, slot: usize, count: usize) -> Pos2 {
     let t = (slot as f32 + 1.0) / (count as f32 + 1.0);
     let pad = 14.0;
@@ -1019,6 +1332,16 @@ fn slotted_anchor(rect: Rect, side: Side, slot: usize, count: usize) -> Pos2 {
     }
 }
 
+/// Returns the outward normal vector for a given side.
+///
+/// Used to calculate stub points that extend beyond the table card edge
+/// before the orthogonal routing begins.
+///
+/// # Arguments
+/// * `side` — The rectangle side.
+///
+/// # Returns
+/// A unit vector pointing outward from the table.
 fn side_outward(side: Side) -> Vec2 {
     match side {
         Side::Left => vec2(-1.0, 0.0),
@@ -1028,6 +1351,18 @@ fn side_outward(side: Side) -> Vec2 {
     }
 }
 
+/// Routes an orthogonal path between two table card anchors.
+///
+/// Extends the start and end points with short stubs, then finds the best
+/// orthogonal path through candidate waypoints.
+///
+/// # Arguments
+/// * `from` — Starting anchor point.
+/// * `to` — Ending anchor point.
+/// * `rects` — All table card rectangles (used for obstacle avoidance).
+///
+/// # Returns
+/// A vector of waypoints including the original start and end points.
 fn route_relation(from: Pos2, to: Pos2, rects: &HashMap<TableId, Rect>) -> Vec<Pos2> {
     let from_side = endpoint_table_side(from, rects);
     let to_side = endpoint_table_side(to, rects);
@@ -1047,6 +1382,21 @@ fn route_relation(from: Pos2, to: Pos2, rects: &HashMap<TableId, Rect>) -> Vec<P
     simplify_route(route)
 }
 
+/// Finds the best orthogonal route between two stub points.
+///
+/// Evaluates multiple candidate paths (L-shapes, Z-shapes, and lane-based routes)
+/// and selects the one with the lowest score (shortest length, fewest bends,
+/// no collisions with other table cards).
+///
+/// # Arguments
+/// * `from` — Start stub point.
+/// * `to` — End stub point.
+/// * `rects` — All table card rectangles.
+/// * `from_id` — Optional ID of the source table (excluded from collision detection).
+/// * `to_id` — Optional ID of the target table (excluded from collision detection).
+///
+/// # Returns
+/// The best route as a vector of waypoints.
 fn route_between_stubs(
     from: Pos2,
     to: Pos2,
@@ -1092,6 +1442,21 @@ fn route_between_stubs(
     simplify_route(best)
 }
 
+/// Scores a candidate route for quality.
+///
+/// Lower scores are better. Penalizes:
+/// - Collisions with other table cards (massive penalty).
+/// - Long total path length.
+/// - Excessive bends (corners).
+///
+/// # Arguments
+/// * `points` — Waypoints of the candidate route.
+/// * `rects` — All table card rectangles.
+/// * `from_id` — Optional source table ID (excluded from collision).
+/// * `to_id` — Optional target table ID (excluded from collision).
+///
+/// # Returns
+/// The numerical score (lower is better).
 fn route_score(
     points: &[Pos2],
     rects: &HashMap<TableId, Rect>,
@@ -1119,6 +1484,19 @@ fn route_score(
     (hits as f32) * 1_000_000.0 + length + bends * 12.0
 }
 
+/// Tests whether an axis-aligned line segment intersects a rectangle (with margin).
+///
+/// Only handles perfectly horizontal or vertical segments, which is sufficient
+/// for orthogonal routing.
+///
+/// # Arguments
+/// * `a` — Segment start point.
+/// * `b` — Segment end point.
+/// * `rect` — The rectangle to test against.
+/// * `margin` — Extra padding around the rectangle.
+///
+/// # Returns
+/// `true` if the segment hits the expanded rectangle.
 fn segment_hits_rect_axis(a: Pos2, b: Pos2, rect: Rect, margin: f32) -> bool {
     let r = Rect::from_min_max(
         pos2(rect.left() - margin, rect.top() - margin),
@@ -1144,6 +1522,16 @@ fn segment_hits_rect_axis(a: Pos2, b: Pos2, rect: Rect, margin: f32) -> bool {
     }
 }
 
+/// Removes redundant waypoints from an orthogonal route.
+///
+/// Deletes consecutive duplicate points and collinear middle points
+/// (where three points form a straight line).
+///
+/// # Arguments
+/// * `points` — The raw waypoint list.
+///
+/// # Returns
+/// A simplified route with no unnecessary waypoints.
 fn simplify_route(mut points: Vec<Pos2>) -> Vec<Pos2> {
     points.dedup_by(|a, b| (*a - *b).length_sq() <= f32::EPSILON);
     if points.len() <= 2 {

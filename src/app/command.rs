@@ -55,6 +55,11 @@ pub enum Command {
         attr: AttrId,
         name: String,
     },
+    ReorderAttributes {
+        table: TableId,
+        from_index: usize,
+        to_index: usize,
+    },
     SetAttributeType {
         table: TableId,
         attr: AttrId,

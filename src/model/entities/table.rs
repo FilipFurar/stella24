@@ -40,6 +40,18 @@ pub struct Table {
 
     #[serde(skip)]
     pub current_unique: Option<usize>,
+
+    /// Explicit display order of attributes. Must be kept in sync with `attributes`.
+    #[serde(default)]
+    pub attr_order: Vec<AttrId>,
+
+    /// Which attribute is currently being dragged
+    #[serde(skip)]
+    pub dragged_attr: Option<AttrId>,
+
+    /// Original index of the dragged attribute (so we don't have to search on drop)
+    #[serde(skip)]
+    pub dragged_from_index: Option<usize>,
 }
 
 impl Table {
@@ -72,6 +84,7 @@ impl Table {
         if self.attributes.remove(id).is_none() {
             panic!("ID not found")
         }
+        self.attr_order.retain(|&order_id| order_id != id);
     }
 
     pub fn fields(&self) -> &SlotMap<AttrId, Attribute> {
@@ -189,6 +202,9 @@ impl Default for Table {
             open_modal: false,
             current_fk: None,
             current_unique: None,
+            attr_order: vec![],
+            dragged_attr: None,
+            dragged_from_index: None,
         }
     }
 }

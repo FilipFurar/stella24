@@ -7,8 +7,10 @@ use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
 use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
+use eframe::emath::{Rect, pos2};
 use eframe::epaint::Color32;
-use egui::{Id, Modal, RichText, Stroke, Ui};
+use egui::{Id, Modal, RichText, Sense, Stroke, Ui};
+use std::collections::HashSet;
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
@@ -55,10 +57,7 @@ impl Table {
 
     fn handle_fk_modal(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Option<ForeignKey> {
         // Take ownership out of Option, put back if not closing
-        let mut fk = match self.current_fk.take() {
-            Some(fk) => fk,
-            None => return None,
-        };
+        let mut fk = self.current_fk.take()?;
 
         let mut should_close = false;
         let mut save_to_fks = false;
@@ -130,7 +129,11 @@ impl Table {
                     ui.horizontal(|ui| {
                         ui.add(egui::Label::new(RichText::new("🔑").color(RED)));
 
-                        ui.add(egui::TextEdit::singleline(&mut self.pk.name).desired_width(75.0));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.pk.name)
+                                .desired_width(10.0)
+                                .clip_text(false),
+                        );
                     });
                     for att in &self.pk.attributes {
                         if let Some(a) = self.attributes.get(*att) {
@@ -289,35 +292,126 @@ impl Table {
         commands
     }
 
-    /// Draw all attributes
     fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
         let mut result = Vec::new();
-        let attrs_in_table_uniques: std::collections::HashSet<AttrId> = self
+
+        // AttrOrder is synced with SlotMap
+        let existing: HashSet<_> = self.attributes.keys().collect();
+        self.attr_order.retain(|id| existing.contains(id));
+        for id in self.attributes.keys() {
+            if !self.attr_order.contains(&id) {
+                self.attr_order.push(id);
+            }
+        }
+
+        let attrs_in_table_uniques: HashSet<AttrId> = self
             .uniques
             .iter()
             .flat_map(|unique| unique.attributes.iter().copied())
             .collect();
 
-        for (id, attr) in self.attributes_mut() {
-            let disable_inline_unique = attrs_in_table_uniques.contains(&id);
-            let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
-            if changes.rename_changed
-                || changes.type_changed
-                || changes.not_null_changed
-                || changes.unique_changed
-                || changes.pk_change.is_some()
-                || changes.delete
+        let mut row_rects: Vec<(AttrId, Rect)> = Vec::new();
+        let mut drop_index: Option<usize> = None;
+
+        // Draw every row in the explicit order
+        for (index, &id) in self.attr_order.iter().enumerate() {
+            let Some(attr) = self.attributes.get_mut(id) else {
+                continue;
+            };
+
+            let is_dragged = self.dragged_attr == Some(id);
+
+            let row_response = ui.scope(|ui| {
+                ui.horizontal(|ui| {
+                    // Drag handle
+                    let handle = ui
+                        .add(egui::Label::new("≡").sense(Sense::drag()))
+                        .on_hover_text("Drag to reorder")
+                        .on_hover_cursor(egui::CursorIcon::Grab);
+                    if handle.drag_started() {
+                        self.dragged_attr = Some(id);
+                        self.dragged_from_index = Some(index);
+                    }
+
+                    let disable_inline_unique = attrs_in_table_uniques.contains(&id);
+                    let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
+
+                    if changes.rename_changed
+                        || changes.type_changed
+                        || changes.not_null_changed
+                        || changes.unique_changed
+                        || changes.pk_change.is_some()
+                        || changes.delete
+                    {
+                        result.push(AttributeRowChanges {
+                            attr_id: id,
+                            rename_changed: changes.rename_changed,
+                            type_changed: changes.type_changed,
+                            not_null_changed: changes.not_null_changed,
+                            unique_changed: changes.unique_changed,
+                            pk_change: changes.pk_change,
+                            delete: changes.delete,
+                        });
+                    }
+                });
+            });
+
+            let rect = row_response.response.rect;
+            row_rects.push((id, rect));
+
+            // Detect drop zone
+            if self.dragged_attr.is_some()
+                && !is_dragged
+                && let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos())
+                && rect.contains(pointer_pos)
             {
-                result.push(AttributeRowChanges {
-                    attr_id: id,
-                    rename_changed: changes.rename_changed,
-                    type_changed: changes.type_changed,
-                    not_null_changed: changes.not_null_changed,
-                    unique_changed: changes.unique_changed,
-                    pk_change: changes.pk_change,
-                    delete: changes.delete,
+                let center_y = rect.center().y;
+                drop_index = Some(if pointer_pos.y > center_y {
+                    index + 1
+                } else {
+                    index
                 });
             }
+        }
+
+        // Draw insertion line
+        if let Some(idx) = drop_index {
+            let y = if idx == 0 {
+                row_rects.first().map(|(_, r)| r.top())
+            } else {
+                row_rects
+                    .get(idx.saturating_sub(1))
+                    .map(|(_, r)| r.bottom())
+            }
+            .unwrap_or_else(|| ui.min_rect().top());
+
+            if let Some((_, first_rect)) = row_rects.first() {
+                let color = ui.visuals().selection.bg_fill;
+                ui.painter().line_segment(
+                    [pos2(first_rect.left(), y), pos2(first_rect.right(), y)],
+                    Stroke::new(2.0, color),
+                );
+            }
+        }
+
+        // Floating ghost
+        if self.dragged_attr.is_some() && ui.input(|i| i.pointer.any_released()) {
+            if let Some(from_idx) = self.dragged_from_index {
+                let to_idx = drop_index.unwrap_or(from_idx);
+
+                if from_idx != to_idx {
+                    let id = self.attr_order.remove(from_idx);
+                    let to_idx = if to_idx > from_idx {
+                        to_idx - 1
+                    } else {
+                        to_idx
+                    };
+                    let to_idx = to_idx.min(self.attr_order.len());
+                    self.attr_order.insert(to_idx, id);
+                }
+            }
+            self.dragged_attr = None;
+            self.dragged_from_index = None;
         }
 
         result
