@@ -1,7 +1,7 @@
 // ui/entities/table.rs
 
 use crate::app::{Command, TableId};
-use crate::model::attribute::{AttrId};
+use crate::model::attribute::AttrId;
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
@@ -132,7 +132,11 @@ impl Table {
                     ui.horizontal(|ui| {
                         ui.add(egui::Label::new(RichText::new("🔑").color(RED)));
 
-                        ui.add(egui::TextEdit::singleline(&mut self.pk.name).desired_width(10.0).clip_text(false));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.pk.name)
+                                .desired_width(10.0)
+                                .clip_text(false),
+                        );
                     });
                     for att in &self.pk.attributes {
                         if let Some(a) = self.attributes.get(*att) {
@@ -291,8 +295,6 @@ impl Table {
         commands
     }
 
-
-
     fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
         let mut result = Vec::new();
 
@@ -397,7 +399,6 @@ impl Table {
 
         // Floating ghost
         if self.dragged_attr.is_some() {
-
             if ui.input(|i| i.pointer.any_released()) {
                 if let Some(from_idx) = self.dragged_from_index {
                     let to_idx = drop_index.unwrap_or(from_idx);

@@ -9,7 +9,11 @@ impl ForeignKey {
     pub fn draw(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.label(RichText::new("🔗").color(BLUE));
-            ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(10.0).clip_text(false));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.name)
+                    .desired_width(10.0)
+                    .clip_text(false),
+            );
         });
     }
 }

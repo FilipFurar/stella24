@@ -753,7 +753,6 @@ impl AppStella {
     }*/
 
     fn draw_workbench_menu(&mut self, ctx: &egui::Context) {
-
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
             ui.add_space(3.0);
             egui::MenuBar::new().ui(ui, |ui| {

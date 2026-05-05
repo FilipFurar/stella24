@@ -365,9 +365,9 @@ fn estimate_table_width(
     constraints: &[SvgTableConstraintRow],
 ) -> f32 {
     // Approximate character pixel widths at SVG font sizes
-    const CHAR_WIDTH_TITLE: f32 = 18.0;  // font-size 30, scaled to 0.45 = ~13.5, but accounting for non-mono
-    const CHAR_WIDTH_BODY: f32 = 7.0;   // font-size 12
-    const CHAR_WIDTH_CONSTRAINT: f32 = 6.5;  // font-size 11
+    const CHAR_WIDTH_TITLE: f32 = 18.0; // font-size 30, scaled to 0.45 = ~13.5, but accounting for non-mono
+    const CHAR_WIDTH_BODY: f32 = 7.0; // font-size 12
+    const CHAR_WIDTH_CONSTRAINT: f32 = 6.5; // font-size 11
 
     // Padding: left (12px) + right (12px)
     const HORIZONTAL_PADDING: f32 = 24.0;
@@ -379,7 +379,8 @@ fn estimate_table_width(
     let title_width = (title.len() as f32 * CHAR_WIDTH_TITLE * 0.45).max(80.0);
 
     // Estimate attribute rows: name + type + constraints with column spacing
-    let max_attr_width = attributes.iter()
+    let max_attr_width = attributes
+        .iter()
         .map(|attr| {
             let name_w = attr.name.len() as f32 * CHAR_WIDTH_BODY;
             let type_w = attr.datatype.len() as f32 * CHAR_WIDTH_BODY;
@@ -392,14 +393,16 @@ fn estimate_table_width(
         .fold(0.0_f32, f32::max);
 
     // Estimate constraint rows (rendered at name_x, flowing right to near right edge)
-    let max_constraint_width = constraints.iter()
-        .map(|c| c.text.len() as f32 * CHAR_WIDTH_CONSTRAINT + 24.0)  // +24 for left padding and margin
+    let max_constraint_width = constraints
+        .iter()
+        .map(|c| c.text.len() as f32 * CHAR_WIDTH_CONSTRAINT + 24.0) // +24 for left padding and margin
         .fold(0.0_f32, f32::max);
 
     title_width
         .max(max_attr_width)
         .max(max_constraint_width)
-        .max(MIN_WIDTH) + HORIZONTAL_PADDING
+        .max(MIN_WIDTH)
+        + HORIZONTAL_PADDING
 }
 
 /// Converts all tables and domains from the model into SVG table nodes with automatic layout.
@@ -469,7 +472,7 @@ fn map_tables_to_nodes(
             rect,
         });
 
-        x += table_width + 40.0;  // Add spacing proportional to actual table width
+        x += table_width + 40.0; // Add spacing proportional to actual table width
         col += 1;
     }
 
@@ -504,7 +507,8 @@ fn map_tables_to_nodes_with_rects(
             let min_rect = node.rect;
             let new_width = rect.width().max(min_rect.width());
             let new_height = rect.height().max(min_rect.height());
-            node.rect = Rect::from_min_size(pos2(rect.left(), rect.top()), vec2(new_width, new_height));
+            node.rect =
+                Rect::from_min_size(pos2(rect.left(), rect.top()), vec2(new_width, new_height));
         }
     }
     nodes
