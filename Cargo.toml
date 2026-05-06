@@ -18,18 +18,16 @@ log = "0.4.29"
 svg = "0.18"
 
 # You only need serde if you want app persistence:
-gethostname = "1.0.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 slotmap = { version = "1.1.1", features = ["serde"] }
-rfd = "0.17.2"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.11"
-rfd = { version = "0.17.2", optional = true }
+rfd = "0.17.2"
+gethostname = "1.0.1"
 eframe = { version = "0.33.3", default-features = false, features = [
-    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
@@ -56,3 +54,6 @@ opt-level = 2
 [dev-dependencies]
 egui_kittest = "0.33.0"
 
+[features]
+default = []
+native-accesskit = ["eframe/accesskit"]

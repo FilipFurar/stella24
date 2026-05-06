@@ -9,7 +9,11 @@ use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 pub use command::{Command, CommandQueue};
 use eframe::Storage;
 use egui::{Color32, Id, Key, KeyboardShortcut, Modifiers, vec2};
+#[cfg(not(target_arch = "wasm32"))]
 use gethostname::gethostname;
+
+#[cfg(not(target_arch = "wasm32"))]
+use rfd::FileDialog;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::fs;
@@ -664,10 +668,9 @@ impl AppStella {
             ctx.copy_text(sql);
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(sql) = save_sql
-            && let Some(path) = rfd::FileDialog::new()
-                .add_filter("SQL", &["sql"])
-                .save_file()
+            && let Some(path) = FileDialog::new().add_filter("SQL", &["sql"]).save_file()
             && let Err(err) = fs::write(path, sql)
         {
             self.sql_export_modal = SqlExportModal::Error {
@@ -730,10 +733,9 @@ impl AppStella {
                     }
                 });
 
+                #[cfg(not(target_arch = "wasm32"))]
                 if save_svg
-                    && let Some(path) = rfd::FileDialog::new()
-                        .add_filter("SVG", &["svg"])
-                        .save_file()
+                    && let Some(path) = FileDialog::new().add_filter("SVG", &["svg"]).save_file()
                     && let Err(err) = fs::write(path, &svg)
                 {
                     eprintln!("Error exporting SVG: {err}");
@@ -746,12 +748,6 @@ impl AppStella {
             self.svg_export_modal = SvgExportModal::Open { layout, theme };
         }
     }
-
-    /*fn setup_fonts(ctx: &egui::Context) {
-        let mut fonts = egui::FontDefinitions::default();
-        add_fonts(&mut fonts);
-        ctx.set_fonts(fonts);
-    }*/
 
     fn draw_workbench_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
@@ -965,7 +961,6 @@ impl AppStella {
 impl eframe::App for AppStella {
     /// Renders one frame of the application.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let is_web = cfg!(target_arch = "wasm32");
         let undo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Z);
         let redo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::R);
 
@@ -989,29 +984,28 @@ impl eframe::App for AppStella {
             })
         }
 
-        if !is_web && self.can_undo() && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
+        if self.can_undo() && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
             self.dispatch(Command::Undo);
         }
-        if !is_web && self.can_redo() && ctx.input_mut(|i| i.consume_shortcut(&redo_shortcut)) {
+        if self.can_redo() && ctx.input_mut(|i| i.consume_shortcut(&redo_shortcut)) {
             self.dispatch(Command::Redo);
         }
 
-        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&new_shortcut)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&new_shortcut)) {
             self.handle_new();
         }
-        if !is_web
-            && ctx.input_mut(|i| i.consume_shortcut(&open_shortcut))
+        #[cfg(not(target_arch = "wasm32"))]
+        if ctx.input_mut(|i| i.consume_shortcut(&open_shortcut))
             && let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .pick_file()
         {
             self.handle_open(path);
         }
-        if !is_web
-            && ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
-            && let Some(path) = rfd::FileDialog::new()
-                .add_filter("JSON", &["json"])
-                .save_file()
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
+            && let Some(path) = FileDialog::new().add_filter("JSON", &["json"]).save_file()
         {
             self.handle_save(path);
         }
@@ -1022,29 +1016,32 @@ impl eframe::App for AppStella {
                     if ui.button("New").clicked() {
                         self.handle_new();
                     }
-                    if !is_web
-                        && ui.button("Open").clicked()
-                        && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("JSON", &["json"])
-                            .pick_file()
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Open").clicked()
+                        && let Some(path) =
+                            FileDialog::new().add_filter("JSON", &["json"]).pick_file()
                     {
                         self.handle_open(path);
                     }
-                    if !is_web
-                        && ui.button("Save").clicked()
-                        && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("JSON", &["json"])
-                            .save_file()
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Save").clicked()
+                        && let Some(path) =
+                            FileDialog::new().add_filter("JSON", &["json"]).save_file()
                     {
                         self.handle_save(path);
                     }
-                    if !is_web && ui.button("Export SVG").clicked() {
+
+                    if ui.button("Export SVG").clicked() {
                         self.open_svg_export_modal();
                     }
-                    if !is_web && ui.button("Export SQL").clicked() {
+
+                    if ui.button("Export SQL").clicked() {
                         self.export_sql();
                     }
-                    if !is_web && ui.button("Quit").clicked() {
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
@@ -1068,9 +1065,14 @@ impl eframe::App for AppStella {
                 egui::widgets::global_theme_preference_buttons(ui);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
-                    let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let text = format!("Welcome, {}", gethostname().to_string_lossy());
+
+                    #[cfg(target_arch = "wasm32")]
+                    let text = "Welcome, web user".to_string();
+
                     ui.label(text);
-                })
+                });
             });
         });
 
