@@ -8,20 +8,35 @@ env:
 
 jobs:
   check:
+    name: Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --all-features
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all-features
 
   check_wasm:
+    name: Check wasm32
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions-rs/toolchain@v1
         with:
-          targets: wasm32-unknown-unknown
-      - run: cargo check --lib --target wasm32-unknown-unknown
+          profile: minimal
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all-features --lib --target wasm32-unknown-unknown
 
   test:
     name: Test Suite
@@ -72,33 +87,59 @@ jobs:
           args: -- -D warnings
 
   trunk:
+    name: trunk
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions-rs/toolchain@v1
         with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install trunk
-        run: cargo install trunk
-
-      - run: trunk build
+          profile: minimal
+          toolchain: 1.93.1
+          target: wasm32-unknown-unknown
+          override: true
+      - name: Download and install Trunk binary
+        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
+      - name: Build
+        run: ./trunk build
 
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            TARGET: x86_64-unknown-linux-gnu
-          - os: windows-latest
-            TARGET: x86_64-pc-windows-msvc
           - os: macos-latest
             TARGET: aarch64-apple-darwin
 
+          - os: macos-latest
+            TARGET: x86_64-apple-darwin
+
+          - os: ubuntu-latest
+            TARGET: arm-unknown-linux-musleabihf
+
+          - os: ubuntu-latest
+            TARGET: armv7-unknown-linux-musleabihf
+
+          - os: ubuntu-latest
+            TARGET: x86_64-unknown-linux-musl
+
+          - os: windows-latest
+            TARGET: x86_64-pc-windows-msvc
+            EXTENSION: .exe
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Building ${{ matrix.TARGET }}
+        run: echo "${{ matrix.TARGET }}"
+
+      - uses: actions/checkout@master
+      - uses: actions-rs/toolchain@v1.0.1
         with:
-          targets: ${{ matrix.TARGET }}
-      - run: cargo build --release --target ${{ matrix.TARGET }}
+          toolchain: stable
+          target: ${{ matrix.TARGET }}
+          override: true
+
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --verbose --release --target=${{ matrix.TARGET }}
