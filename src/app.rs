@@ -668,10 +668,9 @@ impl AppStella {
             ctx.copy_text(sql);
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(sql) = save_sql
-            && let Some(path) = rfd::FileDialog::new()
-                .add_filter("SQL", &["sql"])
-                .save_file()
+            && let Some(path) = FileDialog::new().add_filter("SQL", &["sql"]).save_file()
             && let Err(err) = fs::write(path, sql)
         {
             self.sql_export_modal = SqlExportModal::Error {
@@ -734,10 +733,9 @@ impl AppStella {
                     }
                 });
 
+                #[cfg(not(target_arch = "wasm32"))]
                 if save_svg
-                    && let Some(path) = rfd::FileDialog::new()
-                        .add_filter("SVG", &["svg"])
-                        .save_file()
+                    && let Some(path) = FileDialog::new().add_filter("SVG", &["svg"]).save_file()
                     && let Err(err) = fs::write(path, &svg)
                 {
                     eprintln!("Error exporting SVG: {err}");
@@ -1007,9 +1005,7 @@ impl eframe::App for AppStella {
 
         #[cfg(not(target_arch = "wasm32"))]
         if ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
-            && let Some(path) = rfd::FileDialog::new()
-                .add_filter("JSON", &["json"])
-                .save_file()
+            && let Some(path) = FileDialog::new().add_filter("JSON", &["json"]).save_file()
         {
             self.handle_save(path);
         }
@@ -1036,12 +1032,10 @@ impl eframe::App for AppStella {
                         self.handle_save(path);
                     }
 
-                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("Export SVG").clicked() {
                         self.open_svg_export_modal();
                     }
 
-                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("Export SQL").clicked() {
                         self.export_sql();
                     }
@@ -1072,9 +1066,13 @@ impl eframe::App for AppStella {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
                     #[cfg(not(target_arch = "wasm32"))]
-                    let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
+                    let text = format!("Welcome, {}", gethostname().to_string_lossy());
+
+                    #[cfg(target_arch = "wasm32")]
+                    let text = "Welcome, web user".to_string();
+
                     ui.label(text);
-                })
+                });
             });
         });
 
