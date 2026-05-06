@@ -1022,31 +1022,37 @@ impl eframe::App for AppStella {
                     if ui.button("New").clicked() {
                         self.handle_new();
                     }
-                    if !is_web
-                        && ui.button("Open").clicked()
-                        && let Some(path) = rfd::FileDialog::new()
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        if !is_web
+                            && ui.button("Open").clicked()
+                            && let Some(path) = rfd::FileDialog::new()
                             .add_filter("JSON", &["json"])
                             .pick_file()
-                    {
-                        self.handle_open(path);
-                    }
-                    if !is_web
-                        && ui.button("Save").clicked()
-                        && let Some(path) = rfd::FileDialog::new()
+                        {
+                            self.handle_open(path);
+                        }
+
+                        if !is_web
+                            && ui.button("Save").clicked()
+                            && let Some(path) = rfd::FileDialog::new()
                             .add_filter("JSON", &["json"])
                             .save_file()
-                    {
-                        self.handle_save(path);
+                        {
+                            self.handle_save(path);
+                        }
+                        if !is_web && ui.button("Export SVG").clicked() {
+                            self.open_svg_export_modal();
+                        }
+                        if !is_web && ui.button("Export SQL").clicked() {
+                            self.export_sql();
+                        }
+                        if !is_web && ui.button("Quit").clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
                     }
-                    if !is_web && ui.button("Export SVG").clicked() {
-                        self.open_svg_export_modal();
-                    }
-                    if !is_web && ui.button("Export SQL").clicked() {
-                        self.export_sql();
-                    }
-                    if !is_web && ui.button("Quit").clicked() {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
+
+
                 });
                 ui.menu_button("Edit", |ui| {
                     if ui
