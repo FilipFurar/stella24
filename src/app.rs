@@ -1027,8 +1027,8 @@ impl eframe::App for AppStella {
                         if !is_web
                             && ui.button("Open").clicked()
                             && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("JSON", &["json"])
-                            .pick_file()
+                                .add_filter("JSON", &["json"])
+                                .pick_file()
                         {
                             self.handle_open(path);
                         }
@@ -1036,8 +1036,8 @@ impl eframe::App for AppStella {
                         if !is_web
                             && ui.button("Save").clicked()
                             && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("JSON", &["json"])
-                            .save_file()
+                                .add_filter("JSON", &["json"])
+                                .save_file()
                         {
                             self.handle_save(path);
                         }
@@ -1051,8 +1051,6 @@ impl eframe::App for AppStella {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     }
-
-
                 });
                 ui.menu_button("Edit", |ui| {
                     if ui

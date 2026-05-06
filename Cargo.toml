@@ -29,7 +29,6 @@ rfd = "0.17.2"
 env_logger = "0.11"
     rfd = { version = "0.17.2", optional = true }
 eframe = { version = "0.33.3", default-features = false, features = [
-    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
@@ -56,3 +55,6 @@ opt-level = 2
 [dev-dependencies]
 egui_kittest = "0.33.0"
 
+[features]
+default = []
+native-accesskit = ["eframe/accesskit"]
