@@ -142,4 +142,4 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --verbose --release --target=${{ matrix.TARGET }}
+          args: --features native-accesskit --verbose --release --target=${{ matrix.TARGET }}
