@@ -7,6 +7,7 @@ use crate::model::{entities::domain::Domain, entities::table::Table};
 use crate::ui::context::TableUiContext;
 use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 pub use command::{Command, CommandQueue};
+use eframe::Storage;
 use egui::{Color32, Id, Key, KeyboardShortcut, Modifiers, vec2};
 use gethostname::gethostname;
 use slotmap::SlotMap;
@@ -1080,5 +1081,10 @@ impl eframe::App for AppStella {
         self.draw_svg_export_modal(ctx);
         self.draw_sql_export_modal(ctx);
         self.flush_commands();
+    }
+
+    /// Autopersistance
+    fn save(&mut self, storage: &mut dyn Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
     }
 }

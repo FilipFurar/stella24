@@ -708,15 +708,83 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
         });
     };
     let sql = match def.name {
-        "CHAR" => format!("CHAR({})", dt.params.first().copied().unwrap_or(1)),
-        "VARCHAR" => format!("VARCHAR2({})", dt.params.first().copied().unwrap_or(1)),
-        "BOOL" => "NUMBER(1)".to_string(),
+        // Character types
+        "CHAR" => match dt.params.as_slice() {
+            [size, char_semantics] => format!(
+                "CHAR({} {})",
+                size,
+                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
+            ),
+            [size] => format!("CHAR({})", size),
+            _ => "CHAR(1)".to_string(),
+        },
+        "NCHAR" => format!("NCHAR({})", dt.params.first().copied().unwrap_or(1)),
+        "VARCHAR2" => match dt.params.as_slice() {
+            [size, char_semantics] => format!(
+                "VARCHAR2({} {})",
+                size,
+                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
+            ),
+            [size] => format!("VARCHAR2({})", size),
+            _ => "VARCHAR2(1)".to_string(),
+        },
+        "NVARCHAR2" => format!("NVARCHAR2({})", dt.params.first().copied().unwrap_or(1)),
+
+        // Numeric types
         "NUMBER" => match dt.params.as_slice() {
             [precision, scale] => format!("NUMBER({}, {})", precision, scale),
             [precision] => format!("NUMBER({})", precision),
             _ => "NUMBER".to_string(),
         },
+        "FLOAT" => format!("FLOAT({})", dt.params.first().copied().unwrap_or(126)),
+
+        // Date/time types
         "DATE" => "DATE".to_string(),
+        "TIMESTAMP" => match dt.params.first().copied().unwrap_or(6) {
+            0 => "TIMESTAMP".to_string(),
+            p => format!("TIMESTAMP({})", p),
+        },
+        "TIMESTAMP WITH TIME ZONE" => match dt.params.first().copied().unwrap_or(6) {
+            0 => "TIMESTAMP WITH TIME ZONE".to_string(),
+            p => format!("TIMESTAMP({}) WITH TIME ZONE", p),
+        },
+        "TIMESTAMP WITH LOCAL TIME ZONE" => match dt.params.first().copied().unwrap_or(6) {
+            0 => "TIMESTAMP WITH LOCAL TIME ZONE".to_string(),
+            p => format!("TIMESTAMP({}) WITH LOCAL TIME ZONE", p),
+        },
+
+        // Interval types
+        "INTERVAL_YEAR" => format!(
+            "INTERVAL YEAR({}) TO MONTH",
+            dt.params.first().copied().unwrap_or(2)
+        ),
+        "INTERVAL_DAY" => match dt.params.as_slice() {
+            [day_precision, second_precision] => format!(
+                "INTERVAL DAY({}) TO SECOND({})",
+                day_precision, second_precision
+            ),
+            [day_precision] => format!("INTERVAL DAY({}) TO SECOND", day_precision),
+            _ => "INTERVAL DAY TO SECOND".to_string(),
+        },
+
+        // LOB and raw types
+        "LONG" => "LONG".to_string(),
+        "LONG RAW" => "LONG RAW".to_string(),
+        "NCLOB" => "NCLOB".to_string(),
+        "BLOB" => "BLOB".to_string(),
+        "BFILE" => "BFILE".to_string(),
+
+        // Binary float types
+        "BINARY_FLOAT" => "BINARY_FLOAT".to_string(),
+        "BINARY_DOUBLE" => "BINARY_DOUBLE".to_string(),
+
+        // Rowid types
+        "ROWID" => "ROWID".to_string(),
+        "UROWID" => match dt.params.first().copied() {
+            Some(size) => format!("UROWID({})", size),
+            None => "UROWID".to_string(),
+        },
+
         other => {
             return Err(SqlExportError::UnsupportedDataType {
                 context: format!("{} ({other})", context),

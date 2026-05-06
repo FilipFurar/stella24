@@ -1,7 +1,7 @@
 // ui/constraints/attribute
 
 use crate::model::attribute::{AttrId, Attribute, AttributeCategory, AttributeType};
-use crate::model::datatype::{DATA_TYPES, DataType};
+use crate::model::datatype::{CharOrByte, DATA_TYPES, DataType};
 use crate::ui::context::TableUiContext;
 use eframe::epaint::{Color32, Stroke};
 use egui::Ui;
@@ -243,25 +243,63 @@ impl AttributeType {
                             }
                         });
 
-                    for param in dt.params.iter_mut() {
-                        if ui
-                            .add(egui::DragValue::new(param).speed(1).range(0..=1_000_000))
-                            .changed()
+                    // If the DataType is CHAR or VARCHAR2, the second parameter should be BYTE/CHAR selection
+                    if dt.base == 0 || dt.base == 2 {
+                        // Ensure both params exist
+                        if dt.params.len() < 2 {
+                            dt.params.resize(2, 1);
+                        }
+
+                        // First param: size
+                        if let Some(param) = dt.params.get_mut(0)
+                            && ui
+                                .add(egui::DragValue::new(param).speed(1).range(0..=40_000))
+                                .changed()
                         {
                             changed = true;
+                        }
+
+                        // Second param: semantics
+                        let mut selected = if dt.params[1] == 1 {
+                            CharOrByte::Char
+                        } else {
+                            CharOrByte::Byte
+                        };
+
+                        let selected_before = selected;
+
+                        egui::ComboBox::from_id_salt(format!(
+                            "length_semantics_{}",
+                            id.data().as_ffi()
+                        ))
+                        .selected_text(format!("{:?}", selected))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut selected, CharOrByte::Char, "Char");
+                            ui.selectable_value(&mut selected, CharOrByte::Byte, "Byte");
+                        });
+
+                        if selected != selected_before {
+                            dt.params[1] = if selected == CharOrByte::Char { 1 } else { 0 };
+                            changed = true;
+                        }
+                    } else {
+                        for param in dt.params.iter_mut() {
+                            if ui
+                                .add(egui::DragValue::new(param).speed(1).range(0..=40_000))
+                                .changed()
+                            {
+                                changed = true;
+                            }
                         }
                     }
                 }
                 AttributeType::Domain(domain_id) => {
                     let name_option = ctx.domain_name(*domain_id);
-                    let mut selected: &str = "";
 
-                    if name_option.is_some() {
-                        selected = ctx.domain_name(*domain_id).expect("err");
-                    }
-                    if name_option.is_none() {
-                        selected = "";
-                    }
+                    let selected: &str = match name_option {
+                        None => "",
+                        Some(_) => ctx.domain_name(*domain_id).expect("err"),
+                    };
 
                     egui::ComboBox::from_id_salt(format!("domain_{}", id.data().as_ffi()))
                         .selected_text(selected)
