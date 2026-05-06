@@ -36,7 +36,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --lib --target wasm32-unknown-unknown
+          args: --all-features --lib --target wasm32-unknown-unknown
 
   test:
     name: Test Suite
@@ -142,4 +142,4 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --features native-accesskit --verbose --release --target=${{ matrix.TARGET }}
+          args: --verbose --release --target=${{ matrix.TARGET }}
