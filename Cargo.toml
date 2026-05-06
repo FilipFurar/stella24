@@ -18,16 +18,15 @@ log = "0.4.29"
 svg = "0.18"
 
 # You only need serde if you want app persistence:
-gethostname = "1.0.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 slotmap = { version = "1.1.1", features = ["serde"] }
-rfd = "0.17.2"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.11"
-    rfd = { version = "0.17.2", optional = true }
+rfd = { version = "0.17.2", optional = true }
+gethostname = "1.0.1"
 eframe = { version = "0.33.3", default-features = false, features = [
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".

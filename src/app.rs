@@ -996,25 +996,29 @@ impl eframe::App for AppStella {
             self.dispatch(Command::Redo);
         }
 
-        if !is_web && ctx.input_mut(|i| i.consume_shortcut(&new_shortcut)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&new_shortcut)) {
             self.handle_new();
         }
-        if !is_web
-            && ctx.input_mut(|i| i.consume_shortcut(&open_shortcut))
-            && let Some(path) = rfd::FileDialog::new()
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if !is_web
+                && ctx.input_mut(|i| i.consume_shortcut(&open_shortcut))
+                && let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .pick_file()
-        {
-            self.handle_open(path);
-        }
-        if !is_web
-            && ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
-            && let Some(path) = rfd::FileDialog::new()
+            {
+                self.handle_open(path);
+            }
+            if !is_web
+                && ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
+                && let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .save_file()
-        {
-            self.handle_save(path);
+            {
+                self.handle_save(path);
+            }
         }
+
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -1072,8 +1076,11 @@ impl eframe::App for AppStella {
                 egui::widgets::global_theme_preference_buttons(ui);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
-                    let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
-                    ui.label(text);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
+                        ui.label(text);
+                    }
                 })
             });
         });
