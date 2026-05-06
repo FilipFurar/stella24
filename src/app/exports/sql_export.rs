@@ -710,13 +710,21 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
     let sql = match def.name {
         // Character types
         "CHAR" => match dt.params.as_slice() {
-            [size, char_semantics] => format!("CHAR({} {})", size, if *char_semantics == 1 { "CHAR" } else { "BYTE" }),
+            [size, char_semantics] => format!(
+                "CHAR({} {})",
+                size,
+                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
+            ),
             [size] => format!("CHAR({})", size),
             _ => "CHAR(1)".to_string(),
         },
         "NCHAR" => format!("NCHAR({})", dt.params.first().copied().unwrap_or(1)),
         "VARCHAR2" => match dt.params.as_slice() {
-            [size, char_semantics] => format!("VARCHAR2({} {})", size, if *char_semantics == 1 { "CHAR" } else { "BYTE" }),
+            [size, char_semantics] => format!(
+                "VARCHAR2({} {})",
+                size,
+                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
+            ),
             [size] => format!("VARCHAR2({})", size),
             _ => "VARCHAR2(1)".to_string(),
         },
@@ -746,9 +754,15 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
         },
 
         // Interval types
-        "INTERVAL_YEAR" => format!("INTERVAL YEAR({}) TO MONTH", dt.params.first().copied().unwrap_or(2)),
+        "INTERVAL_YEAR" => format!(
+            "INTERVAL YEAR({}) TO MONTH",
+            dt.params.first().copied().unwrap_or(2)
+        ),
         "INTERVAL_DAY" => match dt.params.as_slice() {
-            [day_precision, second_precision] => format!("INTERVAL DAY({}) TO SECOND({})", day_precision, second_precision),
+            [day_precision, second_precision] => format!(
+                "INTERVAL DAY({}) TO SECOND({})",
+                day_precision, second_precision
+            ),
             [day_precision] => format!("INTERVAL DAY({}) TO SECOND", day_precision),
             _ => "INTERVAL DAY TO SECOND".to_string(),
         },

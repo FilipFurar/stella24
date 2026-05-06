@@ -26,6 +26,12 @@ impl Default for DataType {
     }
 }
 
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum CharOrByte {
+    Char,
+    Byte,
+}
+
 /// Possible built-in data types
 pub static DATA_TYPES: &[DataTypeDef] = &[
     DataTypeDef {
