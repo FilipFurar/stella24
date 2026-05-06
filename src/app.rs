@@ -9,7 +9,11 @@ use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 pub use command::{Command, CommandQueue};
 use eframe::Storage;
 use egui::{Color32, Id, Key, KeyboardShortcut, Modifiers, vec2};
+#[cfg(not(target_arch = "wasm32"))]
 use gethostname::gethostname;
+
+#[cfg(not(target_arch = "wasm32"))]
+use rfd::FileDialog;
 use slotmap::SlotMap;
 use std::collections::HashMap;
 use std::fs;
@@ -965,7 +969,6 @@ impl AppStella {
 impl eframe::App for AppStella {
     /// Renders one frame of the application.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let is_web = cfg!(target_arch = "wasm32");
         let undo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::Z);
         let redo_shortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::R);
 
@@ -989,10 +992,10 @@ impl eframe::App for AppStella {
             })
         }
 
-        if !is_web && self.can_undo() && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
+        if self.can_undo() && ctx.input_mut(|i| i.consume_shortcut(&undo_shortcut)) {
             self.dispatch(Command::Undo);
         }
-        if !is_web && self.can_redo() && ctx.input_mut(|i| i.consume_shortcut(&redo_shortcut)) {
+        if self.can_redo() && ctx.input_mut(|i| i.consume_shortcut(&redo_shortcut)) {
             self.dispatch(Command::Redo);
         }
 
@@ -1000,25 +1003,22 @@ impl eframe::App for AppStella {
             self.handle_new();
         }
         #[cfg(not(target_arch = "wasm32"))]
-        {
-            if !is_web
-                && ctx.input_mut(|i| i.consume_shortcut(&open_shortcut))
-                && let Some(path) = rfd::FileDialog::new()
+        if ctx.input_mut(|i| i.consume_shortcut(&open_shortcut))
+            && let Some(path) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .pick_file()
-            {
-                self.handle_open(path);
-            }
-            if !is_web
-                && ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
-                && let Some(path) = rfd::FileDialog::new()
-                .add_filter("JSON", &["json"])
-                .save_file()
-            {
-                self.handle_save(path);
-            }
+        {
+            self.handle_open(path);
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
+        if ctx.input_mut(|i| i.consume_shortcut(&save_shortcut))
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter("JSON", &["json"])
+                .save_file()
+        {
+            self.handle_save(path);
+        }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -1027,33 +1027,34 @@ impl eframe::App for AppStella {
                         self.handle_new();
                     }
                     #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Open").clicked()
+                        && let Some(path) =
+                            FileDialog::new().add_filter("JSON", &["json"]).pick_file()
                     {
-                        if !is_web
-                            && ui.button("Open").clicked()
-                            && let Some(path) = rfd::FileDialog::new()
-                                .add_filter("JSON", &["json"])
-                                .pick_file()
-                        {
-                            self.handle_open(path);
-                        }
+                        self.handle_open(path);
+                    }
 
-                        if !is_web
-                            && ui.button("Save").clicked()
-                            && let Some(path) = rfd::FileDialog::new()
-                                .add_filter("JSON", &["json"])
-                                .save_file()
-                        {
-                            self.handle_save(path);
-                        }
-                        if !is_web && ui.button("Export SVG").clicked() {
-                            self.open_svg_export_modal();
-                        }
-                        if !is_web && ui.button("Export SQL").clicked() {
-                            self.export_sql();
-                        }
-                        if !is_web && ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Save").clicked()
+                        && let Some(path) =
+                            FileDialog::new().add_filter("JSON", &["json"]).save_file()
+                    {
+                        self.handle_save(path);
+                    }
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Export SVG").clicked() {
+                        self.open_svg_export_modal();
+                    }
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Export SQL").clicked() {
+                        self.export_sql();
+                    }
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
                 ui.menu_button("Edit", |ui| {
@@ -1077,10 +1078,8 @@ impl eframe::App for AppStella {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::RIGHT), |ui| {
                     #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
-                        ui.label(text);
-                    }
+                    let text = "Welcome, ".to_string() + &gethostname().to_string_lossy();
+                    ui.label(text);
                 })
             });
         });
