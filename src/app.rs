@@ -751,12 +751,6 @@ impl AppStella {
         }
     }
 
-    /*fn setup_fonts(ctx: &egui::Context) {
-        let mut fonts = egui::FontDefinitions::default();
-        add_fonts(&mut fonts);
-        ctx.set_fonts(fonts);
-    }*/
-
     fn draw_workbench_menu(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("workbenchmenu_panel").show(ctx, |ui| {
             ui.add_space(3.0);
