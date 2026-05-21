@@ -249,7 +249,7 @@ impl AppStella {
             self.workbench_table_rects = world_table_rects;
             let relation_painter = ui.painter();
             for edge in build_edges(&self.tables, &screen_table_rects) {
-                draw_crow_foot_edge(&relation_painter, &edge);
+                draw_crow_foot_edge(relation_painter, &edge);
             }
 
             for cmd in table_commands {
