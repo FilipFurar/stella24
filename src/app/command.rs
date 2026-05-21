@@ -1,8 +1,11 @@
-use crate::app::{DomainId, TableId};
+use crate::AppStella;
+use crate::app::{DomainId, MAX_HISTORY_STATES, TableId, UndoItem};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::datatype::DataType;
+use crate::model::entities::domain::Domain;
+use crate::model::entities::table::Table;
 
 /// Possible commands to dispatch as enum variants
 #[derive(Debug, Clone)]
@@ -164,5 +167,416 @@ impl CommandQueue {
     /// Drains pending commands in insertion order.
     pub fn drain(&mut self) -> impl Iterator<Item = Command> + '_ {
         self.pending.drain(..)
+    }
+}
+
+impl AppStella {
+    /// Enqueues a command to be applied after the current UI frame.
+    pub fn dispatch(&mut self, cmd: Command) {
+        self.command_queue.push(cmd);
+    }
+
+    /// Applies all queued commands in FIFO order.
+    pub fn flush_commands(&mut self) {
+        if self.command_queue.is_empty() {
+            return;
+        }
+
+        let commands: Vec<Command> = self.command_queue.drain().collect();
+        for cmd in commands {
+            self.execute(cmd);
+        }
+    }
+
+    pub fn execute(&mut self, cmd: Command) {
+        match cmd {
+            Command::Undo => {
+                if let Some(item) = self.undo_history.pop() {
+                    match item {
+                        UndoItem::Inverse(inv_cmd) => {
+                            // Apply inverse without recording it to undo_history; compute redo item
+                            if let Some(redo_item) = self.apply_inverse_without_recording(inv_cmd) {
+                                self.redo_history.push(redo_item);
+                            }
+                        }
+                        UndoItem::Snapshot(prev_state) => {
+                            // Push current snapshot to redo and restore previous state
+                            let current = self.clone_without_histories();
+                            self.redo_history.push(UndoItem::Snapshot(current));
+                            self.tables = prev_state.tables;
+                            self.domains = prev_state.domains;
+                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                        }
+                    }
+                }
+            }
+            Command::Redo => {
+                if let Some(item) = self.redo_history.pop() {
+                    match item {
+                        UndoItem::Inverse(cmd_to_apply) => {
+                            if let Some(undo_item) =
+                                self.apply_inverse_without_recording(cmd_to_apply)
+                            {
+                                self.undo_history.push(undo_item);
+                            }
+                        }
+                        UndoItem::Snapshot(prev_state) => {
+                            let current = self.clone_without_histories();
+                            self.undo_history.push(UndoItem::Snapshot(current));
+                            self.tables = prev_state.tables;
+                            self.domains = prev_state.domains;
+                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                        }
+                    }
+                }
+            }
+            other => {
+                // For normal commands: try to compute a cheap inverse before applying.
+                // If we cannot, fall back to snapshotting the whole state.
+                self.redo_history.clear();
+                if let Some(pre_inv) = self.compute_inverse_pre(&other) {
+                    // We were able to compute inverse based on current state
+                    self.execute_command(other);
+                    self.push_undo_item(UndoItem::Inverse(pre_inv));
+                } else {
+                    let snapshot = self.clone_without_histories();
+                    self.execute_command(other);
+                    self.push_undo_item(UndoItem::Snapshot(snapshot));
+                }
+            }
+        }
+    }
+    pub fn execute_command(&mut self, cmd: Command) {
+        match cmd {
+            Command::NewCanvas => {
+                self.tables.clear();
+                self.domains.clear();
+                self.workbench_table_rects.clear();
+                self.workbench_pan = egui::Vec2::ZERO;
+                self.workbench_zoom = 1.0;
+            }
+            Command::CreateTable { title } => {
+                self.tables.insert(Table {
+                    title,
+                    ..Default::default()
+                });
+            }
+            Command::DeleteTable { table } => {
+                self.tables.remove(table);
+            }
+            Command::RenameTable { table, title } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    t.title = title;
+                }
+            }
+            Command::AddAttribute { table, attribute } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    t.add_field(attribute);
+                }
+            }
+            Command::DeleteAttribute { table, attr } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    t.attributes.remove(attr);
+                    t.pk.attributes.remove(&attr);
+                }
+            }
+            Command::RenameAttribute { table, attr, name } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.name = name;
+                }
+            }
+            Command::SetAttributeType {
+                table,
+                attr,
+                attribute_type,
+            } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.attribute_type = attribute_type;
+                }
+            }
+            Command::SetAttributeNotNull { table, attr, value } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.not_null = if a.pk { true } else { value };
+                }
+            }
+            Command::SetAttributeUnique { table, attr, value } => {
+                if let Some(t) = self.tables.get_mut(table)
+                    && let Some(a) = t.attributes.get_mut(attr)
+                {
+                    a.unique = value;
+                }
+            }
+            Command::SetAttributePrimaryKey { table, attr, value } => {
+                if let Some(t) = self.tables.get_mut(table) {
+                    if value {
+                        t.pk.attributes.insert(attr);
+                    } else {
+                        t.pk.attributes.remove(&attr);
+                    }
+
+                    if let Some(a) = t.attributes.get_mut(attr) {
+                        a.pk = value;
+                        if value {
+                            a.not_null = true;
+                        }
+                    }
+                }
+            }
+            Command::CreateDomain { name, data_type } => {
+                self.domains.insert(Domain {
+                    name,
+                    data_type,
+                    check_constraints: vec![],
+                });
+            }
+            Command::DeleteDomain { domain } => {
+                self.domains.remove(domain);
+            }
+            Command::RenameDomain { domain, name } => {
+                if let Some(d) = self.domains.get_mut(domain) {
+                    d.name = name;
+                }
+            }
+            Command::SetDomainType { domain, data_type } => {
+                if let Some(d) = self.domains.get_mut(domain) {
+                    d.data_type = data_type;
+                }
+            }
+            Command::AddForeignKey { table, foreign_key } => {
+                if let Some(referenced_table) = foreign_key.references
+                    && let Some(pk_snapshot) = self.tables.get(referenced_table).map(|referenced| {
+                        referenced
+                            .pk
+                            .attributes
+                            .iter()
+                            .filter_map(|attr_id| {
+                                referenced
+                                    .attributes
+                                    .get(*attr_id)
+                                    .map(|attr| (*attr_id, attr.name.clone()))
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    && let Some(current_table) = self.tables.get_mut(table)
+                {
+                    let mut fk = foreign_key;
+                    fk.local_attrs.clear();
+
+                    for (other_attr_id, other_attr_name) in pk_snapshot {
+                        let local_attr = Attribute {
+                            name: format!("{}_{}", fk.name, other_attr_name),
+                            attribute_type: AttributeType::ForeignKeyAttribute(other_attr_id),
+                            pk: false,
+                            not_null: false,
+                            unique: false,
+                        };
+                        let local_attr_key = current_table.attributes.insert(local_attr);
+                        fk.local_attrs.insert(local_attr_key);
+                    }
+
+                    current_table.add_foreign_key(fk);
+                }
+            }
+            Command::DeleteForeignKey { table, fk } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_foreign_key(fk);
+                }
+            }
+            Command::SetForeignKeyReference {
+                table,
+                fk,
+                references,
+            } => {
+                if let Some(current_table) = self.tables.get_mut(table)
+                    && let Some(foreign_key) = current_table.fks.get_mut(fk)
+                {
+                    foreign_key.references = references;
+                }
+            }
+            Command::AddUnique { table, unique } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.add_unique(unique);
+                }
+            }
+            Command::DeleteUnique { table, index } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_unique(index);
+                }
+            }
+            Command::RenameUnique { table, index, name } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.rename_unique(index, name);
+                }
+            }
+            Command::AddUniqueAttribute { table, index, attr } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.add_unique_attribute(index, attr);
+                }
+            }
+            Command::RemoveUniqueAttribute { table, index, attr } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_unique_attribute(index, attr);
+                }
+            }
+            Command::AddTableCheck { table, check } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.add_check(check);
+                }
+            }
+            Command::DeleteTableCheck { table, index } => {
+                if let Some(current_table) = self.tables.get_mut(table) {
+                    current_table.remove_check(index);
+                }
+            }
+            Command::AddDomainCheck { domain, check } => {
+                if let Some(current_domain) = self.domains.get_mut(domain) {
+                    current_domain.check_constraints.push(check);
+                }
+            }
+            Command::DeleteDomainCheck { domain, index } => {
+                if let Some(current_domain) = self.domains.get_mut(domain)
+                    && index < current_domain.check_constraints.len()
+                {
+                    current_domain.check_constraints.remove(index);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn push_undo_item(&mut self, item: UndoItem) {
+        self.undo_history.push(item);
+        if self.undo_history.len() > MAX_HISTORY_STATES {
+            self.undo_history.remove(0);
+        }
+    }
+
+    /// Applies a command without recording to undo_history. Returns an UndoItem that
+    /// represents the inverse of the command applied (suitable for pushing to the other stack).
+    fn apply_inverse_without_recording(&mut self, cmd: Command) -> Option<UndoItem> {
+        // Try to compute a cheap inverse for cmd given current state
+        if let Some(pre_inv) = self.compute_inverse_pre(&cmd) {
+            self.execute_command(cmd);
+            Some(UndoItem::Inverse(pre_inv))
+        } else {
+            // Snapshot fallback
+            let snapshot = self.clone_without_histories();
+            self.execute_command(cmd);
+            Some(UndoItem::Snapshot(snapshot))
+        }
+    }
+
+    /// Compute an inverse command from the current state for commands that can be inverted
+    /// cheaply. Returns None when snapshot fallback should be used.
+    fn compute_inverse_pre(&self, cmd: &Command) -> Option<Command> {
+        use Command::*;
+        match cmd {
+            RenameTable { table, .. } => self.tables.get(*table).map(|t| RenameTable {
+                table: *table,
+                title: t.title.clone(),
+            }),
+            RenameAttribute { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| RenameAttribute {
+                        table: *table,
+                        attr: *attr,
+                        name: a.name.clone(),
+                    })
+                } else {
+                    None
+                }
+            }
+            SetAttributeType { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributeType {
+                        table: *table,
+                        attr: *attr,
+                        attribute_type: a.attribute_type.clone(),
+                    })
+                } else {
+                    None
+                }
+            }
+            SetAttributeNotNull { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributeNotNull {
+                        table: *table,
+                        attr: *attr,
+                        value: a.not_null,
+                    })
+                } else {
+                    None
+                }
+            }
+            SetAttributeUnique { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributeUnique {
+                        table: *table,
+                        attr: *attr,
+                        value: a.unique,
+                    })
+                } else {
+                    None
+                }
+            }
+            SetAttributePrimaryKey { table, attr, .. } => {
+                if let Some(t) = self.tables.get(*table) {
+                    t.attributes.get(*attr).map(|a| SetAttributePrimaryKey {
+                        table: *table,
+                        attr: *attr,
+                        value: a.pk,
+                    })
+                } else {
+                    None
+                }
+            }
+            RenamePrimaryKey { table, .. } => self.tables.get(*table).map(|t| RenamePrimaryKey {
+                table: *table,
+                name: t.pk.name.clone(),
+            }),
+            RenameDomain { domain, .. } => self.domains.get(*domain).map(|d| RenameDomain {
+                domain: *domain,
+                name: d.name.clone(),
+            }),
+            SetDomainType { domain, .. } => self.domains.get(*domain).map(|d| SetDomainType {
+                domain: *domain,
+                data_type: d.data_type.clone(),
+            }),
+            SetForeignKeyReference { table, fk, .. } => self
+                .tables
+                .get(*table)
+                .and_then(|t| t.fks.get(*fk))
+                .map(|f| SetForeignKeyReference {
+                    table: *table,
+                    fk: *fk,
+                    references: f.references,
+                }),
+            RenameUnique { table, index, .. } => self
+                .tables
+                .get(*table)
+                .and_then(|t| t.uniques.get(*index))
+                .map(|u| RenameUnique {
+                    table: *table,
+                    index: *index,
+                    name: u.name.clone(),
+                }),
+            AddUniqueAttribute { table, index, attr } => Some(RemoveUniqueAttribute {
+                table: *table,
+                index: *index,
+                attr: *attr,
+            }),
+            RemoveUniqueAttribute { table, index, attr } => Some(AddUniqueAttribute {
+                table: *table,
+                index: *index,
+                attr: *attr,
+            }),
+            _ => None,
+        }
     }
 }

@@ -1,5 +1,5 @@
 use slotmap::SlotMap;
-use stella24::app::exports::sql_export::{SqlExportError, build_oracle_sql};
+use stella24::app::exports::sql::sql_export::{SqlExportError, build_oracle_sql};
 use stella24::app::{DomainId, TableId};
 use stella24::model::attribute::{Attribute, AttributeType};
 use stella24::model::constraints::check::Check;
@@ -23,6 +23,7 @@ fn mk_table(title: &str) -> Table {
         attr_order: vec![],
         dragged_attr: None,
         dragged_from_index: None,
+        is_being_dragged: false,
     }
 }
 #[test]
