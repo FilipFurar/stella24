@@ -672,6 +672,7 @@ fn join_attr_names(table: &Table, attrs: &[AttrId]) -> String {
 }
 
 fn ensure_name(kind: &'static str, name: &str) -> Result<(), SqlExportError> {
+
     if name.trim().is_empty() {
         return Err(SqlExportError::EmptyName { kind });
     }
