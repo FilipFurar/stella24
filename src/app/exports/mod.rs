@@ -1,3 +1,3 @@
 pub mod file_dialog;
-pub mod sql_export;
+pub mod sql;
 pub mod svg_export;

@@ -17,6 +17,13 @@ use std::fs;
 
 const IDENTIFIER_LIMIT: usize = 128;
 
+pub enum SqlDialect {
+    Oracle,
+    MySql,
+    PostreSql,
+    Sqlite,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SqlExportError {
     EmptyName {

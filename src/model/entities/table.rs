@@ -52,6 +52,10 @@ pub struct Table {
     /// Original index of the dragged attribute (so we don't have to search on drop)
     #[serde(skip)]
     pub dragged_from_index: Option<usize>,
+
+    /// Whether the table itself is currently being dragged
+    #[serde(skip)]
+    pub is_being_dragged: bool,
 }
 
 impl Table {
@@ -205,6 +209,7 @@ impl Default for Table {
             attr_order: vec![],
             dragged_attr: None,
             dragged_from_index: None,
+            is_being_dragged: false,
         }
     }
 }

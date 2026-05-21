@@ -306,7 +306,7 @@ pub fn model_to_svg_scene_with_layout(
     layout: SvgLayoutMode,
     workbench_rects: Option<&HashMap<TableId, Rect>>,
 ) -> SvgScene {
-    let tables = match (layout, workbench_rects) {
+    let mut tables = match (layout, workbench_rects) {
         (SvgLayoutMode::Workbench, Some(rects)) => {
             map_tables_to_nodes_with_rects(app.tables(), app.domains(), rects)
         }
@@ -314,13 +314,9 @@ pub fn model_to_svg_scene_with_layout(
     };
 
     let mut rects = HashMap::new();
-    let mut max_x: f32 = 0.0;
-    let mut max_y: f32 = 0.0;
 
     for node in &tables {
         rects.insert(node.id, node.rect);
-        max_x = max_x.max(node.rect.right());
-        max_y = max_y.max(node.rect.bottom());
     }
 
     let mut edges = build_edges(app.tables(), &rects);
@@ -344,9 +340,54 @@ pub fn model_to_svg_scene_with_layout(
         rel.route = route_relation(rel.from, rel.to, &rects);
     }
 
+    let mut min_x = f32::INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for node in &tables {
+        min_x = min_x.min(node.rect.left());
+        min_y = min_y.min(node.rect.top());
+        max_x = max_x.max(node.rect.right());
+        max_y = max_y.max(node.rect.bottom());
+    }
+
+    for rel in &relations {
+        min_x = min_x.min(rel.from.x).min(rel.to.x);
+        min_y = min_y.min(rel.from.y).min(rel.to.y);
+        max_x = max_x.max(rel.from.x).max(rel.to.x);
+        max_y = max_y.max(rel.from.y).max(rel.to.y);
+
+        for point in &rel.route {
+            min_x = min_x.min(point.x);
+            min_y = min_y.min(point.y);
+            max_x = max_x.max(point.x);
+            max_y = max_y.max(point.y);
+        }
+    }
+
+    if !min_x.is_finite() || !min_y.is_finite() || !max_x.is_finite() || !max_y.is_finite() {
+        min_x = 0.0;
+        min_y = 0.0;
+        max_x = 0.0;
+        max_y = 0.0;
+    }
+
+    let padding = 60.0;
+    let offset = vec2(padding - min_x, padding - min_y);
+
+    for node in &mut tables {
+        node.rect = node.rect.translate(offset);
+    }
+    for rel in &mut relations {
+        rel.from += offset;
+        rel.to += offset;
+        rel.route = rel.route.iter().map(|p| *p + offset).collect();
+    }
+
     SvgScene {
-        width: (max_x + 60.0).max(840.0),
-        height: (max_y + 60.0).max(520.0),
+        width: ((max_x - min_x) + padding * 2.0).max(840.0),
+        height: ((max_y - min_y) + padding * 2.0).max(520.0),
         tables,
         relations,
     }
@@ -1027,7 +1068,7 @@ fn color_hex(c: Color32) -> String {
 /// * `c` — The cardinality constraint.
 ///
 /// # Returns
-/// A string like `"0..1"`, `"0..N"`, `"1..1"`, or `"1..N"`.
+/// A string like `"0..1"`, `"0 ..N"`, `"1..1"`, or `"1..N"`.
 fn cardinality_label(c: Cardinality) -> &'static str {
     match (c.min, c.max) {
         (CardinalityMin::Zero, CardinalityMax::One) => "0..1",
