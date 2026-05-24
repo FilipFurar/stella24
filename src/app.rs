@@ -1,8 +1,9 @@
 //! Main application state and UI event handling.
 
-use crate::app::exports::sql::sql_export::build_oracle_sql;
+use crate::app::exports::sql::sql_export::{SqlDialect, build_sql};
 use crate::app::exports::svg_export::{SvgLayoutMode, SvgThemeChoice};
 use crate::model::{entities::domain::Domain, entities::table::Table};
+use crate::ui::changes::extend_commands;
 pub use command::{Command, CommandQueue};
 use eframe::Storage;
 use egui::{Color32, Key, KeyboardShortcut, Modifiers};
@@ -13,10 +14,10 @@ use gethostname::gethostname;
 use rfd::FileDialog;
 use slotmap::SlotMap;
 use std::collections::HashMap;
-use std::fs;
 
 mod command;
 pub mod exports;
+mod persistence;
 
 pub const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 pub const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
@@ -73,6 +74,8 @@ pub struct AppStella {
     pub(crate) sql_export_modal: SqlExportModal,
     #[serde(skip)]
     pub(crate) svg_export_modal: SvgExportModal,
+    #[serde(default)]
+    pub(crate) selected_sql_dialect: SqlDialect,
     #[serde(skip)]
     pub workbench_table_rects: HashMap<TableId, egui::Rect>,
     #[serde(skip)]
@@ -105,6 +108,7 @@ impl Default for AppStella {
             command_queue: CommandQueue::default(),
             sql_export_modal: SqlExportModal::default(),
             svg_export_modal: SvgExportModal::default(),
+            selected_sql_dialect: SqlDialect::default(),
             workbench_table_rects: HashMap::new(),
             workbench_pan: egui::Vec2::ZERO,
             workbench_zoom: 1.0,
@@ -115,37 +119,6 @@ impl Default for AppStella {
 }
 
 impl AppStella {
-    pub(crate) fn draw_highlighted_code(
-        ui: &mut egui::Ui,
-        content: &str,
-        language: &str,
-        rows: usize,
-    ) {
-        let mut view = content.to_owned();
-        let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
-        let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, wrap_width: f32| {
-            let mut job = egui_extras::syntax_highlighting::highlight(
-                ui.ctx(),
-                ui.style(),
-                &theme,
-                buf.as_str(),
-                language,
-            );
-            job.wrap.max_width = wrap_width;
-            ui.fonts_mut(|fonts| fonts.layout_job(job))
-        };
-
-        ui.add(
-            egui::TextEdit::multiline(&mut view)
-                .desired_width(f32::INFINITY)
-                .desired_rows(rows)
-                .code_editor()
-                .font(egui::TextStyle::Monospace)
-                .interactive(true)
-                .layouter(&mut layouter),
-        );
-    }
-
     /// Restores the app state from persistence storage when available.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         if let Some(storage) = cc.storage {
@@ -156,44 +129,6 @@ impl AppStella {
             app
         } else {
             Default::default()
-        }
-    }
-
-    fn clone_without_histories(&self) -> Self {
-        AppStella {
-            tables: self.tables.clone(),
-            domains: self.domains.clone(),
-            command_queue: CommandQueue::default(),
-            sql_export_modal: SqlExportModal::default(),
-            svg_export_modal: SvgExportModal::default(),
-            workbench_table_rects: self.workbench_table_rects.clone(),
-            workbench_pan: self.workbench_pan,
-            workbench_zoom: self.workbench_zoom,
-            undo_history: Vec::new(),
-            redo_history: Vec::new(),
-        }
-    }
-
-    /// Saves the current application state to a JSON file.
-    pub fn handle_save(&mut self, path: std::path::PathBuf) {
-        if let Ok(json) = serde_json::to_string(&self)
-            && let Err(err) = fs::write(&path, json)
-        {
-            eprintln!("Error saving file: {}", err);
-        }
-    }
-
-    /// Loads application state from a JSON file.
-    pub fn handle_open(&mut self, path: std::path::PathBuf) {
-        if let Ok(json) = fs::read_to_string(path)
-            && let Ok(state) = serde_json::from_str::<AppStella>(&json)
-        {
-            self.tables = state.tables;
-            self.domains = state.domains;
-            self.workbench_table_rects = state.workbench_table_rects;
-            self.undo_history.clear();
-            self.redo_history.clear();
-            self.command_queue = CommandQueue::default();
         }
     }
 
@@ -221,14 +156,15 @@ impl AppStella {
         };
     }
 
-    /// Opens the SQL export modal and prepares Oracle SQL for the current model.
+    /// Opens the SQL export modal and prepares SQL for the selected dialect.
     pub fn export_sql(&mut self) {
-        self.sql_export_modal = match build_oracle_sql(self.tables(), self.domains()) {
-            Ok(sql) => SqlExportModal::Success { sql },
-            Err(err) => SqlExportModal::Error {
-                message: format!("Error exporting SQL: {err}"),
-            },
-        };
+        self.sql_export_modal =
+            match build_sql(self.selected_sql_dialect, self.tables(), self.domains()) {
+                Ok(sql) => SqlExportModal::Success { sql },
+                Err(err) => SqlExportModal::Error {
+                    message: format!("Error exporting SQL: {err}"),
+                },
+            };
     }
 
     fn draw_domains_panel(&mut self, ctx: &egui::Context) {
@@ -245,21 +181,7 @@ impl AppStella {
                     for (id, domain) in self.domains.iter_mut() {
                         ui.group(|ui| {
                             let changes = domain.draw(ui, id);
-                            for cmd in changes.commands {
-                                domain_commands.push(cmd);
-                            }
-                            if changes.name_changed {
-                                domain_commands.push(Command::RenameDomain {
-                                    domain: id,
-                                    name: domain.name.clone(),
-                                });
-                            }
-                            if changes.data_type_changed {
-                                domain_commands.push(Command::SetDomainType {
-                                    domain: id,
-                                    data_type: domain.data_type.clone(),
-                                });
-                            }
+                            extend_commands(&mut domain_commands, changes);
                             if ui.button("🗑").clicked() {
                                 domain_to_delete = Some(id);
                             }

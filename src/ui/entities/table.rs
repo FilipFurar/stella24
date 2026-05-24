@@ -2,14 +2,18 @@
 
 use crate::app::{Command, TableId};
 use crate::model::attribute::AttrId;
+use crate::model::attribute::Attribute;
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
+use crate::ui::changes::IntoCommands;
 use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
+use crate::ui::widgets::inputs::labeled_text_edit;
 use eframe::emath::{Rect, pos2};
 use eframe::epaint::Color32;
 use egui::{Id, Modal, RichText, Sense, Stroke, Ui};
+use slotmap::Key;
 use std::collections::HashSet;
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
@@ -29,10 +33,14 @@ pub struct AttributeRowChanges {
 
 #[derive(Default)]
 pub struct TableChanges {
-    pub title_changed: bool,
     pub add_attribute: bool,
-    pub attribute_changes: Vec<AttributeRowChanges>,
     pub commands: Vec<Command>,
+}
+
+impl IntoCommands for TableChanges {
+    fn into_commands(self) -> Vec<Command> {
+        self.commands
+    }
 }
 
 impl Table {
@@ -292,7 +300,12 @@ impl Table {
         commands
     }
 
-    fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
+    fn draw_attributes(
+        &mut self,
+        ui: &mut Ui,
+        ctx: &TableUiContext,
+        table_id: TableId,
+    ) -> Vec<Command> {
         let mut result = Vec::new();
 
         // AttrOrder is synced with SlotMap
@@ -336,21 +349,45 @@ impl Table {
                     let disable_inline_unique = attrs_in_table_uniques.contains(&id);
                     let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
 
-                    if changes.rename_changed
-                        || changes.type_changed
-                        || changes.not_null_changed
-                        || changes.unique_changed
-                        || changes.pk_change.is_some()
-                        || changes.delete
-                    {
-                        result.push(AttributeRowChanges {
-                            attr_id: id,
-                            rename_changed: changes.rename_changed,
-                            type_changed: changes.type_changed,
-                            not_null_changed: changes.not_null_changed,
-                            unique_changed: changes.unique_changed,
-                            pk_change: changes.pk_change,
-                            delete: changes.delete,
+                    if changes.delete {
+                        result.push(Command::DeleteAttribute {
+                            table: table_id,
+                            attr: id,
+                        });
+                    }
+                    if let Some(value) = changes.pk_change {
+                        result.push(Command::SetAttributePrimaryKey {
+                            table: table_id,
+                            attr: id,
+                            value,
+                        });
+                    }
+                    if changes.rename_changed {
+                        result.push(Command::RenameAttribute {
+                            table: table_id,
+                            attr: id,
+                            name: attr.name.clone(),
+                        });
+                    }
+                    if changes.type_changed {
+                        result.push(Command::SetAttributeType {
+                            table: table_id,
+                            attr: id,
+                            attribute_type: attr.attribute_type.clone(),
+                        });
+                    }
+                    if changes.not_null_changed {
+                        result.push(Command::SetAttributeNotNull {
+                            table: table_id,
+                            attr: id,
+                            value: attr.not_null,
+                        });
+                    }
+                    if changes.unique_changed {
+                        result.push(Command::SetAttributeUnique {
+                            table: table_id,
+                            attr: id,
+                            value: attr.unique,
                         });
                     }
                 });
@@ -420,15 +457,22 @@ impl Table {
     pub fn draw(&mut self, ui: &mut Ui, ctx: &TableUiContext, table_id: TableId) -> TableChanges {
         let mut changes = TableChanges::default();
 
-        ui.horizontal(|ui| {
-            ui.label("Title:");
-            if ui.text_edit_singleline(&mut self.title).changed() {
-                changes.title_changed = true;
-            }
-        });
+        if labeled_text_edit(
+            ui,
+            "Title:",
+            &mut self.title,
+            format!("table_title_{}", table_id.data().as_ffi()),
+        ) {
+            changes.commands.push(Command::RenameTable {
+                table: table_id,
+                title: self.title.clone(),
+            });
+        }
         ui.separator();
 
-        changes.attribute_changes = self.draw_attributes(ui, ctx);
+        changes
+            .commands
+            .extend(self.draw_attributes(ui, ctx, table_id));
 
         self.draw_pk(ui);
         for fkid in self.draw_fks(ui) {
@@ -461,6 +505,10 @@ impl Table {
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
                 changes.add_attribute = true;
+                changes.commands.push(Command::AddAttribute {
+                    table: table_id,
+                    attribute: Attribute::default(),
+                });
             }
             if ui.button("New FK").clicked() {
                 self.current_fk = Some(ForeignKey::new());

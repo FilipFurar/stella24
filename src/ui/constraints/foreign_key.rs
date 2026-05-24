@@ -1,4 +1,5 @@
 use crate::model::constraints::constraint::ForeignKey;
+use crate::ui::widgets::inputs::labeled_text_edit;
 use eframe::epaint::Color32;
 use egui::{RichText, Ui};
 
@@ -9,11 +10,7 @@ impl ForeignKey {
     pub fn draw(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.label(RichText::new("🔗").color(BLUE));
-            ui.add(
-                egui::TextEdit::singleline(&mut self.name)
-                    .desired_width(10.0)
-                    .clip_text(false),
-            );
+            let _ = labeled_text_edit(ui, "", &mut self.name, "foreign_key_name");
         });
     }
 }

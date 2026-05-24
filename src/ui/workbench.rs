@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use crate::AppStella;
 use crate::app::{Command, TableId};
-use crate::model::attribute::Attribute;
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
+use crate::ui::changes::extend_commands;
 use crate::ui::context::TableUiContext;
 use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 use eframe::emath::{Rect, Vec2, pos2, vec2};
@@ -157,69 +157,7 @@ impl AppStella {
                             let ui_ctx = TableUiContext::from_app(&self.tables, &self.domains, id);
                             let table = self.tables.get_mut(id).expect("table missing");
                             let changes = table.draw(ui, &ui_ctx, id);
-                            for cmd in changes.commands {
-                                table_commands.push(cmd);
-                            }
-                            if changes.title_changed {
-                                table_commands.push(Command::RenameTable {
-                                    table: id,
-                                    title: table.title.clone(),
-                                });
-                            }
-                            for row in changes.attribute_changes {
-                                if row.delete {
-                                    table_commands.push(Command::DeleteAttribute {
-                                        table: id,
-                                        attr: row.attr_id,
-                                    });
-                                    continue;
-                                }
-
-                                if let Some(value) = row.pk_change {
-                                    table_commands.push(Command::SetAttributePrimaryKey {
-                                        table: id,
-                                        attr: row.attr_id,
-                                        value,
-                                    });
-                                }
-
-                                if let Some(attr) = table.attributes.get(row.attr_id) {
-                                    if row.rename_changed {
-                                        table_commands.push(Command::RenameAttribute {
-                                            table: id,
-                                            attr: row.attr_id,
-                                            name: attr.name.clone(),
-                                        });
-                                    }
-                                    if row.type_changed {
-                                        table_commands.push(Command::SetAttributeType {
-                                            table: id,
-                                            attr: row.attr_id,
-                                            attribute_type: attr.attribute_type.clone(),
-                                        });
-                                    }
-                                    if row.not_null_changed {
-                                        table_commands.push(Command::SetAttributeNotNull {
-                                            table: id,
-                                            attr: row.attr_id,
-                                            value: attr.not_null,
-                                        });
-                                    }
-                                    if row.unique_changed {
-                                        table_commands.push(Command::SetAttributeUnique {
-                                            table: id,
-                                            attr: row.attr_id,
-                                            value: attr.unique,
-                                        });
-                                    }
-                                }
-                            }
-                            if changes.add_attribute {
-                                table_commands.push(Command::AddAttribute {
-                                    table: id,
-                                    attribute: Attribute::default(),
-                                });
-                            }
+                            extend_commands(&mut table_commands, changes);
 
                             ui.separator();
                             if ui.button("Delete").clicked() {

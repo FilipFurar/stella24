@@ -81,7 +81,7 @@ impl Default for Attribute {
         Self {
             name: "".to_string(),
             attribute_type: AttributeType::Logical(DataType {
-                base: 0,
+                base: 1,
                 params: vec![1],
             }),
             pk: false,

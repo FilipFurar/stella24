@@ -35,11 +35,11 @@ pub enum CharOrByte {
 /// Possible built-in data types
 pub static DATA_TYPES: &[DataTypeDef] = &[
     DataTypeDef {
-        name: "VARCHAR2",
+        name: "NUMBER",
         param_count: 2,
     },
     DataTypeDef {
-        name: "NUMBER",
+        name: "VARCHAR2",
         param_count: 2,
     },
     DataTypeDef {

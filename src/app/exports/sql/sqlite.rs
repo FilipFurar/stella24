@@ -1,29 +1,22 @@
-//! Oracle SQL DDL exporter (Oracle 23c+ compatible).
-//!
-//! Two-phase generation:
-//! 1. CREATE DOMAIN + CREATE TABLE (no FKs)
-//! 2. ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
+//! SQLite SQL DDL exporter.
 
 use crate::app::exports::sql::sql_export::{SqlDialect, SqlExport, SqlExportError};
-use crate::app::{AppStella, DomainId, TableId};
+use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::constraint::ForeignKey;
-use crate::model::datatype::{DATA_TYPES, DataType};
+use crate::model::datatype::DataType;
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 use slotmap::{Key, SlotMap};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
-use std::fs;
-
-const IDENTIFIER_LIMIT: usize = 128;
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct OracleDialect;
+pub struct SqliteDialect;
 
-impl SqlExport for OracleDialect {
+impl SqlExport for SqliteDialect {
     fn dialect(&self) -> SqlDialect {
-        SqlDialect::Oracle
+        SqlDialect::Sqlite
     }
 
     fn build_sql(
@@ -31,65 +24,28 @@ impl SqlExport for OracleDialect {
         tables: &SlotMap<TableId, Table>,
         domains: &SlotMap<DomainId, Domain>,
     ) -> Result<String, SqlExportError> {
-        build_oracle_sql(tables, domains)
+        build_sqlite_sql(tables, domains)
     }
 }
 
-pub fn build_oracle_sql(
+pub fn build_sqlite_sql(
     tables: &SlotMap<TableId, Table>,
     domains: &SlotMap<DomainId, Domain>,
 ) -> Result<String, SqlExportError> {
     validate_object_names(tables, domains)?;
+
     let mut used_constraints = HashSet::new();
     let mut out = String::new();
-    writeln!(out, "-- stella24 Oracle SQL export").unwrap();
+    writeln!(out, "-- stella24 SQLite SQL export").unwrap();
+    writeln!(out, "PRAGMA foreign_keys = ON;").unwrap();
     writeln!(out).unwrap();
 
-    // Phase 1a: Domains
-    if !domains.is_empty() {
-        for (_, domain) in sorted_domains(domains) {
-            render_domain(&mut out, domain, &mut used_constraints)?;
-            writeln!(out).unwrap();
-        }
-    }
-
-    // Phase 1b: Tables (no FKs)
     for (_, table) in sorted_tables(tables) {
         render_table(&mut out, table, tables, domains, &mut used_constraints)?;
         writeln!(out).unwrap();
     }
 
-    // Phase 2: Foreign keys via ALTER TABLE
-    for (_, table) in sorted_tables(tables) {
-        render_foreign_keys(&mut out, table, tables, &mut used_constraints)?;
-    }
-
     Ok(out)
-}
-
-pub fn write_oracle_sql(
-    tables: &SlotMap<TableId, Table>,
-    domains: &SlotMap<DomainId, Domain>,
-    path: &str,
-) -> Result<(), SqlExportError> {
-    let sql = build_oracle_sql(tables, domains)?;
-    fs::write(path, sql).map_err(|_| SqlExportError::IdentifierTooLong {
-        kind: "path",
-        name: path.to_string(),
-    })
-}
-
-impl AppStella {
-    pub fn to_oracle_sql(&self, path: &str) {
-        match build_oracle_sql(self.tables(), self.domains()) {
-            Ok(sql) => {
-                if let Err(err) = fs::write(path, sql) {
-                    eprintln!("Error exporting SQL: {err}");
-                }
-            }
-            Err(err) => eprintln!("Error exporting SQL: {err}"),
-        }
-    }
 }
 
 fn validate_object_names(
@@ -115,6 +71,7 @@ fn validate_object_names(
             }
         }
     }
+
     let mut seen_domains = HashSet::new();
     for (_, domain) in sorted_domains(domains) {
         ensure_name("domain", &domain.name)?;
@@ -123,40 +80,6 @@ fn validate_object_names(
                 name: domain.name.clone(),
             });
         }
-    }
-    Ok(())
-}
-
-fn render_domain(
-    out: &mut String,
-    domain: &Domain,
-    used_constraints: &mut HashSet<String>,
-) -> Result<(), SqlExportError> {
-    writeln!(
-        out,
-        "CREATE DOMAIN {} AS {};",
-        domain.name,
-        oracle_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
-    )
-    .unwrap();
-
-    for (idx, check) in domain.check_constraints.iter().enumerate() {
-        if check.condition.trim().is_empty() {
-            return Err(SqlExportError::EmptyCheckCondition {
-                context: format!("domain {}", domain.name),
-            });
-        }
-        let name = constraint_name_or_fallback(
-            &check.name,
-            &format!("CHK_DOMAIN_{}_{}", domain.name, idx + 1),
-        );
-        add_constraint_name(used_constraints, &name)?;
-        writeln!(
-            out,
-            "ALTER DOMAIN {} ADD CONSTRAINT {} CHECK ({});",
-            domain.name, name, check.condition
-        )
-        .unwrap();
     }
 
     Ok(())
@@ -171,6 +94,7 @@ fn render_table(
 ) -> Result<(), SqlExportError> {
     writeln!(out, "CREATE TABLE {} (", table.title).unwrap();
     let mut lines = Vec::new();
+
     for (attr_id, attr) in sorted_attrs(table) {
         lines.push(render_column(
             table,
@@ -181,9 +105,17 @@ fn render_table(
             used_constraints,
         )?);
     }
+
     lines.extend(render_table_constraints(table, used_constraints)?);
-    for (i, line) in lines.iter().enumerate() {
-        let comma = if i + 1 == lines.len() { "" } else { "," };
+    lines.extend(render_foreign_key_constraints(
+        table,
+        tables,
+        domains,
+        used_constraints,
+    )?);
+
+    for (idx, line) in lines.iter().enumerate() {
+        let comma = if idx + 1 == lines.len() { "" } else { "," };
         writeln!(out, "    {}{}", line, comma).unwrap();
     }
     writeln!(out, ");").unwrap();
@@ -202,6 +134,7 @@ fn render_column(
         attr.name.clone(),
         attribute_type_sql(table, attr_id, attr, tables, domains)?,
     ];
+
     let inline_pk = exact_pk_name(table, attr_id);
     if let Some(name) = exact_not_null_name(table, attr_id) {
         add_constraint_name(used_constraints, &name)?;
@@ -209,10 +142,12 @@ fn render_column(
     } else if attr.not_null {
         parts.push("NOT NULL".to_string());
     }
+
     if let Some(name) = inline_pk.clone() {
         add_constraint_name(used_constraints, &name)?;
         parts.push(format!("CONSTRAINT {} PRIMARY KEY", name));
     }
+
     if inline_pk.is_none() {
         if let Some(name) = exact_unique_name(table, attr_id) {
             add_constraint_name(used_constraints, &name)?;
@@ -221,6 +156,29 @@ fn render_column(
             parts.push("UNIQUE".to_string());
         }
     }
+
+    if let AttributeType::Domain(domain_id) = &attr.attribute_type
+        && let Some(domain) = domains.get(*domain_id)
+    {
+        for (idx, check) in domain.check_constraints.iter().enumerate() {
+            if check.condition.trim().is_empty() {
+                return Err(SqlExportError::EmptyCheckCondition {
+                    context: format!("domain {}", domain.name),
+                });
+            }
+            let name = constraint_name_or_fallback(
+                &check.name,
+                &format!("CHK_DOMAIN_{}_{}", domain.name, idx + 1),
+            );
+            add_constraint_name(used_constraints, &name)?;
+            parts.push(format!(
+                "CONSTRAINT {} CHECK ({})",
+                name,
+                rewrite_domain_check(&check.condition, &attr.name)
+            ));
+        }
+    }
+
     Ok(parts.join(" "))
 }
 
@@ -290,12 +248,13 @@ fn render_table_constraints(
     Ok(lines)
 }
 
-fn render_foreign_keys(
-    out: &mut String,
+fn render_foreign_key_constraints(
     table: &Table,
     tables: &SlotMap<TableId, Table>,
+    domains: &SlotMap<DomainId, Domain>,
     used_constraints: &mut HashSet<String>,
-) -> Result<(), SqlExportError> {
+) -> Result<Vec<String>, SqlExportError> {
+    let mut lines = Vec::new();
     for fk in table.fks.values() {
         let Some(ref_table_id) = fk.references else {
             return Err(SqlExportError::MissingReferencedTable {
@@ -349,18 +308,18 @@ fn render_foreign_keys(
             &format!("FK_{}_{}", table.title, ref_table.title),
         );
         add_constraint_name(used_constraints, &name)?;
-        writeln!(
-            out,
-            "ALTER TABLE {} ADD CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {} ({});",
-            table.title,
+        let target_decl = referenced_columns_decl(ref_cols);
+        lines.push(format!(
+            "CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {} {}",
             name,
             local_cols.join(", "),
             ref_table.title,
-            ref_cols.join(", ")
-        )
-        .unwrap();
+            target_decl
+        ));
+
+        let _ = domains; // kept for symmetry with other render helpers
     }
-    Ok(())
+    Ok(lines)
 }
 
 fn attribute_type_sql(
@@ -371,14 +330,12 @@ fn attribute_type_sql(
     domains: &SlotMap<DomainId, Domain>,
 ) -> Result<String, SqlExportError> {
     match &attr.attribute_type {
-        AttributeType::Logical(dt) => {
-            oracle_type_sql(dt, &format!("column {}.{}", table.title, attr.name))
-        }
+        AttributeType::Logical(dt) => Ok(sqlite_type_sql(dt)),
         AttributeType::Domain(domain_id) => {
             let Some(domain) = domains.get(*domain_id) else {
-                return Ok("NUMBER".to_string());
+                return Ok("NUMERIC".to_string());
             };
-            Ok(domain.name.clone())
+            Ok(sqlite_type_sql(&domain.data_type))
         }
         AttributeType::ForeignKeyAttribute(_) => {
             let (fk, ref_table, ref_attr_id) = resolve_fk_attr(table, attr_id, tables)?;
@@ -390,25 +347,47 @@ fn attribute_type_sql(
                 });
             };
             match &referenced_attr.attribute_type {
-                AttributeType::Logical(dt) => oracle_type_sql(
-                    dt,
-                    &format!(
-                        "foreign key target {}.{}",
-                        ref_table.title, referenced_attr.name
-                    ),
-                ),
+                AttributeType::Logical(dt) => Ok(sqlite_type_sql(dt)),
                 AttributeType::Domain(domain_id) => {
                     let Some(domain) = domains.get(*domain_id) else {
-                        return Ok("NUMBER".to_string());
+                        return Ok("NUMERIC".to_string());
                     };
-                    oracle_type_sql(
-                        &domain.data_type,
-                        &format!("foreign key target domain {}", domain.name),
-                    )
+                    Ok(sqlite_type_sql(&domain.data_type))
                 }
-                AttributeType::ForeignKeyAttribute(_) => Ok("NUMBER".to_string()),
+                AttributeType::ForeignKeyAttribute(_) => Ok("NUMERIC".to_string()),
             }
         }
+    }
+}
+
+fn rewrite_domain_check(condition: &str, column_name: &str) -> String {
+    condition.replace("VALUE", column_name)
+}
+
+fn sqlite_type_sql(dt: &DataType) -> String {
+    let Some(def) = crate::model::datatype::DATA_TYPES.get(dt.base) else {
+        return "NUMERIC".to_string();
+    };
+
+    match def.name {
+        "CHAR"
+        | "VARCHAR2"
+        | "NCHAR"
+        | "NVARCHAR2"
+        | "LONG"
+        | "LONG RAW"
+        | "NCLOB"
+        | "DATE"
+        | "TIMESTAMP"
+        | "TIMESTAMP WITH TIME ZONE"
+        | "TIMESTAMP WITH LOCAL TIME ZONE"
+        | "INTERVAL_YEAR"
+        | "INTERVAL_DAY" => "TEXT".to_string(),
+        "NUMBER" => "NUMERIC".to_string(),
+        "FLOAT" | "BINARY_FLOAT" | "BINARY_DOUBLE" => "REAL".to_string(),
+        "BLOB" | "BFILE" => "BLOB".to_string(),
+        "ROWID" | "UROWID" => "TEXT".to_string(),
+        _ => "NUMERIC".to_string(),
     }
 }
 
@@ -584,26 +563,18 @@ fn join_attr_names(table: &Table, attrs: &[AttrId]) -> String {
         .join(", ")
 }
 
+fn referenced_columns_decl(cols: Vec<String>) -> String {
+    format!("({})", cols.join(", "))
+}
+
 fn ensure_name(kind: &'static str, name: &str) -> Result<(), SqlExportError> {
     if name.trim().is_empty() {
         return Err(SqlExportError::EmptyName { kind });
-    }
-    if name.len() > IDENTIFIER_LIMIT {
-        return Err(SqlExportError::IdentifierTooLong {
-            kind,
-            name: name.to_string(),
-        });
     }
     Ok(())
 }
 
 fn add_constraint_name(used: &mut HashSet<String>, name: &str) -> Result<(), SqlExportError> {
-    if name.len() > IDENTIFIER_LIMIT {
-        return Err(SqlExportError::IdentifierTooLong {
-            kind: "constraint",
-            name: name.to_string(),
-        });
-    }
     if !used.insert(name.to_string()) {
         return Err(SqlExportError::DuplicateConstraintName {
             name: name.to_string(),
@@ -618,99 +589,4 @@ fn constraint_name_or_fallback(name: &str, fallback: &str) -> String {
     } else {
         name.to_string()
     }
-}
-
-fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportError> {
-    let Some(def) = DATA_TYPES.get(dt.base) else {
-        return Err(SqlExportError::UnsupportedDataType {
-            context: context.to_string(),
-            base: dt.base,
-        });
-    };
-    let sql = match def.name {
-        // Character types
-        "CHAR" => match dt.params.as_slice() {
-            [size, char_semantics] => format!(
-                "CHAR({} {})",
-                size,
-                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
-            ),
-            [size] => format!("CHAR({})", size),
-            _ => "CHAR(1)".to_string(),
-        },
-        "NCHAR" => format!("NCHAR({})", dt.params.first().copied().unwrap_or(1)),
-        "VARCHAR2" => match dt.params.as_slice() {
-            [size, char_semantics] => format!(
-                "VARCHAR2({} {})",
-                size,
-                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
-            ),
-            [size] => format!("VARCHAR2({})", size),
-            _ => "VARCHAR2(1)".to_string(),
-        },
-        "NVARCHAR2" => format!("NVARCHAR2({})", dt.params.first().copied().unwrap_or(1)),
-
-        // Numeric types
-        "NUMBER" => match dt.params.as_slice() {
-            [precision, scale] => format!("NUMBER({}, {})", precision, scale),
-            [precision] => format!("NUMBER({})", precision),
-            _ => "NUMBER".to_string(),
-        },
-        "FLOAT" => format!("FLOAT({})", dt.params.first().copied().unwrap_or(126)),
-
-        // Date/time types
-        "DATE" => "DATE".to_string(),
-        "TIMESTAMP" => match dt.params.first().copied().unwrap_or(6) {
-            0 => "TIMESTAMP".to_string(),
-            p => format!("TIMESTAMP({})", p),
-        },
-        "TIMESTAMP WITH TIME ZONE" => match dt.params.first().copied().unwrap_or(6) {
-            0 => "TIMESTAMP WITH TIME ZONE".to_string(),
-            p => format!("TIMESTAMP({}) WITH TIME ZONE", p),
-        },
-        "TIMESTAMP WITH LOCAL TIME ZONE" => match dt.params.first().copied().unwrap_or(6) {
-            0 => "TIMESTAMP WITH LOCAL TIME ZONE".to_string(),
-            p => format!("TIMESTAMP({}) WITH LOCAL TIME ZONE", p),
-        },
-
-        // Interval types
-        "INTERVAL_YEAR" => format!(
-            "INTERVAL YEAR({}) TO MONTH",
-            dt.params.first().copied().unwrap_or(2)
-        ),
-        "INTERVAL_DAY" => match dt.params.as_slice() {
-            [day_precision, second_precision] => format!(
-                "INTERVAL DAY({}) TO SECOND({})",
-                day_precision, second_precision
-            ),
-            [day_precision] => format!("INTERVAL DAY({}) TO SECOND", day_precision),
-            _ => "INTERVAL DAY TO SECOND".to_string(),
-        },
-
-        // LOB and raw types
-        "LONG" => "LONG".to_string(),
-        "LONG RAW" => "LONG RAW".to_string(),
-        "NCLOB" => "NCLOB".to_string(),
-        "BLOB" => "BLOB".to_string(),
-        "BFILE" => "BFILE".to_string(),
-
-        // Binary float types
-        "BINARY_FLOAT" => "BINARY_FLOAT".to_string(),
-        "BINARY_DOUBLE" => "BINARY_DOUBLE".to_string(),
-
-        // Rowid types
-        "ROWID" => "ROWID".to_string(),
-        "UROWID" => match dt.params.first().copied() {
-            Some(size) => format!("UROWID({})", size),
-            None => "UROWID".to_string(),
-        },
-
-        other => {
-            return Err(SqlExportError::UnsupportedDataType {
-                context: format!("{} ({other})", context),
-                base: dt.base,
-            });
-        }
-    };
-    Ok(sql)
 }

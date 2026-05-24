@@ -1,4 +1,5 @@
 use crate::model::constraints::check::Check;
+use crate::ui::widgets::inputs::labeled_text_edit;
 use eframe::epaint::Color32;
 use egui::{TextBuffer, Ui};
 use std::hash::Hash;
@@ -15,11 +16,7 @@ pub fn draw_check(ui: &mut Ui, check: &mut Check, id_source: impl Hash, language
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("CHECK").color(CHECK_COLOR).strong());
-                ui.add(
-                    egui::TextEdit::singleline(&mut check.name)
-                        .desired_width(10.0)
-                        .clip_text(false),
-                );
+                let _ = labeled_text_edit(ui, "", &mut check.name, "check_name");
                 if ui.button("🗑").clicked() {
                     delete = true;
                 }

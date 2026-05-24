@@ -1,4 +1,5 @@
 /// UI logic for nodes
+pub mod changes;
 pub mod constraints;
 pub mod context;
 pub mod entities;

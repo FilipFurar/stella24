@@ -23,7 +23,7 @@ fn built_in_data_types() {
     let d1 = Domain::default();
 
     assert_eq!(d1.data_type.base, 1);
-    assert_eq!(DATA_TYPES[1].name, "VARCHAR");
+    assert_eq!(DATA_TYPES[1].name, "VARCHAR2");
 }
 
 #[test]

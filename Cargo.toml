@@ -57,3 +57,7 @@ egui_kittest = "0.33.0"
 [features]
 default = []
 native-accesskit = ["eframe/accesskit"]
+
+[patch.crates-io]
+egui-winit = { path = "vendor/egui-winit" }
+

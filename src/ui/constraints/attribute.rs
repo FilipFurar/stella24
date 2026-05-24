@@ -211,7 +211,7 @@ impl AttributeType {
             if new_category != current_category {
                 *self = match new_category {
                     AttributeCategory::Logical => AttributeType::Logical(DataType {
-                        base: 0,
+                        base: 1,
                         params: vec![],
                     }),
                     AttributeCategory::Domain => ctx
@@ -220,7 +220,7 @@ impl AttributeType {
                         .map(|domain| AttributeType::Domain(domain.id))
                         .unwrap_or_else(|| {
                             AttributeType::Logical(DataType {
-                                base: 0,
+                                base: 1,
                                 params: vec![],
                             })
                         }),
@@ -243,8 +243,9 @@ impl AttributeType {
                             }
                         });
 
-                    // If the DataType is CHAR or VARCHAR2, the second parameter should be BYTE/CHAR selection
-                    if dt.base == 0 || dt.base == 2 {
+                    // If the DataType is VARCHAR2 or CHAR, the second parameter should be BYTE/CHAR selection.
+                    // The built-in table currently uses indices: 0=NUMBER, 1=VARCHAR2, 2=CHAR.
+                    if dt.base == 1 || dt.base == 2 {
                         // Ensure both params exist
                         if dt.params.len() < 2 {
                             dt.params.resize(2, 1);

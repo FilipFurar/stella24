@@ -1,5 +1,5 @@
 use crate::AppStella;
-use crate::app::{DomainId, MAX_HISTORY_STATES, TableId, UndoItem};
+use crate::app::{DomainId, MAX_HISTORY_STATES, SqlExportModal, SvgExportModal, TableId, UndoItem};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
@@ -194,18 +194,14 @@ impl AppStella {
                 if let Some(item) = self.undo_history.pop() {
                     match item {
                         UndoItem::Inverse(inv_cmd) => {
-                            // Apply inverse without recording it to undo_history; compute redo item
                             if let Some(redo_item) = self.apply_inverse_without_recording(inv_cmd) {
                                 self.redo_history.push(redo_item);
                             }
                         }
                         UndoItem::Snapshot(prev_state) => {
-                            // Push current snapshot to redo and restore previous state
-                            let current = self.clone_without_histories();
-                            self.redo_history.push(UndoItem::Snapshot(current));
-                            self.tables = prev_state.tables;
-                            self.domains = prev_state.domains;
-                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                            self.redo_history
+                                .push(UndoItem::Snapshot(self.clone_without_histories()));
+                            self.restore_snapshot(prev_state);
                         }
                     }
                 }
@@ -221,32 +217,34 @@ impl AppStella {
                             }
                         }
                         UndoItem::Snapshot(prev_state) => {
-                            let current = self.clone_without_histories();
-                            self.undo_history.push(UndoItem::Snapshot(current));
-                            self.tables = prev_state.tables;
-                            self.domains = prev_state.domains;
-                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                            self.undo_history
+                                .push(UndoItem::Snapshot(self.clone_without_histories()));
+                            self.restore_snapshot(prev_state);
                         }
                     }
                 }
             }
-            other => {
-                // For normal commands: try to compute a cheap inverse before applying.
-                // If we cannot, fall back to snapshotting the whole state.
-                self.redo_history.clear();
-                if let Some(pre_inv) = self.compute_inverse_pre(&other) {
-                    // We were able to compute inverse based on current state
-                    self.execute_command(other);
-                    self.push_undo_item(UndoItem::Inverse(pre_inv));
-                } else {
-                    let snapshot = self.clone_without_histories();
-                    self.execute_command(other);
-                    self.push_undo_item(UndoItem::Snapshot(snapshot));
-                }
-            }
+            other => self.apply_command_with_history(other),
         }
     }
+
+    fn apply_command_with_history(&mut self, cmd: Command) {
+        self.redo_history.clear();
+        if let Some(pre_inv) = self.compute_inverse_pre(&cmd) {
+            self.apply_command(cmd);
+            self.push_undo_item(UndoItem::Inverse(pre_inv));
+        } else {
+            let snapshot = self.clone_without_histories();
+            self.apply_command(cmd);
+            self.push_undo_item(UndoItem::Snapshot(snapshot));
+        }
+    }
+
     pub fn execute_command(&mut self, cmd: Command) {
+        self.apply_command(cmd);
+    }
+
+    fn apply_command(&mut self, cmd: Command) {
         match cmd {
             Command::NewCanvas => {
                 self.tables.clear();
@@ -450,6 +448,31 @@ impl AppStella {
         }
     }
 
+    fn clone_without_histories(&self) -> Self {
+        AppStella {
+            tables: self.tables.clone(),
+            domains: self.domains.clone(),
+            command_queue: CommandQueue::default(),
+            sql_export_modal: SqlExportModal::default(),
+            svg_export_modal: SvgExportModal::default(),
+            selected_sql_dialect: self.selected_sql_dialect,
+            workbench_table_rects: self.workbench_table_rects.clone(),
+            workbench_pan: self.workbench_pan,
+            workbench_zoom: self.workbench_zoom,
+            undo_history: Vec::new(),
+            redo_history: Vec::new(),
+        }
+    }
+
+    fn restore_snapshot(&mut self, snapshot: AppStella) {
+        self.tables = snapshot.tables;
+        self.domains = snapshot.domains;
+        self.workbench_table_rects = snapshot.workbench_table_rects;
+        self.workbench_pan = snapshot.workbench_pan;
+        self.workbench_zoom = snapshot.workbench_zoom;
+        self.selected_sql_dialect = snapshot.selected_sql_dialect;
+    }
+
     fn push_undo_item(&mut self, item: UndoItem) {
         self.undo_history.push(item);
         if self.undo_history.len() > MAX_HISTORY_STATES {
@@ -460,14 +483,12 @@ impl AppStella {
     /// Applies a command without recording to undo_history. Returns an UndoItem that
     /// represents the inverse of the command applied (suitable for pushing to the other stack).
     fn apply_inverse_without_recording(&mut self, cmd: Command) -> Option<UndoItem> {
-        // Try to compute a cheap inverse for cmd given current state
         if let Some(pre_inv) = self.compute_inverse_pre(&cmd) {
-            self.execute_command(cmd);
+            self.apply_command(cmd);
             Some(UndoItem::Inverse(pre_inv))
         } else {
-            // Snapshot fallback
             let snapshot = self.clone_without_histories();
-            self.execute_command(cmd);
+            self.apply_command(cmd);
             Some(UndoItem::Snapshot(snapshot))
         }
     }

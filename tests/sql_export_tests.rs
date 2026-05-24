@@ -1,5 +1,6 @@
 use slotmap::SlotMap;
-use stella24::app::exports::sql::sql_export::{SqlExportError, build_oracle_sql};
+use stella24::app::exports::sql::oracle::build_oracle_sql;
+use stella24::app::exports::sql::sql_export::{SqlDialect, SqlExportError, build_sql};
 use stella24::app::{DomainId, TableId};
 use stella24::model::attribute::{Attribute, AttributeType};
 use stella24::model::constraints::check::Check;
@@ -86,6 +87,79 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
     assert!(!sql.contains("REFERENCES '"));
     assert!(!sql.contains("DOMCHK_"));
 }
+
+#[test]
+fn exports_sqlite_sql_with_inline_domain_checks_and_foreign_keys() {
+    let mut tables: SlotMap<TableId, Table> = SlotMap::with_key();
+    let mut domains: SlotMap<DomainId, Domain> = SlotMap::with_key();
+    let dom_id = domains.insert(Domain {
+        name: "dom_code".to_string(),
+        data_type: DataType {
+            base: 1,
+            params: vec![10],
+        },
+        check_constraints: vec![Check {
+            name: "ck_dom".to_string(),
+            condition: "VALUE <> ''".to_string(),
+        }],
+    });
+
+    let mut parent = mk_table("parent");
+    let parent_attr = parent.attributes.insert(Attribute {
+        name: "id".to_string(),
+        attribute_type: AttributeType::Logical(DataType {
+            base: 3,
+            params: vec![5, 0],
+        }),
+        pk: true,
+        not_null: true,
+        unique: true,
+    });
+    parent.pk.attributes.insert(parent_attr);
+    let parent_id = tables.insert(parent);
+
+    let mut child = mk_table("child");
+    let fk_attr = child.attributes.insert(Attribute {
+        name: "parent_id".to_string(),
+        attribute_type: AttributeType::ForeignKeyAttribute(parent_attr),
+        pk: false,
+        not_null: true,
+        unique: false,
+    });
+    let mut fk = ForeignKey::new();
+    fk.name = "fk_child_parent".to_string();
+    fk.references = Some(parent_id);
+    fk.local_attrs.insert(fk_attr);
+    child.fks.insert(fk);
+    child.attributes.insert(Attribute {
+        name: "code".to_string(),
+        attribute_type: AttributeType::Domain(dom_id),
+        pk: false,
+        not_null: false,
+        unique: false,
+    });
+    tables.insert(child);
+
+    let sql = build_sql(SqlDialect::Sqlite, &tables, &domains).expect("sqlite export");
+    assert!(sql.contains("PRAGMA foreign_keys = ON;"));
+    assert!(sql.contains("CREATE TABLE child"));
+    assert!(sql.contains("code TEXT"));
+    assert!(sql.contains("CHECK (code <> '')"));
+    assert!(sql.contains("FOREIGN KEY (parent_id) REFERENCES parent (id)"));
+    assert!(!sql.contains("CREATE DOMAIN"));
+}
+
+#[test]
+fn rejects_unimplemented_sql_dialects() {
+    let tables: SlotMap<TableId, Table> = SlotMap::with_key();
+    let domains: SlotMap<DomainId, Domain> = SlotMap::with_key();
+
+    let err = build_sql(SqlDialect::MySql, &tables, &domains).unwrap_err();
+    assert!(matches!(err, SqlExportError::DialectNotImplemented { .. }));
+
+    let err = build_sql(SqlDialect::PostgreSql, &tables, &domains).unwrap_err();
+    assert!(matches!(err, SqlExportError::DialectNotImplemented { .. }));
+}
 #[test]
 fn rejects_duplicate_table_names() {
     let tables: SlotMap<TableId, Table> = {
@@ -100,7 +174,7 @@ fn rejects_duplicate_table_names() {
 }
 
 #[test]
-fn rejects_duplicate_constraint_names() {
+fn generates_unique_primary_key_constraint_names_per_table() {
     let mut tables: SlotMap<TableId, Table> = SlotMap::with_key();
     let domains: SlotMap<DomainId, Domain> = SlotMap::with_key();
 
@@ -132,9 +206,7 @@ fn rejects_duplicate_constraint_names() {
     t2.pk.attributes.insert(a2);
     tables.insert(t2);
 
-    let err = build_oracle_sql(&tables, &domains).unwrap_err();
-    assert!(matches!(
-        err,
-        SqlExportError::DuplicateConstraintName { .. }
-    ));
+    let sql = build_oracle_sql(&tables, &domains).unwrap();
+    assert!(sql.contains("CONSTRAINT PK_first PRIMARY KEY"));
+    assert!(sql.contains("CONSTRAINT PK_second PRIMARY KEY"));
 }
