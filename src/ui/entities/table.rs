@@ -153,7 +153,7 @@ impl Table {
     }
 
     /// Draw ForeignKey constraints
-    pub fn draw_fks(&mut self, ui: &mut Ui) -> Vec<FkId> {
+    pub fn draw_fks(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<FkId> {
         if self.fks.is_empty() {
             return Vec::new();
         }
@@ -165,7 +165,10 @@ impl Table {
                 .stroke(Stroke::new(1.0, BLUE))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        fk.draw(ui);
+                        fk.draw(
+                            ui,
+                            ("table_fk", table_id.data().as_ffi(), fkid.data().as_ffi()),
+                        );
                         if ui.button("🗑").clicked() {
                             to_delete.push(fkid);
                         }
@@ -193,7 +196,11 @@ impl Table {
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, GREEN))
                 .show(ui, |ui| {
-                    unique.draw(ui, &self.attributes);
+                    unique.draw(
+                        ui,
+                        &self.attributes,
+                        ("table_unique", table_id.data().as_ffi(), i),
+                    );
                     ui.horizontal(|ui| {
                         if ui.button("Edit").clicked() {
                             self.current_unique = Some(i);
@@ -232,11 +239,11 @@ impl Table {
         commands
     }
 
-    pub fn draw_checks(&mut self, ui: &mut Ui) -> Vec<usize> {
+    pub fn draw_checks(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<usize> {
         let mut to_delete: Vec<usize> = Vec::new();
 
         for (i, check) in self.checks.iter_mut().enumerate() {
-            if draw_check(ui, check, ("table_check", i), "sql") {
+            if draw_check(ui, check, ("table_check", table_id.data().as_ffi(), i), "sql") {
                 to_delete.push(i);
             }
         }
@@ -475,7 +482,7 @@ impl Table {
             .extend(self.draw_attributes(ui, ctx, table_id));
 
         self.draw_pk(ui);
-        for fkid in self.draw_fks(ui) {
+        for fkid in self.draw_fks(ui, table_id) {
             changes.commands.push(Command::DeleteForeignKey {
                 table: table_id,
                 fk: fkid,
@@ -483,7 +490,7 @@ impl Table {
         }
 
         changes.commands.extend(self.draw_uniques(ui, table_id));
-        for index in self.draw_checks(ui).into_iter().rev() {
+        for index in self.draw_checks(ui, table_id).into_iter().rev() {
             changes.commands.push(Command::DeleteTableCheck {
                 table: table_id,
                 index,

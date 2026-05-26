@@ -61,8 +61,11 @@ fn deleting_fk_from_ui_removes_fk_and_its_local_attributes() {
         fk_attr
     };
 
+    let mut tables_map: SlotMap<TableId, Table> = SlotMap::with_key();
+    let table_id = tables_map.insert(Table::default());
+
     let mut harness = Harness::new_ui(move |ui| {
-        table_for_ui.borrow_mut().draw_fks(ui);
+        table_for_ui.borrow_mut().draw_fks(ui, table_id);
     });
 
     harness.get_by_label("🗑").click();

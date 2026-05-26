@@ -16,7 +16,7 @@ pub fn draw_check(ui: &mut Ui, check: &mut Check, id_source: impl Hash, language
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new("CHECK").color(CHECK_COLOR).strong());
-                let _ = labeled_text_edit(ui, "", &mut check.name, "check_name");
+                let _ = labeled_text_edit(ui, "", &mut check.name, ("check_name", id_salt));
                 if ui.button("🗑").clicked() {
                     delete = true;
                 }

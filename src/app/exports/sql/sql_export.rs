@@ -23,13 +23,16 @@ pub enum SqlDialect {
     Oracle,
     /// SQLite-compatible DDL.
     Sqlite,
+    /// PostgreSQL-compatible DDL.
+    Postgres,
 }
 
 impl SqlDialect {
     /// Const array of all SqlDialect variants so we can iterate through them.
-    pub const ALL: [SqlDialect; 2] = [
+    pub const ALL: [SqlDialect; 3] = [
         SqlDialect::Oracle,
         SqlDialect::Sqlite,
+        SqlDialect::Postgres,
     ];
 
     /// Human-readable label for the dialect used in UI controls.
@@ -37,6 +40,7 @@ impl SqlDialect {
         match self {
             SqlDialect::Oracle => "Oracle",
             SqlDialect::Sqlite => "SQLite",
+            SqlDialect::Postgres => "PostgreSQL",
         }
     }
 }
@@ -299,6 +303,9 @@ pub fn build_sql(
         }
         SqlDialect::Sqlite => {
             crate::app::exports::sql::sqlite::SqliteDialect.build_sql(tables, domains)
+        }
+        SqlDialect::Postgres => {
+            crate::app::exports::sql::postgres::PostgresDialect.build_sql(tables, domains)
         }
     }
 }
