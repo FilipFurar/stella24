@@ -4,7 +4,7 @@
 //! 1. CREATE DOMAIN + CREATE TABLE (no FKs)
 //! 2. ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
 
-use crate::app::exports::sql::sql_export::{SqlDialect, SqlExport, SqlExportError};
+use crate::app::exports::sql::sql_export::{SqlDialect, Export, SqlExportError};
 use crate::app::{AppStella, DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::constraint::ForeignKey;
@@ -21,7 +21,7 @@ const IDENTIFIER_LIMIT: usize = 128;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OracleDialect;
 
-impl SqlExport for OracleDialect {
+impl Export for OracleDialect {
     fn dialect(&self) -> SqlDialect {
         SqlDialect::Oracle
     }

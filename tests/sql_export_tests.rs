@@ -150,17 +150,6 @@ fn exports_sqlite_sql_with_inline_domain_checks_and_foreign_keys() {
 }
 
 #[test]
-fn rejects_unimplemented_sql_dialects() {
-    let tables: SlotMap<TableId, Table> = SlotMap::with_key();
-    let domains: SlotMap<DomainId, Domain> = SlotMap::with_key();
-
-    let err = build_sql(SqlDialect::MySql, &tables, &domains).unwrap_err();
-    assert!(matches!(err, SqlExportError::DialectNotImplemented { .. }));
-
-    let err = build_sql(SqlDialect::PostgreSql, &tables, &domains).unwrap_err();
-    assert!(matches!(err, SqlExportError::DialectNotImplemented { .. }));
-}
-#[test]
 fn rejects_duplicate_table_names() {
     let tables: SlotMap<TableId, Table> = {
         let mut t = SlotMap::with_key();

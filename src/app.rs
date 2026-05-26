@@ -1,6 +1,6 @@
 //! Main application state and UI event handling.
 
-use crate::app::exports::sql::sql_export::{SqlDialect, build_sql};
+use crate::app::exports::sql::sql_export::{build_sql, SqlDialect};
 use crate::app::exports::svg_export::{SvgLayoutMode, SvgThemeChoice};
 use crate::model::{entities::domain::Domain, entities::table::Table};
 use crate::ui::changes::extend_commands;

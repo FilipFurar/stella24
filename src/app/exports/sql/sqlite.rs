@@ -1,6 +1,6 @@
 //! SQLite SQL DDL exporter.
 
-use crate::app::exports::sql::sql_export::{SqlDialect, SqlExport, SqlExportError};
+use crate::app::exports::sql::sql_export::{SqlDialect, Export, SqlExportError};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::constraint::ForeignKey;
@@ -14,7 +14,7 @@ use std::fmt::Write;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SqliteDialect;
 
-impl SqlExport for SqliteDialect {
+impl Export for SqliteDialect {
     fn dialect(&self) -> SqlDialect {
         SqlDialect::Sqlite
     }

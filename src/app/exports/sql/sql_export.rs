@@ -10,24 +10,18 @@ use std::fmt;
 pub enum SqlDialect {
     #[default]
     Oracle,
-    MySql,
-    PostgreSql,
     Sqlite,
 }
 
 impl SqlDialect {
-    pub const ALL: [SqlDialect; 4] = [
+    pub const ALL: [SqlDialect; 2] = [
         SqlDialect::Oracle,
-        SqlDialect::MySql,
-        SqlDialect::PostgreSql,
         SqlDialect::Sqlite,
     ];
 
     pub const fn label(self) -> &'static str {
         match self {
             SqlDialect::Oracle => "Oracle",
-            SqlDialect::MySql => "MySQL",
-            SqlDialect::PostgreSql => "PostgreSQL",
             SqlDialect::Sqlite => "SQLite",
         }
     }
@@ -39,7 +33,7 @@ impl fmt::Display for SqlDialect {
     }
 }
 
-pub trait SqlExport {
+pub trait Export {
     fn dialect(&self) -> SqlDialect;
     fn build_sql(
         &self,
@@ -90,9 +84,6 @@ pub enum SqlExportError {
         context: String,
         base: usize,
     },
-    DialectNotImplemented {
-        dialect: SqlDialect,
-    },
     IdentifierTooLong {
         kind: &'static str,
         name: String,
@@ -140,10 +131,7 @@ impl fmt::Display for SqlExportError {
             ),
             SqlExportError::UnsupportedDataType { context, base } => {
                 write!(f, "unsupported datatype base {base} ({context})")
-            }
-            SqlExportError::DialectNotImplemented { dialect } => {
-                write!(f, "SQL dialect not implemented: {dialect}")
-            }
+            },
             SqlExportError::IdentifierTooLong { kind, name } => {
                 write!(f, "{kind} identifier too long: {name}")
             }
@@ -164,6 +152,5 @@ pub fn build_sql(
         SqlDialect::Sqlite => {
             crate::app::exports::sql::sqlite::SqliteDialect.build_sql(tables, domains)
         }
-        _ => Err(SqlExportError::DialectNotImplemented { dialect }),
     }
 }
