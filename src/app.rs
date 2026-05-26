@@ -68,14 +68,14 @@ slotmap::new_key_type! {
 pub struct AppStella {
     pub tables: SlotMap<TableId, Table>,
     pub domains: SlotMap<DomainId, Domain>,
+    #[serde(default)]
+    pub(crate) selected_sql_dialect: SqlDialect,
     #[serde(skip)]
     command_queue: CommandQueue,
     #[serde(skip)]
     pub(crate) sql_export_modal: SqlExportModal,
     #[serde(skip)]
     pub(crate) svg_export_modal: SvgExportModal,
-    #[serde(default)]
-    pub(crate) selected_sql_dialect: SqlDialect,
     #[serde(skip)]
     pub workbench_table_rects: HashMap<TableId, egui::Rect>,
     #[serde(skip)]

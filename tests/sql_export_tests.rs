@@ -1,7 +1,7 @@
 use slotmap::SlotMap;
-use stella24::app::exports::sql::oracle::build_oracle_sql;
 use stella24::app::exports::sql::sql_export::{SqlDialect, SqlExportError, build_sql};
 use stella24::app::{DomainId, TableId};
+use stella24::app::exports::sql::sql_export::SqlDialect::Oracle;
 use stella24::model::attribute::{Attribute, AttributeType};
 use stella24::model::constraints::check::Check;
 use stella24::model::constraints::constraint::{ForeignKey, PrimaryKey};
@@ -76,7 +76,7 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
         unique: false,
     });
     tables.insert(child);
-    let sql = build_oracle_sql(&tables, &domains).expect("sql export");
+    let sql = build_sql(SqlDialect::Oracle, &tables, &domains).expect("sql export");
     assert!(sql.contains("CREATE DOMAIN dom_code AS VARCHAR2(10)"));
     assert!(sql.contains("CONSTRAINT ck_dom CHECK (VALUE <> '')"));
     assert!(sql.contains("CREATE TABLE child"));
@@ -158,7 +158,7 @@ fn rejects_duplicate_table_names() {
         t
     };
     let domains: SlotMap<DomainId, Domain> = SlotMap::with_key();
-    let err = build_oracle_sql(&tables, &domains).unwrap_err();
+    let err = build_sql(SqlDialect::Oracle, &tables, &domains).unwrap_err();
     assert!(matches!(err, SqlExportError::DuplicateTableName { .. }));
 }
 
@@ -195,7 +195,7 @@ fn generates_unique_primary_key_constraint_names_per_table() {
     t2.pk.attributes.insert(a2);
     tables.insert(t2);
 
-    let sql = build_oracle_sql(&tables, &domains).unwrap();
+    let sql = build_sql(Oracle, &tables, &domains).unwrap();
     assert!(sql.contains("CONSTRAINT PK_first PRIMARY KEY"));
     assert!(sql.contains("CONSTRAINT PK_second PRIMARY KEY"));
 }
