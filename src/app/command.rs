@@ -249,6 +249,7 @@ impl AppStella {
             Command::NewCanvas => {
                 self.tables.clear();
                 self.domains.clear();
+                self.workbench_table_layout.clear();
                 self.workbench_table_rects.clear();
                 self.workbench_pan = egui::Vec2::ZERO;
                 self.workbench_zoom = 1.0;
@@ -293,7 +294,13 @@ impl AppStella {
                 if let Some(t) = self.tables.get_mut(table)
                     && let Some(a) = t.attributes.get_mut(attr)
                 {
-                    a.attribute_type = attribute_type;
+                    a.attribute_type = match attribute_type {
+                        AttributeType::Logical(mut dt) => {
+                            dt.normalize_params();
+                            AttributeType::Logical(dt)
+                        }
+                        other => other,
+                    };
                 }
             }
             Command::SetAttributeNotNull { table, attr, value } => {
@@ -327,6 +334,8 @@ impl AppStella {
                 }
             }
             Command::CreateDomain { name, data_type } => {
+                let mut data_type = data_type;
+                data_type.normalize_params();
                 self.domains.insert(Domain {
                     name,
                     data_type,
@@ -343,6 +352,8 @@ impl AppStella {
             }
             Command::SetDomainType { domain, data_type } => {
                 if let Some(d) = self.domains.get_mut(domain) {
+                    let mut data_type = data_type;
+                    data_type.normalize_params();
                     d.data_type = data_type;
                 }
             }
@@ -452,9 +463,13 @@ impl AppStella {
         AppStella {
             tables: self.tables.clone(),
             domains: self.domains.clone(),
+            workbench_table_layout: self.workbench_table_layout.clone(),
             command_queue: CommandQueue::default(),
             sql_export_modal: SqlExportModal::default(),
             svg_export_modal: SvgExportModal::default(),
+            project_settings_modal: Default::default(),
+            project_name: "".to_string(),
+            preferences_modal: Default::default(),
             selected_sql_dialect: self.selected_sql_dialect,
             workbench_table_rects: self.workbench_table_rects.clone(),
             workbench_pan: self.workbench_pan,
@@ -467,6 +482,7 @@ impl AppStella {
     fn restore_snapshot(&mut self, snapshot: AppStella) {
         self.tables = snapshot.tables;
         self.domains = snapshot.domains;
+        self.workbench_table_layout = snapshot.workbench_table_layout;
         self.workbench_table_rects = snapshot.workbench_table_rects;
         self.workbench_pan = snapshot.workbench_pan;
         self.workbench_zoom = snapshot.workbench_zoom;

@@ -1,5 +1,5 @@
 //! # Stella24
-//! ER modeler for Oracle SQL
+//! ER modeler with SQL export for Oracle, SQLite and PostgreSQL.
 
 /// # Main application module
 /// Connects model and UI

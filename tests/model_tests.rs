@@ -23,6 +23,9 @@ fn built_in_data_types() {
     let d1 = Domain::default();
 
     assert_eq!(d1.data_type.base, 1);
+    assert_eq!(d1.data_type.params.len(), 2);
+    assert_eq!(d1.data_type.params[0], 5);
+    assert_eq!(d1.data_type.params[1], 1);
     assert_eq!(DATA_TYPES[1].name, "VARCHAR2");
 }
 

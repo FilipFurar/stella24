@@ -17,12 +17,15 @@ pub struct Domain {
 
 impl Default for Domain {
     fn default() -> Self {
+        let mut data_type = DataType {
+            base: 1,
+            params: vec![5],
+        };
+        data_type.normalize_params();
+
         Self {
             name: "Domain".to_string(),
-            data_type: DataType {
-                base: 1,
-                params: vec![5],
-            },
+            data_type,
             check_constraints: vec![],
         }
     }

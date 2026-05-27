@@ -1,7 +1,7 @@
 use crate::AppStella;
 use crate::app::exports::sql::sql_export::SqlDialect;
 use crate::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
-use crate::app::{SqlExportModal, SvgExportModal};
+use crate::app::{ProjectSettingsModal, SqlExportModal, SvgExportModal};
 use crate::ui::widgets::code::draw_highlighted_code;
 use eframe::emath::vec2;
 use egui::Id;
@@ -9,6 +9,54 @@ use rfd::FileDialog;
 use std::fs;
 
 impl AppStella {
+    /// Renders a modal for changing current model's properties
+    pub fn draw_project_settings_modal(&mut self, ctx: &egui::Context) {
+        if matches!(self.project_settings_modal, ProjectSettingsModal::Hidden) {
+            return;
+        }
+
+        let mut close_modal = false;
+        let selected_sql_dialect = self.selected_sql_dialect;
+
+
+        egui::Window::new("Project settings")
+            .id(Id::new("project_settings_window"))
+            .resizable(true)
+            .collapsible(false)
+            .show(ctx, |ui| {
+
+                ui.horizontal(|ui| {
+                    ui.label("Project name");
+                    ui.text_edit_singleline(&mut self.project_name);
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Dialect");
+                    egui::ComboBox::from_id_salt("sql_export_dialect")
+                        .selected_text(selected_sql_dialect.to_string())
+                        .show_ui(ui, |ui| {
+                            for dialect in SqlDialect::ALL {
+                                ui.selectable_value(
+                                    &mut self.selected_sql_dialect,
+                                    dialect,
+                                    dialect.label(),
+                                );
+                            }
+                        });
+                });
+
+                ui.horizontal(|ui| {
+                    if ui.button("Close").clicked() {
+                        close_modal = true;
+                    }
+                });
+            });
+
+        if close_modal {
+            self.project_settings_modal = ProjectSettingsModal::Hidden;
+        }
+    }
+
     pub fn draw_sql_export_modal(&mut self, ctx: &egui::Context) {
         if matches!(self.sql_export_modal, SqlExportModal::Hidden) {
             return;
@@ -17,7 +65,7 @@ impl AppStella {
         let mut close_modal = false;
         let mut save_sql: Option<String> = None;
         let mut copy_sql: Option<String> = None;
-        let mut selected_sql_dialect = self.selected_sql_dialect;
+        let selected_sql_dialect = self.selected_sql_dialect;
 
         egui::Window::new("Export SQL")
             .id(Id::new("export_sql_modal"))
@@ -27,22 +75,6 @@ impl AppStella {
             .show(ctx, |ui| match &self.sql_export_modal {
                 SqlExportModal::Hidden => {}
                 SqlExportModal::Success { sql } => {
-                    ui.horizontal(|ui| {
-                        ui.label("Dialect:");
-                        egui::ComboBox::from_id_salt("sql_export_dialect")
-                            .selected_text(selected_sql_dialect.to_string())
-                            .show_ui(ui, |ui| {
-                                for dialect in SqlDialect::ALL {
-                                    ui.selectable_value(
-                                        &mut selected_sql_dialect,
-                                        dialect,
-                                        dialect.label(),
-                                    );
-                                }
-                            });
-                    });
-                    ui.separator();
-
                     egui::ScrollArea::vertical()
                         .max_height(200.0)
                         .show(ui, |ui| {
@@ -63,22 +95,6 @@ impl AppStella {
                     });
                 }
                 SqlExportModal::Error { message } => {
-                    ui.horizontal(|ui| {
-                        ui.label("Dialect:");
-                        egui::ComboBox::from_id_salt("sql_export_dialect")
-                            .selected_text(selected_sql_dialect.to_string())
-                            .show_ui(ui, |ui| {
-                                for dialect in SqlDialect::ALL {
-                                    ui.selectable_value(
-                                        &mut selected_sql_dialect,
-                                        dialect,
-                                        dialect.label(),
-                                    );
-                                }
-                            });
-                    });
-                    ui.separator();
-
                     egui::ScrollArea::vertical()
                         .max_height(200.0)
                         .show(ui, |ui| {

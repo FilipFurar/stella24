@@ -169,13 +169,6 @@ pub trait Export {
 
         Ok(lines)
     }
-
-    fn render_foreign_keys(
-        table: &Table,
-        tables: &SlotMap<TableId, Table>,
-        domains: &SlotMap<DomainId, Domain>,
-        used_constraints: &mut HashSet<String>,
-    ) -> Result<Vec<String>, SqlExportError>;
 }
 
 /// Errors that can occur while generating SQL exports.

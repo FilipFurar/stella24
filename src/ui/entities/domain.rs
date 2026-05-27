@@ -61,19 +61,8 @@ impl Domain {
                     }
                 });
 
-            if !self.data_type.params.is_empty() {
-                ui.horizontal(|ui| {
-                    ui.label("(");
-                    for param in &mut self.data_type.params {
-                        if ui
-                            .add(egui::DragValue::new(param).speed(1).range(0..=1_000_000))
-                            .changed()
-                        {
-                            data_type_changed = true;
-                        }
-                    }
-                    ui.label(")");
-                });
+            if self.data_type.draw_params(ui, id.data().as_ffi()) {
+                data_type_changed = true;
             }
 
             if data_type_changed {

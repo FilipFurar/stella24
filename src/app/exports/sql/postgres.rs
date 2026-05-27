@@ -1,16 +1,6 @@
-use crate::app::exports::sql::sql_export::{
-    constraint_name_or_fallback,
-    render_check_constraints,
-    render_column_parts,
-    resolve_referenced_attribute,
-    sorted_attrs,
-    sorted_domains,
-    sorted_tables,
-    validate_object_names,
-    Export,
-    SqlDialect,
-    SqlExportError,
-};
+//! PostgreSQL SQL DDL exporter.
+
+use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, render_foreign_keys, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::datatype::{DATA_TYPES, DataType};
@@ -21,6 +11,9 @@ use std::collections::HashSet;
 use std::fmt::Write;
 
 /// PostgreSQL SQL DDL exporter.
+///
+/// Produces PostgreSQL-compatible `CREATE DOMAIN` and `CREATE TABLE`
+/// statements, including named constraints and foreign keys.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PostgresDialect;
 
@@ -102,10 +95,9 @@ impl Export for PostgresDialect {
         }
 
         lines.extend(Self::render_table_constraints(table, used_constraints)?);
-        lines.extend(Self::render_foreign_keys(
+        lines.extend(render_foreign_keys(
             table,
             tables,
-            domains,
             used_constraints,
         )?);
 
@@ -130,13 +122,9 @@ impl Export for PostgresDialect {
 
         Ok(parts.join(" "))
     }
-
-    fn render_foreign_keys(table: &Table, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<Vec<String>, SqlExportError> {
-        let _ = domains;
-        crate::app::exports::sql::sql_export::render_foreign_keys(table, tables, used_constraints)
-    }
 }
 
+/// Render one PostgreSQL domain declaration with optional CHECK constraints.
 fn render_domain(
     out: &mut String,
     domain: &Domain,
@@ -165,6 +153,7 @@ fn render_domain(
     Ok(())
 }
 
+/// Map a model `DataType` to a PostgreSQL SQL type string.
 fn postgres_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportError> {
     let Some(def) = DATA_TYPES.get(dt.base) else {
         return Err(SqlExportError::UnsupportedDataType {

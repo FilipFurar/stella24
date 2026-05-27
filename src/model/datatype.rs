@@ -17,6 +17,31 @@ pub struct DataType {
     pub params: Vec<u32>,
 }
 
+impl DataType {
+    /// Returns the number of parameters expected by the selected built-in type.
+    pub fn expected_param_count(&self) -> usize {
+        DATA_TYPES.get(self.base).map(|def| def.param_count).unwrap_or(0)
+    }
+
+    /// Adjust the parameter vector to match the selected built-in type.
+    ///
+    /// Extra values are removed, and missing values are filled with sensible
+    /// defaults for the built-in type.
+    pub fn normalize_params(&mut self) {
+        let expected = self.expected_param_count();
+        let fill_value = match DATA_TYPES.get(self.base).map(|def| def.name) {
+            Some("CHAR") | Some("VARCHAR2") => 1,
+            _ => 0,
+        };
+
+        if self.params.len() > expected {
+            self.params.truncate(expected);
+        } else if self.params.len() < expected {
+            self.params.resize(expected, fill_value);
+        }
+    }
+}
+
 impl Default for DataType {
     fn default() -> Self {
         Self {

@@ -4,19 +4,7 @@
 //! 1. CREATE DOMAIN + CREATE TABLE (no FKs)
 //! 2. ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
 
-use crate::app::exports::sql::sql_export::{
-    constraint_name_or_fallback,
-    render_check_constraints,
-    render_column_parts,
-    resolve_referenced_attribute,
-    sorted_attrs,
-    sorted_domains,
-    sorted_tables,
-    validate_object_names,
-    Export,
-    SqlDialect,
-    SqlExportError,
-};
+use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, render_foreign_keys, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::datatype::{DATA_TYPES, DataType};
@@ -65,9 +53,8 @@ impl Export for OracleDialect {
 
         // Phase 2: Foreign keys via ALTER TABLE
         for (_, table) in sorted_tables(tables) {
-            Self::render_foreign_keys(table,
+            render_foreign_keys(table,
                                       tables,
-                                      domains,
                                       &mut used_constraints)?;
         }
 
@@ -143,12 +130,6 @@ impl Export for OracleDialect {
             Self::attribute_type_sql,
         )?;
         Ok(parts.join(" "))
-    }
-
-
-    fn render_foreign_keys(table: &Table, tables: &SlotMap<TableId, Table>, _domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<Vec<String>, SqlExportError> {
-        let _ = _domains;
-        crate::app::exports::sql::sql_export::render_foreign_keys(table, tables, used_constraints)
     }
 }
 

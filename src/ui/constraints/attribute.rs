@@ -23,16 +23,64 @@ pub struct AttributeChanges {
 
 impl DataType {
     /// Draw all parameters of the data type
-    pub fn draw_params(&mut self, ui: &mut Ui) {
-        if !self.params.is_empty() {
-            ui.horizontal(|ui| {
-                ui.label("(");
-                for param in self.params.iter_mut() {
-                    ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
-                }
-                ui.label(")");
-            });
+    pub fn draw_params(&mut self, ui: &mut Ui, id_salt: impl std::hash::Hash) -> bool {
+        self.normalize_params();
+
+        if self.params.is_empty() {
+            return false;
         }
+
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            ui.label("(");
+
+            if matches!(
+                DATA_TYPES.get(self.base).map(|def| def.name),
+                Some("CHAR") | Some("VARCHAR2")
+            ) {
+                if let Some(param) = self.params.get_mut(0)
+                    && ui
+                        .add(egui::DragValue::new(param).speed(1).range(0..=40_000))
+                        .changed()
+                {
+                    changed = true;
+                }
+
+                let mut selected = if self.params.get(1).copied().unwrap_or(0) == 1 {
+                    CharOrByte::Char
+                } else {
+                    CharOrByte::Byte
+                };
+                let selected_before = selected;
+
+                egui::ComboBox::from_id_salt((id_salt, "length_semantics"))
+                    .selected_text(format!("{:?}", selected))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut selected, CharOrByte::Char, "Char");
+                        ui.selectable_value(&mut selected, CharOrByte::Byte, "Byte");
+                    });
+
+                if selected != selected_before {
+                    if let Some(semantics) = self.params.get_mut(1) {
+                        *semantics = if selected == CharOrByte::Char { 1 } else { 0 };
+                    }
+                    changed = true;
+                }
+            } else {
+                for param in self.params.iter_mut() {
+                    if ui
+                        .add(egui::DragValue::new(param).speed(1).range(0..=1_000_000))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                }
+            }
+
+            ui.label(")");
+        });
+
+        changed
     }
 }
 
@@ -243,55 +291,8 @@ impl AttributeType {
                             }
                         });
 
-                    // If the DataType is VARCHAR2 or CHAR, the second parameter should be BYTE/CHAR selection.
-                    // The built-in table currently uses indices: 0=NUMBER, 1=VARCHAR2, 2=CHAR.
-                    if dt.base == 1 || dt.base == 2 {
-                        // Ensure both params exist
-                        if dt.params.len() < 2 {
-                            dt.params.resize(2, 1);
-                        }
-
-                        // First param: size
-                        if let Some(param) = dt.params.get_mut(0)
-                            && ui
-                                .add(egui::DragValue::new(param).speed(1).range(0..=40_000))
-                                .changed()
-                        {
-                            changed = true;
-                        }
-
-                        // Second param: semantics
-                        let mut selected = if dt.params[1] == 1 {
-                            CharOrByte::Char
-                        } else {
-                            CharOrByte::Byte
-                        };
-
-                        let selected_before = selected;
-
-                        egui::ComboBox::from_id_salt(format!(
-                            "length_semantics_{}",
-                            id.data().as_ffi()
-                        ))
-                        .selected_text(format!("{:?}", selected))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut selected, CharOrByte::Char, "Char");
-                            ui.selectable_value(&mut selected, CharOrByte::Byte, "Byte");
-                        });
-
-                        if selected != selected_before {
-                            dt.params[1] = if selected == CharOrByte::Char { 1 } else { 0 };
-                            changed = true;
-                        }
-                    } else {
-                        for param in dt.params.iter_mut() {
-                            if ui
-                                .add(egui::DragValue::new(param).speed(1).range(0..=40_000))
-                                .changed()
-                            {
-                                changed = true;
-                            }
-                        }
+                    if dt.draw_params(ui, id.data().as_ffi()) {
+                        changed = true;
                     }
                 }
                 AttributeType::Domain(domain_id) => {
