@@ -1,6 +1,6 @@
 //! PostgreSQL SQL DDL exporter.
 
-use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, render_foreign_keys, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
+use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::datatype::{DATA_TYPES, DataType};
@@ -27,19 +27,37 @@ impl Export for PostgresDialect {
 
         let mut used_constraints = HashSet::new();
         let mut out = String::new();
-        writeln!(out, "-- stella24 PostgreSQL SQL export").unwrap();
-        writeln!(out).unwrap();
+        writeln!(out, "-- stella24 PostgreSQL SQL export").map_err(|_| SqlExportError::WriteError { context: "writing PostgreSQL header".to_string() })?;
+        writeln!(out).map_err(|_| SqlExportError::WriteError { context: "writing PostgreSQL header newline".to_string() })?;
 
         if !domains.is_empty() {
             for (_, domain) in sorted_domains(domains) {
                 render_domain(&mut out, domain, &mut used_constraints)?;
-                writeln!(out).unwrap();
+                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after domain {}", domain.name) })?;
             }
         }
 
+        // Phase 1: CREATE TABLE (no foreign keys)
         for (_, table) in sorted_tables(tables) {
             Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
-            writeln!(out).unwrap();
+            writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after CREATE TABLE {}", table.title) })?;
+        }
+
+        // Phase 2: emit foreign keys via ALTER TABLE so referenced tables
+        // are guaranteed to exist when the FK is added.
+        for (_, table) in sorted_tables(tables) {
+            let fk_lines = crate::app::exports::sql::sql_export::render_foreign_keys(
+                table,
+                tables,
+                &mut used_constraints,
+            )?;
+            let fk_len = fk_lines.len();
+            for fk in fk_lines {
+                writeln!(out, "ALTER TABLE {} ADD {};", table.title, fk).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER TABLE for {}", table.title) })?;
+            }
+            if fk_len > 0 {
+                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after ALTER TABLEs for {}", table.title) })?;
+            }
         }
 
         Ok(out)
@@ -80,7 +98,7 @@ impl Export for PostgresDialect {
     }
 
     fn render_table(out: &mut String, table: &Table, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<(), SqlExportError> {
-        writeln!(out, "CREATE TABLE {} (", table.title).unwrap();
+        writeln!(out, "CREATE TABLE {} (", table.title).map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE TABLE header for {}", table.title) })?;
         let mut lines = Vec::new();
 
         for (attr_id, attr) in sorted_attrs(table) {
@@ -95,17 +113,14 @@ impl Export for PostgresDialect {
         }
 
         lines.extend(Self::render_table_constraints(table, used_constraints)?);
-        lines.extend(render_foreign_keys(
-            table,
-            tables,
-            used_constraints,
-        )?);
+        // Foreign keys are emitted in a separate phase (ALTER TABLE) by the
+        // dialect build_sql implementation. Do not inline FK constraints here.
 
         for (idx, line) in lines.iter().enumerate() {
             let comma = if idx + 1 == lines.len() { "" } else { "," };
-            writeln!(out, "    {}{}", line, comma).unwrap();
+            writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError { context: format!("writing column line for {}", table.title) })?;
         }
-        writeln!(out, ");").unwrap();
+        writeln!(out, ");").map_err(|_| SqlExportError::WriteError { context: format!("writing end of CREATE TABLE {}", table.title) })?;
         Ok(())
     }
 
@@ -136,7 +151,7 @@ fn render_domain(
         domain.name,
         postgres_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
     )
-    .unwrap();
+    .map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE DOMAIN {}", domain.name) })?;
 
     for line in render_check_constraints(
         &domain.check_constraints,
@@ -147,7 +162,7 @@ fn render_domain(
         },
         |check| Ok(check.condition.clone()),
     )? {
-        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).unwrap();
+        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER DOMAIN {}", domain.name) })?;
     }
 
     Ok(())

@@ -133,6 +133,7 @@ pub struct AppStella {
     pub(crate) svg_export_modal: SvgExportModal,
     #[serde(skip)]
     pub project_settings_modal: ProjectSettingsModal,
+    #[serde(default)]
     pub project_name: String,
     #[serde(skip)]
     pub preferences_modal: PreferencesModal,

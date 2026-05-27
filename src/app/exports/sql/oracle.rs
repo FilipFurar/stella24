@@ -4,7 +4,7 @@
 //! 1. CREATE DOMAIN + CREATE TABLE (no FKs)
 //! 2. ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
 
-use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, render_foreign_keys, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
+use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::datatype::{DATA_TYPES, DataType};
@@ -34,28 +34,37 @@ impl Export for OracleDialect {
         validate_object_names(tables, domains)?;
         let mut used_constraints = HashSet::new();
         let mut out = String::new();
-        writeln!(out, "-- stella24 Oracle SQL export").unwrap();
-        writeln!(out).unwrap();
+        writeln!(out, "-- stella24 Oracle SQL export").map_err(|_| SqlExportError::WriteError { context: "writing Oracle header".to_string() })?;
+        writeln!(out).map_err(|_| SqlExportError::WriteError { context: "writing Oracle header newline".to_string() })?;
 
         // Phase 1a: Domains
         if !domains.is_empty() {
             for (_, domain) in sorted_domains(domains) {
                 render_domain(&mut out, domain, &mut used_constraints)?;
-                writeln!(out).unwrap();
+                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after domain {}", domain.name) })?;
             }
         }
 
         // Phase 1b: Tables (no FKs)
         for (_, table) in sorted_tables(tables) {
             Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
-            writeln!(out).unwrap();
+            writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after CREATE TABLE {}", table.title) })?;
         }
 
         // Phase 2: Foreign keys via ALTER TABLE
         for (_, table) in sorted_tables(tables) {
-            render_foreign_keys(table,
-                                      tables,
-                                      &mut used_constraints)?;
+            let fk_lines = crate::app::exports::sql::sql_export::render_foreign_keys(
+                table,
+                tables,
+                &mut used_constraints,
+            )?;
+            let fk_len = fk_lines.len();
+            for fk in fk_lines {
+                writeln!(out, "ALTER TABLE {} ADD {};", table.title, fk).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER TABLE for {}", table.title) })?;
+            }
+            if fk_len > 0 {
+                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after ALTER TABLEs for {}", table.title) })?;
+            }
         }
 
         Ok(out)
@@ -98,7 +107,7 @@ impl Export for OracleDialect {
     }
 
     fn render_table(out: &mut String, table: &Table, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<(), SqlExportError> {
-        writeln!(out, "CREATE TABLE {} (", table.title).unwrap();
+        writeln!(out, "CREATE TABLE {} (", table.title).map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE TABLE header for {}", table.title) })?;
         let mut lines = Vec::new();
         for (attr_id, attr) in sorted_attrs(table) {
             lines.push(Self::render_column(
@@ -113,9 +122,9 @@ impl Export for OracleDialect {
         lines.extend(Self::render_table_constraints(table, used_constraints)?);
         for (i, line) in lines.iter().enumerate() {
             let comma = if i + 1 == lines.len() { "" } else { "," };
-            writeln!(out, "    {}{}", line, comma).unwrap();
+            writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError { context: format!("writing column line for {}", table.title) })?;
         }
-        writeln!(out, ");").unwrap();
+        writeln!(out, ");").map_err(|_| SqlExportError::WriteError { context: format!("writing end of CREATE TABLE {}", table.title) })?;
         Ok(())
     }
 
@@ -145,7 +154,7 @@ fn render_domain(
         domain.name,
         oracle_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
     )
-    .unwrap();
+    .map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE DOMAIN {}", domain.name) })?;
 
     for line in render_check_constraints(
         &domain.check_constraints,
@@ -154,7 +163,7 @@ fn render_domain(
         |idx, check| constraint_name_or_fallback(&check.name, &format!("CHK_DOMAIN_{}_{}", domain.name, idx + 1)),
         |check| Ok(check.condition.clone()),
     )? {
-        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).unwrap();
+        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER DOMAIN {}", domain.name) })?;
     }
 
     Ok(())

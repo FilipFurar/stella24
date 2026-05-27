@@ -1,6 +1,6 @@
 //! SQLite SQL DDL exporter.
 
-use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, render_foreign_keys, resolve_referenced_attribute, sorted_attrs, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
+use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, resolve_referenced_attribute, sorted_attrs, validate_object_names, Export, SqlDialect, SqlExportError};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::datatype::DataType;
@@ -31,13 +31,38 @@ impl Export for SqliteDialect {
 
         let mut used_constraints = HashSet::new();
         let mut out = String::new();
-        writeln!(out, "-- stella24 SQLite SQL export").unwrap();
-        writeln!(out, "PRAGMA foreign_keys = ON;").unwrap();
-        writeln!(out).unwrap();
+        writeln!(out, "-- stella24 SQLite SQL export").map_err(|_| SqlExportError::WriteError { context: "writing SQLite header".to_string() })?;
+        writeln!(out, "PRAGMA foreign_keys = ON;").map_err(|_| SqlExportError::WriteError { context: "writing SQLite PRAGMA".to_string() })?;
+        writeln!(out).map_err(|_| SqlExportError::WriteError { context: "writing SQLite header newline".to_string() })?;
 
-        for (_, table) in sorted_tables(tables) {
-            Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
-            writeln!(out).unwrap();
+        // Try to emit tables in dependency order so referenced tables are
+        // created before tables that reference them. SQLite cannot add FKs
+        // later via ALTER TABLE, so ordering is important.
+        match crate::app::exports::sql::sql_export::topologically_sorted_tables(tables) {
+            Ok(order) => {
+                for (_id, table) in order {
+                    Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
+                    writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after CREATE TABLE {}", table.title) })?;
+                }
+            }
+            Err(SqlExportError::CyclicForeignKeyDependencies { tables: cyclic }) => {
+                // Cyclic dependencies detected; fall back to deterministic
+                // alphabetical order and emit a warning comment.
+                let names: Vec<String> = cyclic
+                    .into_iter()
+                    .filter_map(|id| tables.get(id).map(|t| t.title.clone()))
+                    .collect();
+                writeln!(out, "-- WARNING: cyclic foreign-key dependencies detected: {}", names.join(", ")).map_err(|_| SqlExportError::WriteError { context: "writing sqlite cycle warning".to_string() })?;
+                writeln!(out, "-- Falling back to deterministic table order; some CREATE TABLE statements may reference tables not yet created").map_err(|_| SqlExportError::WriteError { context: "writing sqlite cycle fallback warning".to_string() })?;
+                writeln!(out).map_err(|_| SqlExportError::WriteError { context: "writing newline after sqlite warnings".to_string() })?;
+                for (_, table) in crate::app::exports::sql::sql_export::sorted_tables(tables) {
+                    Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
+                    writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after CREATE TABLE {}", table.title) })?;
+                }
+            }
+            Err(e) => {
+                return Err(e);
+            }
         }
 
         Ok(out)
@@ -69,7 +94,7 @@ impl Export for SqliteDialect {
     }
 
     fn render_table(out: &mut String, table: &Table, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<(), SqlExportError> {
-        writeln!(out, "CREATE TABLE {} (", table.title).unwrap();
+        writeln!(out, "CREATE TABLE {} (", table.title).map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE TABLE header for {}", table.title) })?;
         let mut lines = Vec::new();
 
         for (attr_id, attr) in sorted_attrs(table) {
@@ -84,7 +109,7 @@ impl Export for SqliteDialect {
         }
 
         lines.extend(Self::render_table_constraints(table, used_constraints)?);
-        lines.extend(render_foreign_keys(
+        lines.extend(crate::app::exports::sql::sql_export::render_foreign_keys(
             table,
             tables,
             used_constraints,
@@ -92,9 +117,9 @@ impl Export for SqliteDialect {
 
         for (idx, line) in lines.iter().enumerate() {
             let comma = if idx + 1 == lines.len() { "" } else { "," };
-            writeln!(out, "    {}{}", line, comma).unwrap();
+            writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError { context: format!("writing column line for {}", table.title) })?;
         }
-        writeln!(out, ");").unwrap();
+        writeln!(out, ");").map_err(|_| SqlExportError::WriteError { context: format!("writing end of CREATE TABLE {}", table.title) })?;
         Ok(())
     }
 

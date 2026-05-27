@@ -233,6 +233,18 @@ pub enum SqlExportError {
         kind: &'static str,
         name: String,
     },
+    /// Error while writing SQL output (formatting/write to buffer failed).
+    WriteError {
+        context: String,
+    },
+    /// Cyclic foreign-key dependencies detected during topological sort.
+    CyclicForeignKeyDependencies {
+        tables: Vec<TableId>,
+    },
+    /// Internal invariant violation (unexpected missing map key etc.).
+    InternalError {
+        message: String,
+    },
 }
 
 impl fmt::Display for SqlExportError {
@@ -280,6 +292,18 @@ impl fmt::Display for SqlExportError {
             SqlExportError::IdentifierTooLong { kind, name } => {
                 write!(f, "{kind} identifier too long: {name}")
             }
+            SqlExportError::WriteError { context } => write!(f, "write error: {context}"),
+            SqlExportError::CyclicForeignKeyDependencies { tables } => write!(
+                f,
+                "cyclic foreign-key dependencies detected for tables: {}",
+                tables
+                    .iter()
+                    .map(|t| t.data().as_ffi().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "
+                )
+            ),
+            SqlExportError::InternalError { message } => write!(f, "internal error: {message}"),
         }
     }
 }
@@ -366,6 +390,104 @@ pub fn sorted_tables(tables: &SlotMap<TableId, Table>) -> Vec<(TableId, &Table)>
             .then_with(|| a_id.data().as_ffi().cmp(&b_id.data().as_ffi()))
     });
     out
+}
+
+/// Return tables in a topological order according to foreign-key dependencies.
+///
+/// If table A references table B, B will appear before A in the returned
+/// ordering. When cyclic dependencies are detected the function returns
+/// `Err` with the list of `TableId`s that participate in cycles (order is
+/// unspecified). Callers may fall back to a deterministic ordering when
+/// cycles are present.
+pub fn topologically_sorted_tables(
+    tables: &SlotMap<TableId, Table>,
+) -> Result<Vec<(TableId, &Table)>, SqlExportError> {
+    use std::collections::{HashMap, VecDeque};
+
+    // Map numeric id -> TableId so we can operate with integers for HashMaps
+    let mut id_by_num: HashMap<u64, TableId> = HashMap::new();
+    let mut adj: HashMap<u64, Vec<u64>> = HashMap::new();
+    let mut indeg: HashMap<u64, usize> = HashMap::new();
+
+    for (id, _table) in tables.iter() {
+        let k = id.data().as_ffi();
+        id_by_num.insert(k, id);
+        adj.insert(k, Vec::new());
+        indeg.insert(k, 0);
+    }
+
+    // Build edges: if table A references table B, add edge B -> A
+    for (id, table) in tables.iter() {
+        let a = id.data().as_ffi();
+        for fk in table.fks.values() {
+            if let Some(ref_table_id) = fk.references {
+                if tables.get(ref_table_id).is_some() {
+                    let b = ref_table_id.data().as_ffi();
+                    // add edge b -> a
+                    if let Some(vec) = adj.get_mut(&b) {
+                        vec.push(a);
+                    } else {
+                        return Err(SqlExportError::InternalError {
+                            message: format!("missing adjacency entry for table id {}", b),
+                        });
+                    }
+                    if let Some(ind) = indeg.get_mut(&a) {
+                        *ind += 1;
+                    } else {
+                        return Err(SqlExportError::InternalError {
+                            message: format!("missing indegree entry for table id {}", a),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    let mut q: VecDeque<u64> = indeg
+        .iter()
+        .filter_map(|(&k, &v)| if v == 0 { Some(k) } else { None })
+        .collect();
+
+    let mut order_nums: Vec<u64> = Vec::new();
+    while let Some(n) = q.pop_front() {
+        order_nums.push(n);
+        if let Some(neighbors) = adj.get(&n) {
+            for &m in neighbors {
+                if let Some(d) = indeg.get_mut(&m) {
+                    *d -= 1;
+                    if *d == 0 {
+                        q.push_back(m);
+                    }
+                }
+            }
+        }
+    }
+
+    if order_nums.len() == id_by_num.len() {
+        // Map back to TableId + &Table
+        let mut out = Vec::new();
+        for num in order_nums {
+            let tid = id_by_num.get(&num).ok_or_else(|| SqlExportError::InternalError {
+                message: format!("missing TableId mapping for numeric id {}", num),
+            })?;
+            let tbl = tables.get(*tid).ok_or_else(|| SqlExportError::InternalError {
+                message: format!("missing table object for id {}", num),
+            })?;
+            out.push((*tid, tbl));
+        }
+        Ok(out)
+    } else {
+        // Cycle detected: collect remaining ids with indegree > 0
+        let mut cyclic = Vec::new();
+        for (&k, &d) in &indeg {
+            if d > 0 {
+                if let Some(tid) = id_by_num.get(&k) {
+                    cyclic.push(*tid);
+                }
+            }
+        }
+        Err(SqlExportError::CyclicForeignKeyDependencies { tables: cyclic })
+    }
 }
 
 /// Return domains in a stable, display-friendly order.
