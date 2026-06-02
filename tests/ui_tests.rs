@@ -118,7 +118,12 @@ fn clicking_add_button_sets_add_attribute_change() {
     let mut tables_map: SlotMap<TableId, Table> = SlotMap::with_key();
     let table_id = tables_map.insert(Table::default());
 
-    let ctx = TableUiContext::from_app(&tables_map, &SlotMap::with_key(), table_id, SqlDialect::Oracle);
+    let ctx = TableUiContext::from_app(
+        &tables_map,
+        &SlotMap::with_key(),
+        table_id,
+        SqlDialect::Oracle,
+    );
 
     let table = Rc::new(RefCell::new(Table::default()));
     let table_for_ui = Rc::clone(&table);
