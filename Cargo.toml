@@ -12,8 +12,9 @@ all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
-egui = { version = "0.33.3", default-features = false, features = ["color-hex"] }
+egui = { version = "0.33.3", default-features = false, features = ["color-hex", "accesskit"] }
 egui_extras = { version = "0.33.3", features = ["syntect", "image", "svg"] }
+egui-winit = { version = "0.33.3", default-features = false, features = ["accesskit"] }
 log = "0.4.29"
 svg = "0.18"
 
@@ -21,6 +22,7 @@ svg = "0.18"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 slotmap = { version = "1.1.1", features = ["serde"] }
+egui-keybind = { version = "0.8.0", features = ["serde"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -57,3 +59,7 @@ egui_kittest = "0.33.0"
 [features]
 default = []
 native-accesskit = ["eframe/accesskit"]
+
+[patch.crates-io]
+#egui-winit = { path = "vendor/egui-winit" }
+

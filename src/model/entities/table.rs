@@ -1,4 +1,5 @@
 // model/entities/table.rs
+use crate::app::exports::sql::sql_export::SqlDialect;
 use crate::model::attribute::{AttrId, Attribute};
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, NotNull, PrimaryKey, Unique};
@@ -61,6 +62,11 @@ pub struct Table {
 impl Table {
     pub fn new_field(&mut self) {
         self.attributes.insert(Attribute::default());
+    }
+
+    pub fn new_field_for_dialect(&mut self, dialect: SqlDialect) {
+        self.attributes
+            .insert(Attribute::default_for_dialect(dialect));
     }
 
     pub fn change_fk(&mut self, fk_id: FkId, foreign_key: ForeignKey) {

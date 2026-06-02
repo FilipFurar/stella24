@@ -1,6 +1,7 @@
 // model/entities/domain.rs
 
 use super::super::datatype::DataType;
+use crate::app::exports::sql::sql_export::SqlDialect;
 use crate::model::constraints::check::Check;
 
 /// SQL Domain
@@ -19,10 +20,17 @@ impl Default for Domain {
     fn default() -> Self {
         Self {
             name: "Domain".to_string(),
-            data_type: DataType {
-                base: 1,
-                params: vec![5],
-            },
+            data_type: DataType::default_for_dialect(SqlDialect::Oracle),
+            check_constraints: vec![],
+        }
+    }
+}
+
+impl Domain {
+    pub fn default_for_dialect(dialect: SqlDialect) -> Self {
+        Self {
+            name: "Domain".to_string(),
+            data_type: DataType::default_for_dialect(dialect),
             check_constraints: vec![],
         }
     }

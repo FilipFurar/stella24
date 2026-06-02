@@ -2,37 +2,34 @@
 
 use crate::app::{Command, TableId};
 use crate::model::attribute::AttrId;
+use crate::model::attribute::Attribute;
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
 use crate::model::entities::table::Table;
+use crate::ui::changes::IntoCommands;
 use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
+use crate::ui::widgets::inputs::labeled_text_edit;
 use eframe::emath::{Rect, pos2};
 use eframe::epaint::Color32;
 use egui::{Id, Modal, RichText, Sense, Stroke, Ui};
+use slotmap::Key;
 use std::collections::HashSet;
 
 const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 
-#[derive(Default, Debug)]
-pub struct AttributeRowChanges {
-    pub attr_id: AttrId,
-    pub rename_changed: bool,
-    pub type_changed: bool,
-    pub not_null_changed: bool,
-    pub unique_changed: bool,
-    pub pk_change: Option<bool>,
-    pub delete: bool,
-}
-
 #[derive(Default)]
 pub struct TableChanges {
-    pub title_changed: bool,
     pub add_attribute: bool,
-    pub attribute_changes: Vec<AttributeRowChanges>,
     pub commands: Vec<Command>,
+}
+
+impl IntoCommands for TableChanges {
+    fn into_commands(self) -> Vec<Command> {
+        self.commands
+    }
 }
 
 impl Table {
@@ -145,7 +142,7 @@ impl Table {
     }
 
     /// Draw ForeignKey constraints
-    pub fn draw_fks(&mut self, ui: &mut Ui) -> Vec<FkId> {
+    pub fn draw_fks(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<FkId> {
         if self.fks.is_empty() {
             return Vec::new();
         }
@@ -157,7 +154,10 @@ impl Table {
                 .stroke(Stroke::new(1.0, BLUE))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        fk.draw(ui);
+                        fk.draw(
+                            ui,
+                            ("table_fk", table_id.data().as_ffi(), fkid.data().as_ffi()),
+                        );
                         if ui.button("🗑").clicked() {
                             to_delete.push(fkid);
                         }
@@ -185,7 +185,11 @@ impl Table {
             egui::Frame::group(ui.style())
                 .stroke(Stroke::new(1.0, GREEN))
                 .show(ui, |ui| {
-                    unique.draw(ui, &self.attributes);
+                    unique.draw(
+                        ui,
+                        &self.attributes,
+                        ("table_unique", table_id.data().as_ffi(), i),
+                    );
                     ui.horizontal(|ui| {
                         if ui.button("Edit").clicked() {
                             self.current_unique = Some(i);
@@ -224,11 +228,16 @@ impl Table {
         commands
     }
 
-    pub fn draw_checks(&mut self, ui: &mut Ui) -> Vec<usize> {
+    pub fn draw_checks(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<usize> {
         let mut to_delete: Vec<usize> = Vec::new();
 
         for (i, check) in self.checks.iter_mut().enumerate() {
-            if draw_check(ui, check, ("table_check", i), "sql") {
+            if draw_check(
+                ui,
+                check,
+                ("table_check", table_id.data().as_ffi(), i),
+                "sql",
+            ) {
                 to_delete.push(i);
             }
         }
@@ -292,7 +301,12 @@ impl Table {
         commands
     }
 
-    fn draw_attributes(&mut self, ui: &mut Ui, ctx: &TableUiContext) -> Vec<AttributeRowChanges> {
+    fn draw_attributes(
+        &mut self,
+        ui: &mut Ui,
+        ctx: &TableUiContext,
+        table_id: TableId,
+    ) -> Vec<Command> {
         let mut result = Vec::new();
 
         // AttrOrder is synced with SlotMap
@@ -334,25 +348,8 @@ impl Table {
                     }
 
                     let disable_inline_unique = attrs_in_table_uniques.contains(&id);
-                    let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
-
-                    if changes.rename_changed
-                        || changes.type_changed
-                        || changes.not_null_changed
-                        || changes.unique_changed
-                        || changes.pk_change.is_some()
-                        || changes.delete
-                    {
-                        result.push(AttributeRowChanges {
-                            attr_id: id,
-                            rename_changed: changes.rename_changed,
-                            type_changed: changes.type_changed,
-                            not_null_changed: changes.not_null_changed,
-                            unique_changed: changes.unique_changed,
-                            pk_change: changes.pk_change,
-                            delete: changes.delete,
-                        });
-                    }
+                    let changes = attr.draw_attribute(ui, id, table_id, ctx, disable_inline_unique);
+                    result.extend(changes.into_commands());
                 });
             });
 
@@ -420,18 +417,25 @@ impl Table {
     pub fn draw(&mut self, ui: &mut Ui, ctx: &TableUiContext, table_id: TableId) -> TableChanges {
         let mut changes = TableChanges::default();
 
-        ui.horizontal(|ui| {
-            ui.label("Title:");
-            if ui.text_edit_singleline(&mut self.title).changed() {
-                changes.title_changed = true;
-            }
-        });
+        if labeled_text_edit(
+            ui,
+            "Title:",
+            &mut self.title,
+            format!("table_title_{}", table_id.data().as_ffi()),
+        ) {
+            changes.commands.push(Command::RenameTable {
+                table: table_id,
+                title: self.title.clone(),
+            });
+        }
         ui.separator();
 
-        changes.attribute_changes = self.draw_attributes(ui, ctx);
+        changes
+            .commands
+            .extend(self.draw_attributes(ui, ctx, table_id));
 
         self.draw_pk(ui);
-        for fkid in self.draw_fks(ui) {
+        for fkid in self.draw_fks(ui, table_id) {
             changes.commands.push(Command::DeleteForeignKey {
                 table: table_id,
                 fk: fkid,
@@ -439,7 +443,7 @@ impl Table {
         }
 
         changes.commands.extend(self.draw_uniques(ui, table_id));
-        for index in self.draw_checks(ui).into_iter().rev() {
+        for index in self.draw_checks(ui, table_id).into_iter().rev() {
             changes.commands.push(Command::DeleteTableCheck {
                 table: table_id,
                 index,
@@ -461,6 +465,10 @@ impl Table {
         ui.horizontal(|ui| {
             if ui.button("Add").clicked() {
                 changes.add_attribute = true;
+                changes.commands.push(Command::AddAttribute {
+                    table: table_id,
+                    attribute: Attribute::default_for_dialect(ctx.selected_sql_dialect),
+                });
             }
             if ui.button("New FK").clicked() {
                 self.current_fk = Some(ForeignKey::new());

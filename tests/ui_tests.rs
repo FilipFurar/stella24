@@ -4,6 +4,7 @@ use slotmap::SlotMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 use stella24::app::TableId;
+use stella24::app::exports::sql::sql_export::SqlDialect;
 use stella24::model::attribute::Attribute;
 use stella24::model::constraints::constraint::ForeignKey;
 use stella24::model::constraints::constraint::Unique;
@@ -61,8 +62,11 @@ fn deleting_fk_from_ui_removes_fk_and_its_local_attributes() {
         fk_attr
     };
 
+    let mut tables_map: SlotMap<TableId, Table> = SlotMap::with_key();
+    let table_id = tables_map.insert(Table::default());
+
     let mut harness = Harness::new_ui(move |ui| {
-        table_for_ui.borrow_mut().draw_fks(ui);
+        table_for_ui.borrow_mut().draw_fks(ui, table_id);
     });
 
     harness.get_by_label("🗑").click();
@@ -114,7 +118,12 @@ fn clicking_add_button_sets_add_attribute_change() {
     let mut tables_map: SlotMap<TableId, Table> = SlotMap::with_key();
     let table_id = tables_map.insert(Table::default());
 
-    let ctx = TableUiContext::from_app(&tables_map, &SlotMap::with_key(), table_id);
+    let ctx = TableUiContext::from_app(
+        &tables_map,
+        &SlotMap::with_key(),
+        table_id,
+        SqlDialect::Oracle,
+    );
 
     let table = Rc::new(RefCell::new(Table::default()));
     let table_for_ui = Rc::clone(&table);

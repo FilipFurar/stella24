@@ -194,18 +194,15 @@ impl AppStella {
                 if let Some(item) = self.undo_history.pop() {
                     match item {
                         UndoItem::Inverse(inv_cmd) => {
-                            // Apply inverse without recording it to undo_history; compute redo item
                             if let Some(redo_item) = self.apply_inverse_without_recording(inv_cmd) {
                                 self.redo_history.push(redo_item);
                             }
                         }
                         UndoItem::Snapshot(prev_state) => {
-                            // Push current snapshot to redo and restore previous state
-                            let current = self.clone_without_histories();
-                            self.redo_history.push(UndoItem::Snapshot(current));
-                            self.tables = prev_state.tables;
-                            self.domains = prev_state.domains;
-                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                            self.redo_history.push(UndoItem::Snapshot(Box::from(
+                                self.clone_without_histories(),
+                            )));
+                            self.restore_snapshot(*prev_state);
                         }
                     }
                 }
@@ -221,36 +218,41 @@ impl AppStella {
                             }
                         }
                         UndoItem::Snapshot(prev_state) => {
-                            let current = self.clone_without_histories();
-                            self.undo_history.push(UndoItem::Snapshot(current));
-                            self.tables = prev_state.tables;
-                            self.domains = prev_state.domains;
-                            self.workbench_table_rects = prev_state.workbench_table_rects;
+                            self.undo_history.push(UndoItem::Snapshot(Box::from(
+                                self.clone_without_histories(),
+                            )));
+                            self.restore_snapshot(*prev_state);
                         }
                     }
                 }
             }
-            other => {
-                // For normal commands: try to compute a cheap inverse before applying.
-                // If we cannot, fall back to snapshotting the whole state.
-                self.redo_history.clear();
-                if let Some(pre_inv) = self.compute_inverse_pre(&other) {
-                    // We were able to compute inverse based on current state
-                    self.execute_command(other);
-                    self.push_undo_item(UndoItem::Inverse(pre_inv));
-                } else {
-                    let snapshot = self.clone_without_histories();
-                    self.execute_command(other);
-                    self.push_undo_item(UndoItem::Snapshot(snapshot));
-                }
-            }
+            other => self.apply_command_with_history(other),
         }
     }
+
+    fn apply_command_with_history(&mut self, cmd: Command) {
+        self.redo_history.clear();
+        if let Some(pre_inv) = self.compute_inverse_pre(&cmd) {
+            self.apply_command(cmd);
+            self.push_undo_item(UndoItem::Inverse(pre_inv));
+        } else {
+            let snapshot = self.clone_without_histories();
+            self.apply_command(cmd);
+            self.push_undo_item(UndoItem::Snapshot(Box::from(snapshot)));
+        }
+    }
+
     pub fn execute_command(&mut self, cmd: Command) {
+        self.apply_command(cmd);
+    }
+
+    fn apply_command(&mut self, cmd: Command) {
         match cmd {
             Command::NewCanvas => {
                 self.tables.clear();
                 self.domains.clear();
+                self.domain_order.clear();
+                self.workbench_table_layout.clear();
                 self.workbench_table_rects.clear();
                 self.workbench_pan = egui::Vec2::ZERO;
                 self.workbench_zoom = 1.0;
@@ -295,7 +297,13 @@ impl AppStella {
                 if let Some(t) = self.tables.get_mut(table)
                     && let Some(a) = t.attributes.get_mut(attr)
                 {
-                    a.attribute_type = attribute_type;
+                    a.attribute_type = match attribute_type {
+                        AttributeType::Logical(mut dt) => {
+                            dt.normalize_params();
+                            AttributeType::Logical(dt)
+                        }
+                        other => other,
+                    };
                 }
             }
             Command::SetAttributeNotNull { table, attr, value } => {
@@ -329,14 +337,18 @@ impl AppStella {
                 }
             }
             Command::CreateDomain { name, data_type } => {
-                self.domains.insert(Domain {
+                let mut data_type = data_type;
+                data_type.normalize_params();
+                let id = self.domains.insert(Domain {
                     name,
                     data_type,
                     check_constraints: vec![],
                 });
+                self.domain_order.push(id);
             }
             Command::DeleteDomain { domain } => {
                 self.domains.remove(domain);
+                self.domain_order.retain(|id| *id != domain);
             }
             Command::RenameDomain { domain, name } => {
                 if let Some(d) = self.domains.get_mut(domain) {
@@ -345,6 +357,8 @@ impl AppStella {
             }
             Command::SetDomainType { domain, data_type } => {
                 if let Some(d) = self.domains.get_mut(domain) {
+                    let mut data_type = data_type;
+                    data_type.normalize_params();
                     d.data_type = data_type;
                 }
             }
@@ -450,6 +464,40 @@ impl AppStella {
         }
     }
 
+    fn clone_without_histories(&self) -> Self {
+        AppStella {
+            tables: self.tables.clone(),
+            domains: self.domains.clone(),
+            domain_order: self.domain_order.clone(),
+            settings: Default::default(),
+            preferences: Default::default(),
+            workbench_table_layout: self.workbench_table_layout.clone(),
+            command_queue: CommandQueue::default(),
+            modals: Default::default(),
+            workbench_table_rects: self.workbench_table_rects.clone(),
+            workbench_pan: self.workbench_pan,
+            workbench_zoom: self.workbench_zoom,
+            dragged_domain: self.dragged_domain,
+            dragged_domain_from_index: self.dragged_domain_from_index,
+            undo_history: Vec::new(),
+            redo_history: Vec::new(),
+        }
+    }
+
+    fn restore_snapshot(&mut self, snapshot: AppStella) {
+        self.tables = snapshot.tables;
+        self.domains = snapshot.domains;
+        self.domain_order = snapshot.domain_order;
+        self.workbench_table_layout = snapshot.workbench_table_layout;
+        self.workbench_table_rects = snapshot.workbench_table_rects;
+        self.workbench_pan = snapshot.workbench_pan;
+        self.workbench_zoom = snapshot.workbench_zoom;
+        self.settings = snapshot.settings;
+        self.preferences = snapshot.preferences;
+        self.dragged_domain = None;
+        self.dragged_domain_from_index = None;
+    }
+
     fn push_undo_item(&mut self, item: UndoItem) {
         self.undo_history.push(item);
         if self.undo_history.len() > MAX_HISTORY_STATES {
@@ -460,15 +508,13 @@ impl AppStella {
     /// Applies a command without recording to undo_history. Returns an UndoItem that
     /// represents the inverse of the command applied (suitable for pushing to the other stack).
     fn apply_inverse_without_recording(&mut self, cmd: Command) -> Option<UndoItem> {
-        // Try to compute a cheap inverse for cmd given current state
         if let Some(pre_inv) = self.compute_inverse_pre(&cmd) {
-            self.execute_command(cmd);
+            self.apply_command(cmd);
             Some(UndoItem::Inverse(pre_inv))
         } else {
-            // Snapshot fallback
             let snapshot = self.clone_without_histories();
-            self.execute_command(cmd);
-            Some(UndoItem::Snapshot(snapshot))
+            self.apply_command(cmd);
+            Some(UndoItem::Snapshot(Box::from(snapshot)))
         }
     }
 

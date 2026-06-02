@@ -1,6 +1,7 @@
 // model/attribute
 
 use crate::app::DomainId;
+use crate::app::exports::sql::sql_export::SqlDialect;
 use crate::model::datatype::DataType;
 
 slotmap::new_key_type! {
@@ -50,13 +51,22 @@ impl Attribute {
 }
 
 impl Attribute {
+    pub fn default_for_dialect(dialect: SqlDialect) -> Self {
+        Self {
+            name: "".to_string(),
+            attribute_type: AttributeType::Logical(DataType::default_for_dialect(dialect)),
+            pk: false,
+            not_null: true,
+            unique: false,
+        }
+    }
+
     pub fn default_primary_key() -> Self {
         Self {
             name: "id".to_string(),
-            attribute_type: AttributeType::Logical(DataType {
-                base: 3,
-                params: vec![1, 0],
-            }),
+            attribute_type: AttributeType::Logical(DataType::default_for_dialect(
+                SqlDialect::Oracle,
+            )),
             pk: true,
             not_null: false,
             unique: false,
@@ -78,15 +88,6 @@ pub enum AttributeType {
 
 impl Default for Attribute {
     fn default() -> Self {
-        Self {
-            name: "".to_string(),
-            attribute_type: AttributeType::Logical(DataType {
-                base: 0,
-                params: vec![1],
-            }),
-            pk: false,
-            not_null: true,
-            unique: false,
-        }
+        Self::default_for_dialect(SqlDialect::Oracle)
     }
 }

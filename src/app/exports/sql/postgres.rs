@@ -1,8 +1,4 @@
-//! Oracle SQL DDL exporter (Oracle 23c+ compatible).
-//!
-//! Two-phase generation:
-//! 1. CREATE DOMAIN + CREATE TABLE (no FKs)
-//! 2. ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
+//! PostgreSQL SQL DDL exporter.
 
 use crate::app::exports::sql::sql_export::{
     Export, SqlDialect, SqlExportError, constraint_name_or_fallback, render_check_constraints,
@@ -18,16 +14,16 @@ use slotmap::SlotMap;
 use std::collections::HashSet;
 use std::fmt::Write;
 
-/// Oracle SQL DDL exporter (Oracle 23c+ compatible).
+/// PostgreSQL SQL DDL exporter.
 ///
-/// Produces Oracle-specific CREATE DOMAIN / CREATE TABLE statements and
-/// emits foreign keys in a second phase via ALTER TABLE statements.
+/// Produces PostgreSQL-compatible `CREATE DOMAIN` and `CREATE TABLE`
+/// statements, including named constraints and foreign keys.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct OracleDialect;
+pub struct PostgresDialect;
 
-impl Export for OracleDialect {
+impl Export for PostgresDialect {
     fn dialect(&self) -> SqlDialect {
-        SqlDialect::Oracle
+        SqlDialect::Postgres
     }
 
     fn build_sql(
@@ -36,16 +32,18 @@ impl Export for OracleDialect {
         domains: &SlotMap<DomainId, Domain>,
     ) -> Result<String, SqlExportError> {
         validate_object_names(tables, domains)?;
+
         let mut used_constraints = HashSet::new();
         let mut out = String::new();
-        writeln!(out, "-- stella24 Oracle SQL export").map_err(|_| SqlExportError::WriteError {
-            context: "writing Oracle header".to_string(),
+        writeln!(out, "-- stella24 PostgreSQL SQL export").map_err(|_| {
+            SqlExportError::WriteError {
+                context: "writing PostgreSQL header".to_string(),
+            }
         })?;
         writeln!(out).map_err(|_| SqlExportError::WriteError {
-            context: "writing Oracle header newline".to_string(),
+            context: "writing PostgreSQL header newline".to_string(),
         })?;
 
-        // Phase 1a: Domains
         if !domains.is_empty() {
             for (_, domain) in sorted_domains(domains) {
                 render_domain(&mut out, domain, &mut used_constraints)?;
@@ -55,7 +53,7 @@ impl Export for OracleDialect {
             }
         }
 
-        // Phase 1b: Tables (no FKs)
+        // Phase 1: CREATE TABLE (no foreign keys)
         for (_, table) in sorted_tables(tables) {
             Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
             writeln!(out).map_err(|_| SqlExportError::WriteError {
@@ -63,7 +61,8 @@ impl Export for OracleDialect {
             })?;
         }
 
-        // Phase 2: Foreign keys via ALTER TABLE
+        // Phase 2: emit foreign keys via ALTER TABLE so referenced tables
+        // are guaranteed to exist when the FK is added.
         for (_, table) in sorted_tables(tables) {
             let fk_lines = crate::app::exports::sql::sql_export::render_foreign_keys(
                 table,
@@ -97,11 +96,11 @@ impl Export for OracleDialect {
     ) -> Result<String, SqlExportError> {
         match &attr.attribute_type {
             AttributeType::Logical(dt) => {
-                oracle_type_sql(dt, &format!("column {}.{}", table.title, attr.name))
+                postgres_type_sql(dt, &format!("column {}.{}", table.title, attr.name))
             }
             AttributeType::Domain(domain_id) => {
                 let Some(domain) = domains.get(*domain_id) else {
-                    return Ok("NUMBER".to_string());
+                    return Ok("NUMERIC".to_string());
                 };
                 Ok(domain.name.clone())
             }
@@ -109,7 +108,7 @@ impl Export for OracleDialect {
                 let (_fk, ref_table, referenced_attr) =
                     resolve_referenced_attribute(table, attr_id, tables)?;
                 match &referenced_attr.attribute_type {
-                    AttributeType::Logical(dt) => oracle_type_sql(
+                    AttributeType::Logical(dt) => postgres_type_sql(
                         dt,
                         &format!(
                             "foreign key target {}.{}",
@@ -118,14 +117,14 @@ impl Export for OracleDialect {
                     ),
                     AttributeType::Domain(domain_id) => {
                         let Some(domain) = domains.get(*domain_id) else {
-                            return Ok("NUMBER".to_string());
+                            return Ok("NUMERIC".to_string());
                         };
-                        oracle_type_sql(
+                        postgres_type_sql(
                             &domain.data_type,
                             &format!("foreign key target domain {}", domain.name),
                         )
                     }
-                    AttributeType::ForeignKeyAttribute(_) => Ok("NUMBER".to_string()),
+                    AttributeType::ForeignKeyAttribute(_) => Ok("NUMERIC".to_string()),
                 }
             }
         }
@@ -144,6 +143,7 @@ impl Export for OracleDialect {
             }
         })?;
         let mut lines = Vec::new();
+
         for (attr_id, attr) in sorted_attrs(table) {
             lines.push(Self::render_column(
                 table,
@@ -154,9 +154,13 @@ impl Export for OracleDialect {
                 used_constraints,
             )?);
         }
+
         lines.extend(Self::render_table_constraints(table, used_constraints)?);
-        for (i, line) in lines.iter().enumerate() {
-            let comma = if i + 1 == lines.len() { "" } else { "," };
+        // Foreign keys are emitted in a separate phase (ALTER TABLE) by the
+        // dialect build_sql implementation. Do not inline FK constraints here.
+
+        for (idx, line) in lines.iter().enumerate() {
+            let comma = if idx + 1 == lines.len() { "" } else { "," };
             writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError {
                 context: format!("writing column line for {}", table.title),
             })?;
@@ -184,10 +188,12 @@ impl Export for OracleDialect {
             used_constraints,
             Self::attribute_type_sql,
         )?;
+
         Ok(parts.join(" "))
     }
 }
 
+/// Render one PostgreSQL domain declaration with optional CHECK constraints.
 fn render_domain(
     out: &mut String,
     domain: &Domain,
@@ -197,7 +203,7 @@ fn render_domain(
         out,
         "CREATE DOMAIN {} AS {};",
         domain.name,
-        oracle_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
+        postgres_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
     )
     .map_err(|_| SqlExportError::WriteError {
         context: format!("writing CREATE DOMAIN {}", domain.name),
@@ -225,12 +231,8 @@ fn render_domain(
     Ok(())
 }
 
-/// Map a model `DataType` to an Oracle SQL type string.
-///
-/// Returns an error when the `base` index does not exist in the current
-/// Oracle datatype catalog. `context` is used in the error message to aid
-/// diagnostics.
-fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportError> {
+/// Map a model `DataType` to a PostgreSQL SQL type string.
+fn postgres_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportError> {
     let type_name = dt.type_name();
     if type_name == "UNKNOWN" {
         return Err(SqlExportError::UnsupportedDataType {
@@ -238,39 +240,28 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
             base: dt.base,
         });
     }
+
     let sql = match type_name {
-        // Character types
-        "CHAR" => match dt.params.as_slice() {
-            [size, char_semantics] => format!(
-                "CHAR({} {})",
-                size,
-                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
-            ),
-            [size] => format!("CHAR({})", size),
-            _ => "CHAR(1)".to_string(),
-        },
-        "NCHAR" => format!("NCHAR({})", dt.params.first().copied().unwrap_or(1)),
-        "VARCHAR2" => match dt.params.as_slice() {
-            [size, char_semantics] => format!(
-                "VARCHAR2({} {})",
-                size,
-                if *char_semantics == 1 { "CHAR" } else { "BYTE" }
-            ),
-            [size] => format!("VARCHAR2({})", size),
-            _ => "VARCHAR2(1)".to_string(),
-        },
-        "NVARCHAR2" => format!("NVARCHAR2({})", dt.params.first().copied().unwrap_or(1)),
+        "CHAR" | "NCHAR" => format!("CHAR({})", dt.params.first().copied().unwrap_or(1)),
+        "VARCHAR2" | "NVARCHAR2" | "VARCHAR" => {
+            format!("VARCHAR({})", dt.params.first().copied().unwrap_or(1))
+        }
 
-        // Numeric types
         "NUMBER" => match dt.params.as_slice() {
-            [precision, scale] => format!("NUMBER({}, {})", precision, scale),
-            [precision] => format!("NUMBER({})", precision),
-            _ => "NUMBER".to_string(),
+            [precision, scale] => format!("NUMERIC({}, {})", precision, scale),
+            [precision] => format!("NUMERIC({})", precision),
+            _ => "NUMERIC".to_string(),
         },
-        "FLOAT" => format!("FLOAT({})", dt.params.first().copied().unwrap_or(126)),
+        "FLOAT" => match dt.params.first().copied() {
+            Some(p) => format!("FLOAT({})", p),
+            None => "FLOAT".to_string(),
+        },
 
-        // Date/time types
         "DATE" => "DATE".to_string(),
+        "SMALLINT" => "SMALLINT".to_string(),
+        "INTEGER" | "INT" => "INTEGER".to_string(),
+        "BIGINT" => "BIGINT".to_string(),
+        "BYTEA" => "BYTEA".to_string(),
         "TIMESTAMP" => match dt.params.first().copied().unwrap_or(6) {
             0 => "TIMESTAMP".to_string(),
             p => format!("TIMESTAMP({})", p),
@@ -280,41 +271,20 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
             p => format!("TIMESTAMP({}) WITH TIME ZONE", p),
         },
         "TIMESTAMP WITH LOCAL TIME ZONE" => match dt.params.first().copied().unwrap_or(6) {
-            0 => "TIMESTAMP WITH LOCAL TIME ZONE".to_string(),
-            p => format!("TIMESTAMP({}) WITH LOCAL TIME ZONE", p),
+            0 => "TIMESTAMP WITH TIME ZONE".to_string(),
+            p => format!("TIMESTAMP({}) WITH TIME ZONE", p),
         },
 
-        // Interval types
-        "INTERVAL YEAR TO MONTH" => format!(
-            "INTERVAL YEAR({}) TO MONTH",
-            dt.params.first().copied().unwrap_or(2)
-        ),
-        "INTERVAL DAY TO SECOND" => match dt.params.as_slice() {
-            [day_precision, second_precision] => format!(
-                "INTERVAL DAY({}) TO SECOND({})",
-                day_precision, second_precision
-            ),
-            [day_precision] => format!("INTERVAL DAY({}) TO SECOND", day_precision),
-            _ => "INTERVAL DAY TO SECOND".to_string(),
-        },
+        "INTERVAL YEAR TO MONTH" | "INTERVAL DAY TO SECOND" | "INTERVAL" => "INTERVAL".to_string(),
 
-        // LOB and raw types
-        "LONG" => "LONG".to_string(),
-        "LONG RAW" => "LONG RAW".to_string(),
-        "NCLOB" => "NCLOB".to_string(),
-        "BLOB" => "BLOB".to_string(),
-        "BFILE" => "BFILE".to_string(),
+        "LONG" | "NCLOB" => "TEXT".to_string(),
+        "LONG RAW" | "BLOB" | "BFILE" => "BYTEA".to_string(),
 
-        // Binary float types
-        "BINARY_FLOAT" => "BINARY_FLOAT".to_string(),
-        "BINARY_DOUBLE" => "BINARY_DOUBLE".to_string(),
+        "BINARY_FLOAT" => "REAL".to_string(),
+        "BINARY_DOUBLE" => "DOUBLE PRECISION".to_string(),
 
-        // Rowid types
-        "ROWID" => "ROWID".to_string(),
-        "UROWID" => match dt.params.first().copied() {
-            Some(size) => format!("UROWID({})", size),
-            None => "UROWID".to_string(),
-        },
+        "ROWID" => "TEXT".to_string(),
+        "UROWID" => "TEXT".to_string(),
 
         other => {
             return Err(SqlExportError::UnsupportedDataType {
@@ -323,5 +293,6 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
             });
         }
     };
+
     Ok(sql)
 }

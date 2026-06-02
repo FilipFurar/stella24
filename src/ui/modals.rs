@@ -1,14 +1,128 @@
 use crate::AppStella;
+use crate::app::exports::sql::sql_export::SqlDialect;
 use crate::app::exports::svg_export::{SvgExportOptions, SvgLayoutMode, SvgThemeChoice};
-use crate::app::{SqlExportModal, SvgExportModal};
+use crate::app::{PreferencesModal, ProjectSettingsModal, SqlExportModal, SvgExportModal};
+use crate::ui::widgets::code::draw_highlighted_code;
 use eframe::emath::vec2;
 use egui::Id;
 use rfd::FileDialog;
 use std::fs;
 
 impl AppStella {
+    /// Renders a modal for changing current model's properties
+    pub fn draw_project_settings_modal(&mut self, ctx: &egui::Context) {
+        if matches!(
+            self.modals.project_settings_modal,
+            ProjectSettingsModal::Hidden
+        ) {
+            return;
+        }
+
+        let mut close_modal = false;
+        let current_sql_dialect = self.settings.selected_sql_dialect;
+        let mut selected_sql_dialect = current_sql_dialect;
+
+        egui::Window::new("Project settings")
+            .id(Id::new("project_settings_window"))
+            .resizable(true)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Project name");
+                    ui.text_edit_singleline(&mut self.settings.project_name);
+                });
+
+                ui.horizontal(|ui| {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    ui.label("Project path");
+                    #[cfg(not(target_arch = "wasm32"))]
+                    ui.label(self.settings.path.display().to_string());
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if ui.button("Browse").clicked()
+                        && let Some(path) = FileDialog::new().pick_folder()
+                    {
+                        self.settings.path = path;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Dialect");
+                    egui::ComboBox::from_id_salt("sql_export_dialect")
+                        .selected_text(selected_sql_dialect.to_string())
+                        .show_ui(ui, |ui| {
+                            for dialect in SqlDialect::ALL {
+                                ui.selectable_value(
+                                    &mut selected_sql_dialect,
+                                    dialect,
+                                    dialect.label(),
+                                );
+                            }
+                        });
+                });
+
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    if ui.button("Close").clicked() {
+                        close_modal = true;
+                    }
+                });
+            });
+
+        if close_modal {
+            self.modals.project_settings_modal = ProjectSettingsModal::Hidden;
+        }
+
+        if selected_sql_dialect != current_sql_dialect {
+            self.set_sql_dialect(selected_sql_dialect);
+        }
+    }
+
+    /// Draw the modal for preferences (general settings)
+    pub fn draw_preferences_modal(&mut self, ctx: &egui::Context) {
+        if matches!(self.modals.preferences_modal, PreferencesModal::Hidden) {
+            return;
+        }
+
+        let mut close_modal = false;
+
+        egui::Window::new("Preferences")
+            .id(Id::new("preferences_window"))
+            .resizable(true)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.group(|ui| {
+                        ui.vertical(|ui| {
+                            ui.heading("Colors");
+                            self.preferences.colors.draw_color_pickers(ui);
+                            egui::widgets::global_theme_preference_buttons(ui);
+                        });
+                    });
+                    ui.group(|ui| {
+                        ui.vertical(|ui| {
+                            ui.heading("Keybinds");
+                            self.preferences.key_binds.draw_keybinds(ui);
+                        });
+                    });
+                });
+
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    if ui.button("Close").clicked() {
+                        close_modal = true;
+                    }
+                });
+            });
+
+        if close_modal {
+            self.modals.preferences_modal = PreferencesModal::Hidden;
+        }
+    }
+
     pub fn draw_sql_export_modal(&mut self, ctx: &egui::Context) {
-        if matches!(self.sql_export_modal, SqlExportModal::Hidden) {
+        if matches!(self.modals.sql_export_modal, SqlExportModal::Hidden) {
             return;
         }
 
@@ -21,13 +135,13 @@ impl AppStella {
             .resizable(true)
             .collapsible(false)
             .default_size(vec2(760.0, 420.0))
-            .show(ctx, |ui| match &self.sql_export_modal {
+            .show(ctx, |ui| match &self.modals.sql_export_modal {
                 SqlExportModal::Hidden => {}
                 SqlExportModal::Success { sql } => {
                     egui::ScrollArea::vertical()
                         .max_height(200.0)
                         .show(ui, |ui| {
-                            Self::draw_highlighted_code(ui, sql, "sql", 12);
+                            draw_highlighted_code(ui, sql, "sql", 12);
                         });
 
                     ui.separator();
@@ -47,7 +161,7 @@ impl AppStella {
                     egui::ScrollArea::vertical()
                         .max_height(200.0)
                         .show(ui, |ui| {
-                            Self::draw_highlighted_code(ui, message, "txt", 8);
+                            draw_highlighted_code(ui, message, "txt", 8);
                         });
 
                     ui.separator();
@@ -63,21 +177,25 @@ impl AppStella {
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(sql) = save_sql
-            && let Some(path) = FileDialog::new().add_filter("SQL", &["sql"]).save_file()
+            && let Some(path) = FileDialog::new()
+                .set_directory(&self.settings.path)
+                .set_file_name(format!("{}_schema", &self.settings.project_name))
+                .add_filter("SQL", &["sql"])
+                .save_file()
             && let Err(err) = fs::write(path, sql)
         {
-            self.sql_export_modal = SqlExportModal::Error {
+            self.modals.sql_export_modal = SqlExportModal::Error {
                 message: format!("Error exporting SQL: {err}"),
             };
         }
 
         if close_modal {
-            self.sql_export_modal = SqlExportModal::Hidden;
+            self.modals.sql_export_modal = SqlExportModal::Hidden;
         }
     }
 
     pub fn draw_svg_export_modal(&mut self, ctx: &egui::Context) {
-        let (mut layout, mut theme) = match self.svg_export_modal {
+        let (mut layout, mut theme) = match self.modals.svg_export_modal {
             SvgExportModal::Hidden => return,
             SvgExportModal::Open { layout, theme } => (layout, theme),
         };
@@ -128,7 +246,11 @@ impl AppStella {
 
                 #[cfg(not(target_arch = "wasm32"))]
                 if save_svg
-                    && let Some(path) = FileDialog::new().add_filter("SVG", &["svg"]).save_file()
+                    && let Some(path) = FileDialog::new()
+                        .set_directory(&self.settings.path)
+                        .set_file_name(format!("{}_diagram", &self.settings.project_name))
+                        .add_filter("SVG", &["svg"])
+                        .save_file()
                     && let Err(err) = fs::write(path, &svg)
                 {
                     eprintln!("Error exporting SVG: {err}");
@@ -136,9 +258,9 @@ impl AppStella {
             });
 
         if close_modal {
-            self.svg_export_modal = SvgExportModal::Hidden;
+            self.modals.svg_export_modal = SvgExportModal::Hidden;
         } else {
-            self.svg_export_modal = SvgExportModal::Open { layout, theme };
+            self.modals.svg_export_modal = SvgExportModal::Open { layout, theme };
         }
     }
 }

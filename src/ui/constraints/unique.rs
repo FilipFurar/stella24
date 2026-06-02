@@ -1,21 +1,24 @@
 use crate::model::attribute::{AttrId, Attribute};
 use crate::model::constraints::constraint::Unique;
+use crate::ui::widgets::inputs::labeled_text_edit;
 use eframe::epaint::Color32;
 use egui::{Id, Modal, Ui};
 use slotmap::SlotMap;
 use std::collections::HashSet;
+use std::hash::Hash;
 
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 
 impl Unique {
-    pub fn draw(&mut self, ui: &mut Ui, attributes: &SlotMap<AttrId, Attribute>) {
+    pub fn draw(
+        &mut self,
+        ui: &mut Ui,
+        attributes: &SlotMap<AttrId, Attribute>,
+        id_source: impl Hash,
+    ) {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new("U").color(GREEN));
-            ui.add(
-                egui::TextEdit::singleline(&mut self.name)
-                    .desired_width(10.0)
-                    .clip_text(false),
-            );
+            let _ = labeled_text_edit(ui, "", &mut self.name, ("unique_name", id_source));
         });
         for attr_id in &self.attributes {
             if let Some(attr) = attributes.get(*attr_id) {

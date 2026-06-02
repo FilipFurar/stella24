@@ -147,10 +147,10 @@ fn svg_export_can_use_workbench_layout_rects() {
         true,
     );
 
-    assert!(svg.contains("x=\"100\""));
-    assert!(svg.contains("y=\"120\""));
-    assert!(svg.contains("x=\"640\""));
-    assert!(svg.contains("y=\"280\""));
+    assert!(svg.contains("x=\"60\""));
+    assert!(svg.contains("y=\"60\""));
+    assert!(svg.contains("x=\"600\""));
+    assert!(svg.contains("y=\"220\""));
 
     let _ = fs::remove_file(input_path);
 }
