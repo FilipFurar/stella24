@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::AppStella;
-use crate::app::{Command, TableId};
+use crate::app::{AppColors, Command, TableId};
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 use crate::ui::changes::extend_commands;
@@ -71,7 +71,7 @@ impl AppStella {
         });
     }
 
-    pub fn draw_workbench(&mut self, ctx: &egui::Context) {
+    pub fn draw_workbench(&mut self, ctx: &egui::Context, app_colors: &AppColors) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Workbench");
             let canvas_rect = ui.available_rect_before_wrap().shrink(CANVAS_PADDING);
@@ -164,7 +164,7 @@ impl AppStella {
                                 self.settings.selected_sql_dialect,
                             );
                             let table = self.tables.get_mut(id).expect("table missing");
-                            let changes = table.draw(ui, &ui_ctx, id);
+                            let changes = table.draw(ui, &ui_ctx, id, app_colors);
                             extend_commands(&mut table_commands, changes);
 
                             ui.separator();

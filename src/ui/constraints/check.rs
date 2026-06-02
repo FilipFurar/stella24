@@ -1,21 +1,20 @@
 use crate::model::constraints::check::Check;
 use crate::ui::widgets::inputs::labeled_text_edit;
-use eframe::epaint::Color32;
 use egui::{TextBuffer, Ui};
 use std::hash::Hash;
+use crate::app::AppColors;
 
-const CHECK_COLOR: Color32 = Color32::from_rgb(149, 117, 205);
-
-pub fn draw_check(ui: &mut Ui, check: &mut Check, id_source: impl Hash, language: &str) -> bool {
+pub fn draw_check(ui: &mut Ui, check: &mut Check, id_source: impl Hash, language: &str, app_colors: &AppColors) -> bool {
+    let clr = app_colors.chck_color;
     let mut delete = false;
     let id_salt = &id_source;
     let theme = egui_extras::syntax_highlighting::CodeTheme::from_memory(ui.ctx(), ui.style());
 
     egui::Frame::group(ui.style())
-        .stroke(egui::Stroke::new(1.0, CHECK_COLOR))
+        .stroke(egui::Stroke::new(1.0, clr))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("CHECK").color(CHECK_COLOR).strong());
+                ui.label(egui::RichText::new("CHECK").color(clr).strong());
                 let _ = labeled_text_edit(ui, "", &mut check.name, ("check_name", id_salt));
                 if ui.button("🗑").clicked() {
                     delete = true;
