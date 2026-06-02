@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Úvod - Používateľská príručka - stella24 - ER modeler</title>
+        <title>Navigácia v aplikácii - Používateľská príručka - stella24 - ER modeler</title>
 
 
         <!-- Custom HTML head -->
@@ -174,28 +174,52 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="úvod"><a class="header" href="#úvod">Úvod</a></h1>
-<p>Táto príručka je určená všetkým používateľom, ktorí potrebujú prezerať, upravovať a tvoriť ER modely a diagramy v aplikácii stella24.</p>
-<p>stella24 sa na rozdiel od väčšiny nástrojov na dátové modelovanie zameriava na prehľadnosť, jednoduchosť a výkonnosť.</p>
-<p>Po prečítaní tejto príručky bude používateľ vedieť:</p>
+                        <h1 id="navigácia-v-aplikácii"><a class="header" href="#navigácia-v-aplikácii">Navigácia v aplikácii</a></h1>
+<p>Používateľské rozhranie stella24 je prehľadné a intuitívne. Po prečítaní tejto kapitoly sa používateľ bude plynulo orientovať v aplikácii a poznať jej prostredie.</p>
+<p>Aplikácia má 4 hlavné panely:</p>
+<h2 id="1-vrchný-panel"><a class="header" href="#1-vrchný-panel">1. Vrchný panel</a></h2>
+<h3 id="menu"><a class="header" href="#menu">Menu</a></h3>
+<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/file.png" alt="File"></p>
+<p>Vrchný panel obsahuje menu s položkami <strong>File</strong> a <strong>Edit</strong>. V položke File sa nachádzajú možnosti pre spravovanie aktuálneho projektu:</p>
 <ul>
-<li>orientovať sa a navigovať v používateľskom rozhraní,</li>
-<li>vytvárať nové tabuľky s atribútmi a obmedzeniami,</li>
-<li>spájať tabuľky pomocou vzťahov,</li>
-<li>definovať vlastné dátové typy pomocou domén a ich obmedzení,</li>
-<li>exportovať model do SQL kódu,</li>
-<li>ukladať diagramy v grafickom formáte na disk,</li>
-<li>pracovať s projektovými súbormi</li>
+<li><strong>New</strong> - Tvorba nového plátna,</li>
+<li><strong>Open</strong> - Načítanie projektu z disku,</li>
+<li><strong>Save</strong> - Uloženie projektu na disk,</li>
+<li><strong>Save as</strong> - Uložiť projekt ako,</li>
+<li><strong>Export SVG</strong> - Export diagramu do SVG,</li>
+<li><strong>Export SQL</strong> - Export modelu do SQL,</li>
+<li><strong>Quit</strong> - Ukončenie aplikácie.</li>
 </ul>
-<p>stella24 je <strong>ER modeler</strong> pre <strong>fyzické</strong> dátové modely a využíva <strong>Crow’s foot notáciu</strong> pre
-vizuálnu reprezentáciu modelu.</p>
+<p>Položka Edit obsahuje možnosti zmeny aktuálneho projektu - krok vzad (<strong>undo</strong>) a obnoviť krok (<strong>redo</strong>).
+Okrem toho tu nájdeme aj nastavenia projektu (<strong>project settings</strong>) a nastavenia samotnej aplikácie (<strong>preferences</strong>).</p>
+<h3 id="výber-témy"><a class="header" href="#výber-témy">Výber témy</a></h3>
+<p>Aplikácia podporuje svetlý a tmavý režim, ktorý si používateľ môže zmeniť, alebo môže nastaviť režim
+podľa svojho aktuálneho systémového nastavenia.</p>
+<h3 id="uvítacia-správa"><a class="header" href="#uvítacia-správa">Uvítacia správa</a></h3>
+<p>Panel na svojej pravej strane obsahuje uvítaciu správu s používateľským menom a aktuálnym rozpracovaným projektom.</p>
+<h2 id="2-panel-pre-tvorbu-entít-a-domén"><a class="header" href="#2-panel-pre-tvorbu-entít-a-domén">2. Panel pre tvorbu entít a domén</a></h2>
+<p>Pod vrchným panelom sa nachádza panel s tlačidlami pre tvorbu entít a domén.</p>
+<h2 id="3-workbench"><a class="header" href="#3-workbench">3. Workbench</a></h2>
+<p>Workbench, alebo pracovná plocha je miesto, kde používateľ strávi väčšinu času počas používania ER modeleru. Je to vizuálna
+reprezentácia dátového modelu.</p>
+<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/workbench.png" alt="Workbench"></p>
+<p>V pracovnej ploche sú zobrazené tabuľky spolu s ich vzťahmi, kde ich používateľ dokáže spravovať. Každú tabuľku môže
+používateľ presúvať pomocou držania ľavého tlačidla myši a rozložiť si tak dátový model podľa potreby.</p>
+<p>V pracovnej ploche sa dokáže používateľ presúvať pomocou stlačenia a držaním klávesy CTRL a ťahanie myšou (<code>CTRL + LMB</code>)</p>
+<h2 id="4-doménový-panel"><a class="header" href="#4-doménový-panel">4. Doménový panel</a></h2>
+<p>Vpravo od workbenchu sa nachádza panel slúžiaci na správu doménových typov, kde ich môže používateľ vytvárať, mazať,
+pridávať im obmedzenia a meniť poradie (Drag and drop tlačidlo vedľa nadpisu <em>Domain</em>).
+<img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/domeny.png" alt="Domény"></p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="slovnik.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
-                            <a rel="next prefetch" href="slovnik.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="preferences.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -205,8 +229,11 @@ vizuálnu reprezentáciu modelu.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="slovnik.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
-                    <a rel="next prefetch" href="slovnik.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="preferences.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

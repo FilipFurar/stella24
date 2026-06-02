@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Úvod - Používateľská príručka - stella24 - ER modeler</title>
+        <title>Tabuľky - Používateľská príručka - stella24 - ER modeler</title>
 
 
         <!-- Custom HTML head -->
@@ -174,28 +174,35 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="úvod"><a class="header" href="#úvod">Úvod</a></h1>
-<p>Táto príručka je určená všetkým používateľom, ktorí potrebujú prezerať, upravovať a tvoriť ER modely a diagramy v aplikácii stella24.</p>
-<p>stella24 sa na rozdiel od väčšiny nástrojov na dátové modelovanie zameriava na prehľadnosť, jednoduchosť a výkonnosť.</p>
-<p>Po prečítaní tejto príručky bude používateľ vedieť:</p>
+                        <h1 id="tabuľky"><a class="header" href="#tabuľky">Tabuľky</a></h1>
+<p><strong>Entita</strong> je základný blok v logických dátových modeloch a reprezentuje objekt z reálneho života, koncept, alebo udalosť, o ktorej
+chceme uchovať informácie. Entita priamo zodpovedá <strong>tabuľke</strong> vo fyzických dátových modeloch.
+V ER modeleri si používateľ tabuľku vytvorí kliknutím na tlačidlo <strong>Table</strong> alebo klávesovou skratkou (východisková skratka <code>CTRL + T</code>). Po vytvorení tabuľky sa zobrazí v paneli Workbench.</p>
+<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/new_table.png" alt="Noá tabuľka"></p>
+<p>Tabuľka obsahuje 4 časti:</p>
+<ol>
+<li><strong>Title</strong> - Názov tabuľky. Musí byť unikátny v celom projekte</li>
+<li><strong>Atribúty a obmedzenia</strong> - Zoznam atribútov a obmedzení na úrovni tabuľky. Ako prvé sa zobrazujú atribúty a pod nimi obmedzenia. Na správu atribútov a obmedzení sa pozrieme v ďalších kapitolách</li>
+<li>Tlačidlá na pridávanie nových atribútov a obmedzení
 <ul>
-<li>orientovať sa a navigovať v používateľskom rozhraní,</li>
-<li>vytvárať nové tabuľky s atribútmi a obmedzeniami,</li>
-<li>spájať tabuľky pomocou vzťahov,</li>
-<li>definovať vlastné dátové typy pomocou domén a ich obmedzení,</li>
-<li>exportovať model do SQL kódu,</li>
-<li>ukladať diagramy v grafickom formáte na disk,</li>
-<li>pracovať s projektovými súbormi</li>
+<li><strong>Add</strong> - Pridá nový atribút</li>
+<li><strong>New FK</strong> - Pridá nový cudzí kľúč</li>
+<li><strong>New unique</strong> - Pridá unique constraint</li>
+<li><strong>New Check</strong> - Pridá nový check constraint</li>
 </ul>
-<p>stella24 je <strong>ER modeler</strong> pre <strong>fyzické</strong> dátové modely a využíva <strong>Crow’s foot notáciu</strong> pre
-vizuálnu reprezentáciu modelu.</p>
+</li>
+<li><strong>Delete</strong> - Vymaže celú tabuľku</li>
+</ol>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="datove-typy.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
-                            <a rel="next prefetch" href="slovnik.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="tabulka/atributy.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -205,8 +212,11 @@ vizuálnu reprezentáciu modelu.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="datove-typy.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
-                    <a rel="next prefetch" href="slovnik.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="tabulka/atributy.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
