@@ -3,7 +3,7 @@ use egui_kittest::kittest::Queryable;
 use slotmap::SlotMap;
 use std::cell::RefCell;
 use std::rc::Rc;
-use stella24::app::TableId;
+use stella24::app::{AppColors, TableId};
 use stella24::app::exports::sql::sql_export::SqlDialect;
 use stella24::model::attribute::Attribute;
 use stella24::model::constraints::constraint::ForeignKey;
@@ -65,8 +65,17 @@ fn deleting_fk_from_ui_removes_fk_and_its_local_attributes() {
     let mut tables_map: SlotMap<TableId, Table> = SlotMap::with_key();
     let table_id = tables_map.insert(Table::default());
 
+    let clrs = AppColors {
+        tables_color: Default::default(),
+        domains_color: Default::default(),
+        pk_color: Default::default(),
+        fk_color: Default::default(),
+        uq_color: Default::default(),
+        chck_color: Default::default(),
+    };
+
     let mut harness = Harness::new_ui(move |ui| {
-        table_for_ui.borrow_mut().draw_fks(ui, table_id);
+        table_for_ui.borrow_mut().draw_fks(ui, table_id, &clrs);
     });
 
     harness.get_by_label("🗑").click();
@@ -99,9 +108,18 @@ fn deleting_unique_from_ui_removes_unique_and_unsets_attribute_flag() {
     let mut tables_map: SlotMap<TableId, Table> = SlotMap::with_key();
     let table_id = tables_map.insert(Table::default());
 
+    let clrs = AppColors {
+        tables_color: Default::default(),
+        domains_color: Default::default(),
+        pk_color: Default::default(),
+        fk_color: Default::default(),
+        uq_color: Default::default(),
+        chck_color: Default::default(),
+    };
+
     let mut harness = Harness::new_ui(move |ui| {
         // draw only uniques so the delete button corresponds to unique
-        table_for_ui.borrow_mut().draw_uniques(ui, table_id);
+        table_for_ui.borrow_mut().draw_uniques(ui, table_id, &clrs);
     });
 
     harness.get_by_label("🗑").click();
@@ -132,7 +150,17 @@ fn clicking_add_button_sets_add_attribute_change() {
     let result_for_ui = Rc::clone(&result);
 
     let mut harness = Harness::new_ui(move |ui| {
-        let changes = table_for_ui.borrow_mut().draw(ui, &ctx, table_id);
+
+        let clrs = AppColors {
+            tables_color: Default::default(),
+            domains_color: Default::default(),
+            pk_color: Default::default(),
+            fk_color: Default::default(),
+            uq_color: Default::default(),
+            chck_color: Default::default(),
+        };
+
+        let changes = table_for_ui.borrow_mut().draw(ui, &ctx, table_id, &clrs);
         if changes.add_attribute {
             *result_for_ui.borrow_mut() = Some(changes);
         }

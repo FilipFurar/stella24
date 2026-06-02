@@ -1,6 +1,6 @@
 // ui/entities/table.rs
 
-use crate::app::{Command, TableId};
+use crate::app::{AppColors, Command, TableId};
 use crate::model::attribute::AttrId;
 use crate::model::attribute::Attribute;
 use crate::model::constraints::check::Check;
@@ -11,14 +11,9 @@ use crate::ui::constraints::check::draw_check;
 use crate::ui::context::TableUiContext;
 use crate::ui::widgets::inputs::labeled_text_edit;
 use eframe::emath::{Rect, pos2};
-use eframe::epaint::Color32;
 use egui::{Id, Modal, RichText, Sense, Stroke, Ui};
 use slotmap::Key;
 use std::collections::HashSet;
-
-const RED: Color32 = Color32::from_rgb(194, 73, 125);
-const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
-const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 
 #[derive(Default)]
 pub struct TableChanges {
@@ -118,13 +113,14 @@ impl Table {
     }
 
     /// Draw the primary key constraint
-    fn draw_pk(&mut self, ui: &mut Ui) {
+    fn draw_pk(&mut self, ui: &mut Ui, clrs: &AppColors) {
+        let clr = clrs.pk_color;
         if !self.pk.attributes.is_empty() {
             egui::Frame::group(ui.style())
-                .stroke(Stroke::new(1.0, RED))
+                .stroke(Stroke::new(1.0, clr))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.add(egui::Label::new(RichText::new("🔑").color(RED)));
+                        ui.add(egui::Label::new(RichText::new("🔑").color(clr)));
 
                         ui.add(
                             egui::TextEdit::singleline(&mut self.pk.name)
@@ -134,7 +130,7 @@ impl Table {
                     });
                     for att in &self.pk.attributes {
                         if let Some(a) = self.attributes.get(*att) {
-                            ui.label(RichText::new(&a.name).color(RED).strong());
+                            ui.label(RichText::new(&a.name).color(clr).strong());
                         }
                     }
                 });
@@ -142,7 +138,8 @@ impl Table {
     }
 
     /// Draw ForeignKey constraints
-    pub fn draw_fks(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<FkId> {
+    pub fn draw_fks(&mut self, ui: &mut Ui, table_id: TableId, app_colors: &AppColors) -> Vec<FkId> {
+        let clr = app_colors.fk_color;
         if self.fks.is_empty() {
             return Vec::new();
         }
@@ -151,12 +148,13 @@ impl Table {
 
         for (fkid, fk) in &mut self.fks {
             egui::Frame::group(ui.style())
-                .stroke(Stroke::new(1.0, BLUE))
+                .stroke(Stroke::new(1.0, clr))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         fk.draw(
                             ui,
                             ("table_fk", table_id.data().as_ffi(), fkid.data().as_ffi()),
+                            app_colors
                         );
                         if ui.button("🗑").clicked() {
                             to_delete.push(fkid);
@@ -176,14 +174,15 @@ impl Table {
         to_delete
     }
 
-    pub fn draw_uniques(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<Command> {
+    pub fn draw_uniques(&mut self, ui: &mut Ui, table_id: TableId, app_colors: &AppColors) -> Vec<Command> {
+        let clr = app_colors.uq_color;
         let mut commands = Vec::new();
         let mut to_delete: Vec<usize> = Vec::new();
 
         for (i, unique) in &mut self.uniques.iter_mut().enumerate() {
             let before_name = unique.name.clone();
             egui::Frame::group(ui.style())
-                .stroke(Stroke::new(1.0, GREEN))
+                .stroke(Stroke::new(1.0, clr))
                 .show(ui, |ui| {
                     unique.draw(
                         ui,
@@ -228,7 +227,7 @@ impl Table {
         commands
     }
 
-    pub fn draw_checks(&mut self, ui: &mut Ui, table_id: TableId) -> Vec<usize> {
+    pub fn draw_checks(&mut self, ui: &mut Ui, table_id: TableId, app_colors: &AppColors) -> Vec<usize> {
         let mut to_delete: Vec<usize> = Vec::new();
 
         for (i, check) in self.checks.iter_mut().enumerate() {
@@ -237,6 +236,7 @@ impl Table {
                 check,
                 ("table_check", table_id.data().as_ffi(), i),
                 "sql",
+                app_colors
             ) {
                 to_delete.push(i);
             }
@@ -414,7 +414,7 @@ impl Table {
         result
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, ctx: &TableUiContext, table_id: TableId) -> TableChanges {
+    pub fn draw(&mut self, ui: &mut Ui, ctx: &TableUiContext, table_id: TableId, app_colors: &AppColors) -> TableChanges {
         let mut changes = TableChanges::default();
 
         if labeled_text_edit(
@@ -434,16 +434,16 @@ impl Table {
             .commands
             .extend(self.draw_attributes(ui, ctx, table_id));
 
-        self.draw_pk(ui);
-        for fkid in self.draw_fks(ui, table_id) {
+        self.draw_pk(ui, app_colors);
+        for fkid in self.draw_fks(ui, table_id, app_colors) {
             changes.commands.push(Command::DeleteForeignKey {
                 table: table_id,
                 fk: fkid,
             });
         }
 
-        changes.commands.extend(self.draw_uniques(ui, table_id));
-        for index in self.draw_checks(ui, table_id).into_iter().rev() {
+        changes.commands.extend(self.draw_uniques(ui, table_id, app_colors));
+        for index in self.draw_checks(ui, table_id, app_colors).into_iter().rev() {
             changes.commands.push(Command::DeleteTableCheck {
                 table: table_id,
                 index,

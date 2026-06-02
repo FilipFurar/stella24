@@ -25,8 +25,13 @@ mod command;
 pub mod exports;
 mod persistence;
 
-pub const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
-pub const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
+const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
+const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
+const RED: Color32 = Color32::from_rgb(194, 73, 125);
+const CHECK_COLOR: Color32 = Color32::from_rgb(149, 117, 205);
+
+
+
 const MAX_HISTORY_STATES: usize = 100;
 
 #[derive(Clone, Default)]
@@ -43,6 +48,14 @@ pub struct AppColors {
     pub tables_color: Color32,
     #[serde(default)]
     pub domains_color: Color32,
+    #[serde(default)]
+    pub pk_color: Color32,
+    #[serde(default)]
+    pub fk_color: Color32,
+    #[serde(default)]
+    pub uq_color: Color32,
+    #[serde(default)]
+    pub chck_color: Color32,
 }
 
 impl AppColors {
@@ -55,6 +68,26 @@ impl AppColors {
         ui.horizontal(|ui| {
             ui.label("Domains");
             ui.color_edit_button_srgba(&mut self.domains_color);
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("PKs");
+            ui.color_edit_button_srgba(&mut self.pk_color);
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("FKs");
+            ui.color_edit_button_srgba(&mut self.fk_color);
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Uniques");
+            ui.color_edit_button_srgba(&mut self.uq_color);
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Checks");
+            ui.color_edit_button_srgba(&mut self.chck_color);
         });
     }
 }
@@ -249,6 +282,10 @@ impl Default for AppColors {
         Self {
             tables_color: BLUE,
             domains_color: GREEN,
+            pk_color: RED,
+            fk_color: BLUE,
+            uq_color: GREEN,
+            chck_color: CHECK_COLOR,
         }
     }
 }
@@ -620,7 +657,7 @@ impl AppStella {
                                         );
                                     });
 
-                                    let changes = domain.draw(ui, id);
+                                    let changes = domain.draw(ui, id, &self.preferences.colors);
                                     extend_commands(&mut domain_commands, changes);
                                 });
                         });
@@ -831,7 +868,8 @@ impl eframe::App for AppStella {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
-        self.draw_workbench(ctx);
+        let clrs = &self.preferences.colors.clone();
+        self.draw_workbench(ctx, clrs);
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {

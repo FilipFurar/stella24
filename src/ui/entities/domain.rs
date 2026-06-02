@@ -1,6 +1,6 @@
 // ui/entities/domain.rs
 
-use crate::app::Command;
+use crate::app::{AppColors, Command};
 use crate::app::DomainId;
 use crate::model::constraints::check::Check;
 use crate::model::datatype::DataType;
@@ -26,7 +26,7 @@ impl IntoCommands for DomainChanges {
 /// UI implementation for domains
 impl Domain {
     /// Draw domain's contents in Workbench and return change flags.
-    pub fn draw(&mut self, ui: &mut Ui, id: DomainId) -> DomainChanges {
+    pub fn draw(&mut self, ui: &mut Ui, id: DomainId, app_colors: &AppColors) -> DomainChanges {
         let mut changes = DomainChanges::default();
 
         if labeled_text_edit(
@@ -79,7 +79,7 @@ impl Domain {
 
         let mut to_delete: Vec<usize> = Vec::new();
         for (i, check) in self.check_constraints.iter_mut().enumerate() {
-            if draw_check(ui, check, ("domain_check", id.data().as_ffi(), i), "sql") {
+            if draw_check(ui, check, ("domain_check", id.data().as_ffi(), i), "sql", app_colors) {
                 to_delete.push(i);
             }
         }
