@@ -19,3 +19,4 @@ stella24 is written in **Rust** and uses the immediate GUI library **egui**.
 There are plans to support WebAssembly.
 
 ## Getting started
+A user guide in the form of e-book is available in Slovak at [stella24 GitHub pages](https://filipfurar.github.io/stella24/index.html). 
