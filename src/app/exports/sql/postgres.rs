@@ -1,9 +1,13 @@
 //! PostgreSQL SQL DDL exporter.
 
-use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
+use crate::app::exports::sql::sql_export::{
+    Export, SqlDialect, SqlExportError, constraint_name_or_fallback, render_check_constraints,
+    render_column_parts, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables,
+    validate_object_names,
+};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
-use crate::model::datatype::{DATA_TYPES, DataType};
+use crate::model::datatype::DataType;
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
 use slotmap::SlotMap;
@@ -22,25 +26,39 @@ impl Export for PostgresDialect {
         SqlDialect::Postgres
     }
 
-    fn build_sql(&self, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>) -> Result<String, SqlExportError> {
+    fn build_sql(
+        &self,
+        tables: &SlotMap<TableId, Table>,
+        domains: &SlotMap<DomainId, Domain>,
+    ) -> Result<String, SqlExportError> {
         validate_object_names(tables, domains)?;
 
         let mut used_constraints = HashSet::new();
         let mut out = String::new();
-        writeln!(out, "-- stella24 PostgreSQL SQL export").map_err(|_| SqlExportError::WriteError { context: "writing PostgreSQL header".to_string() })?;
-        writeln!(out).map_err(|_| SqlExportError::WriteError { context: "writing PostgreSQL header newline".to_string() })?;
+        writeln!(out, "-- stella24 PostgreSQL SQL export").map_err(|_| {
+            SqlExportError::WriteError {
+                context: "writing PostgreSQL header".to_string(),
+            }
+        })?;
+        writeln!(out).map_err(|_| SqlExportError::WriteError {
+            context: "writing PostgreSQL header newline".to_string(),
+        })?;
 
         if !domains.is_empty() {
             for (_, domain) in sorted_domains(domains) {
                 render_domain(&mut out, domain, &mut used_constraints)?;
-                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after domain {}", domain.name) })?;
+                writeln!(out).map_err(|_| SqlExportError::WriteError {
+                    context: format!("writing newline after domain {}", domain.name),
+                })?;
             }
         }
 
         // Phase 1: CREATE TABLE (no foreign keys)
         for (_, table) in sorted_tables(tables) {
             Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
-            writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after CREATE TABLE {}", table.title) })?;
+            writeln!(out).map_err(|_| SqlExportError::WriteError {
+                context: format!("writing newline after CREATE TABLE {}", table.title),
+            })?;
         }
 
         // Phase 2: emit foreign keys via ALTER TABLE so referenced tables
@@ -53,17 +71,29 @@ impl Export for PostgresDialect {
             )?;
             let fk_len = fk_lines.len();
             for fk in fk_lines {
-                writeln!(out, "ALTER TABLE {} ADD {};", table.title, fk).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER TABLE for {}", table.title) })?;
+                writeln!(out, "ALTER TABLE {} ADD {};", table.title, fk).map_err(|_| {
+                    SqlExportError::WriteError {
+                        context: format!("writing ALTER TABLE for {}", table.title),
+                    }
+                })?;
             }
             if fk_len > 0 {
-                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after ALTER TABLEs for {}", table.title) })?;
+                writeln!(out).map_err(|_| SqlExportError::WriteError {
+                    context: format!("writing newline after ALTER TABLEs for {}", table.title),
+                })?;
             }
         }
 
         Ok(out)
     }
 
-    fn attribute_type_sql(table: &Table, attr_id: AttrId, attr: &Attribute, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>) -> Result<String, SqlExportError> {
+    fn attribute_type_sql(
+        table: &Table,
+        attr_id: AttrId,
+        attr: &Attribute,
+        tables: &SlotMap<TableId, Table>,
+        domains: &SlotMap<DomainId, Domain>,
+    ) -> Result<String, SqlExportError> {
         match &attr.attribute_type {
             AttributeType::Logical(dt) => {
                 postgres_type_sql(dt, &format!("column {}.{}", table.title, attr.name))
@@ -80,7 +110,10 @@ impl Export for PostgresDialect {
                 match &referenced_attr.attribute_type {
                     AttributeType::Logical(dt) => postgres_type_sql(
                         dt,
-                        &format!("foreign key target {}.{}", ref_table.title, referenced_attr.name),
+                        &format!(
+                            "foreign key target {}.{}",
+                            ref_table.title, referenced_attr.name
+                        ),
                     ),
                     AttributeType::Domain(domain_id) => {
                         let Some(domain) = domains.get(*domain_id) else {
@@ -97,8 +130,18 @@ impl Export for PostgresDialect {
         }
     }
 
-    fn render_table(out: &mut String, table: &Table, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<(), SqlExportError> {
-        writeln!(out, "CREATE TABLE {} (", table.title).map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE TABLE header for {}", table.title) })?;
+    fn render_table(
+        out: &mut String,
+        table: &Table,
+        tables: &SlotMap<TableId, Table>,
+        domains: &SlotMap<DomainId, Domain>,
+        used_constraints: &mut HashSet<String>,
+    ) -> Result<(), SqlExportError> {
+        writeln!(out, "CREATE TABLE {} (", table.title).map_err(|_| {
+            SqlExportError::WriteError {
+                context: format!("writing CREATE TABLE header for {}", table.title),
+            }
+        })?;
         let mut lines = Vec::new();
 
         for (attr_id, attr) in sorted_attrs(table) {
@@ -118,13 +161,24 @@ impl Export for PostgresDialect {
 
         for (idx, line) in lines.iter().enumerate() {
             let comma = if idx + 1 == lines.len() { "" } else { "," };
-            writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError { context: format!("writing column line for {}", table.title) })?;
+            writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError {
+                context: format!("writing column line for {}", table.title),
+            })?;
         }
-        writeln!(out, ");").map_err(|_| SqlExportError::WriteError { context: format!("writing end of CREATE TABLE {}", table.title) })?;
+        writeln!(out, ");").map_err(|_| SqlExportError::WriteError {
+            context: format!("writing end of CREATE TABLE {}", table.title),
+        })?;
         Ok(())
     }
 
-    fn render_column(table: &Table, attr_id: AttrId, attr: &Attribute, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<String, SqlExportError> {
+    fn render_column(
+        table: &Table,
+        attr_id: AttrId,
+        attr: &Attribute,
+        tables: &SlotMap<TableId, Table>,
+        domains: &SlotMap<DomainId, Domain>,
+        used_constraints: &mut HashSet<String>,
+    ) -> Result<String, SqlExportError> {
         let parts = render_column_parts(
             table,
             attr_id,
@@ -151,18 +205,27 @@ fn render_domain(
         domain.name,
         postgres_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
     )
-    .map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE DOMAIN {}", domain.name) })?;
+    .map_err(|_| SqlExportError::WriteError {
+        context: format!("writing CREATE DOMAIN {}", domain.name),
+    })?;
 
     for line in render_check_constraints(
         &domain.check_constraints,
         used_constraints,
         |_, _| format!("domain {}", domain.name),
         |idx, check| {
-            constraint_name_or_fallback(&check.name, &format!("CHK_DOMAIN_{}_{}", domain.name, idx + 1))
+            constraint_name_or_fallback(
+                &check.name,
+                &format!("CHK_DOMAIN_{}_{}", domain.name, idx + 1),
+            )
         },
         |check| Ok(check.condition.clone()),
     )? {
-        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER DOMAIN {}", domain.name) })?;
+        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).map_err(|_| {
+            SqlExportError::WriteError {
+                context: format!("writing ALTER DOMAIN {}", domain.name),
+            }
+        })?;
     }
 
     Ok(())
@@ -170,16 +233,17 @@ fn render_domain(
 
 /// Map a model `DataType` to a PostgreSQL SQL type string.
 fn postgres_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportError> {
-    let Some(def) = DATA_TYPES.get(dt.base) else {
+    let type_name = dt.type_name();
+    if type_name == "UNKNOWN" {
         return Err(SqlExportError::UnsupportedDataType {
             context: context.to_string(),
             base: dt.base,
         });
-    };
+    }
 
-    let sql = match def.name {
+    let sql = match type_name {
         "CHAR" | "NCHAR" => format!("CHAR({})", dt.params.first().copied().unwrap_or(1)),
-        "VARCHAR2" | "NVARCHAR2" => {
+        "VARCHAR2" | "NVARCHAR2" | "VARCHAR" => {
             format!("VARCHAR({})", dt.params.first().copied().unwrap_or(1))
         }
 
@@ -194,6 +258,10 @@ fn postgres_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportEr
         },
 
         "DATE" => "DATE".to_string(),
+        "SMALLINT" => "SMALLINT".to_string(),
+        "INTEGER" | "INT" => "INTEGER".to_string(),
+        "BIGINT" => "BIGINT".to_string(),
+        "BYTEA" => "BYTEA".to_string(),
         "TIMESTAMP" => match dt.params.first().copied().unwrap_or(6) {
             0 => "TIMESTAMP".to_string(),
             p => format!("TIMESTAMP({})", p),
@@ -207,7 +275,7 @@ fn postgres_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportEr
             p => format!("TIMESTAMP({}) WITH TIME ZONE", p),
         },
 
-        "INTERVAL_YEAR" | "INTERVAL_DAY" => "INTERVAL".to_string(),
+        "INTERVAL YEAR TO MONTH" | "INTERVAL DAY TO SECOND" | "INTERVAL" => "INTERVAL".to_string(),
 
         "LONG" | "NCLOB" => "TEXT".to_string(),
         "LONG RAW" | "BLOB" | "BFILE" => "BYTEA".to_string(),

@@ -1,14 +1,14 @@
 //! Shared SQL export abstractions and dispatcher.
 
-use std::collections::HashSet;
 use crate::app::{DomainId, TableId};
+use crate::model::attribute::{AttrId, Attribute, AttributeType};
+use crate::model::constraints::check::Check;
+use crate::model::constraints::constraint::ForeignKey;
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
-use crate::model::constraints::check::Check;
 use slotmap::{Key, SlotMap};
+use std::collections::HashSet;
 use std::fmt;
-use crate::model::attribute::{AttrId, Attribute, AttributeType};
-use crate::model::constraints::constraint::ForeignKey;
 
 const IDENTIFIER_LIMIT: usize = 128;
 
@@ -29,11 +29,7 @@ pub enum SqlDialect {
 
 impl SqlDialect {
     /// Const array of all SqlDialect variants so we can iterate through them.
-    pub const ALL: [SqlDialect; 3] = [
-        SqlDialect::Oracle,
-        SqlDialect::Sqlite,
-        SqlDialect::Postgres,
-    ];
+    pub const ALL: [SqlDialect; 3] = [SqlDialect::Oracle, SqlDialect::Sqlite, SqlDialect::Postgres];
 
     /// Human-readable label for the dialect used in UI controls.
     pub const fn label(self) -> &'static str {
@@ -126,8 +122,10 @@ pub trait Export {
             if attrs.len() <= 1 {
                 continue;
             }
-            let name =
-                constraint_name_or_fallback(&unique.name, &format!("UQ_{}_{}", table.title, idx + 1));
+            let name = constraint_name_or_fallback(
+                &unique.name,
+                &format!("UQ_{}_{}", table.title, idx + 1),
+            );
             add_constraint_name(used_constraints, &name)?;
             lines.push(format!(
                 "CONSTRAINT {} UNIQUE ({})",
@@ -141,8 +139,10 @@ pub trait Export {
             if attrs.len() <= 1 {
                 continue;
             }
-            let name =
-                constraint_name_or_fallback(&not_null.name, &format!("NN_{}_{}", table.title, idx + 1));
+            let name = constraint_name_or_fallback(
+                &not_null.name,
+                &format!("NN_{}_{}", table.title, idx + 1),
+            );
             add_constraint_name(used_constraints, &name)?;
             lines.push(format!(
                 "CONSTRAINT {} CHECK ({})",
@@ -161,8 +161,10 @@ pub trait Export {
                     context: format!("table {} check {}", table.title, idx + 1),
                 });
             }
-            let name =
-                constraint_name_or_fallback(&check.name, &format!("CHK_{}_{}", table.title, idx + 1));
+            let name = constraint_name_or_fallback(
+                &check.name,
+                &format!("CHK_{}_{}", table.title, idx + 1),
+            );
             add_constraint_name(used_constraints, &name)?;
             lines.push(format!("CONSTRAINT {} CHECK ({})", name, check.condition));
         }
@@ -178,35 +180,19 @@ pub trait Export {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SqlExportError {
     /// A required name (table, column, domain) was empty.
-    EmptyName {
-        kind: &'static str,
-    },
+    EmptyName { kind: &'static str },
     /// Two tables share the same name.
-    DuplicateTableName {
-        name: String,
-    },
+    DuplicateTableName { name: String },
     /// Two domains share the same name.
-    DuplicateDomainName {
-        name: String,
-    },
+    DuplicateDomainName { name: String },
     /// Duplicate column name inside a table.
-    DuplicateColumnName {
-        table: String,
-        name: String,
-    },
+    DuplicateColumnName { table: String, name: String },
     /// Duplicate constraint name detected while rendering.
-    DuplicateConstraintName {
-        name: String,
-    },
+    DuplicateConstraintName { name: String },
     /// A CHECK constraint was present but its condition was empty.
-    EmptyCheckCondition {
-        context: String,
-    },
+    EmptyCheckCondition { context: String },
     /// A foreign key references a table that does not exist in the model.
-    MissingReferencedTable {
-        table: String,
-        foreign_key: String,
-    },
+    MissingReferencedTable { table: String, foreign_key: String },
     /// A foreign key references a column that does not exist in the referenced table.
     MissingReferencedColumn {
         table: String,
@@ -214,37 +200,19 @@ pub enum SqlExportError {
         referenced_table: String,
     },
     /// A column marked as FK has no corresponding FK constraint.
-    MissingForeignKeyConstraint {
-        table: String,
-        column: String,
-    },
+    MissingForeignKeyConstraint { table: String, column: String },
     /// A column participates in multiple FK constraints making resolution ambiguous.
-    AmbiguousForeignKey {
-        table: String,
-        column: String,
-    },
+    AmbiguousForeignKey { table: String, column: String },
     /// The model uses a data type base that the exporter does not support.
-    UnsupportedDataType {
-        context: String,
-        base: usize,
-    },
+    UnsupportedDataType { context: String, base: usize },
     /// An identifier (table/column/constraint) exceeds the dialect's length limit.
-    IdentifierTooLong {
-        kind: &'static str,
-        name: String,
-    },
+    IdentifierTooLong { kind: &'static str, name: String },
     /// Error while writing SQL output (formatting/write to buffer failed).
-    WriteError {
-        context: String,
-    },
+    WriteError { context: String },
     /// Cyclic foreign-key dependencies detected during topological sort.
-    CyclicForeignKeyDependencies {
-        tables: Vec<TableId>,
-    },
+    CyclicForeignKeyDependencies { tables: Vec<TableId> },
     /// Internal invariant violation (unexpected missing map key etc.).
-    InternalError {
-        message: String,
-    },
+    InternalError { message: String },
 }
 
 impl fmt::Display for SqlExportError {
@@ -288,7 +256,7 @@ impl fmt::Display for SqlExportError {
             ),
             SqlExportError::UnsupportedDataType { context, base } => {
                 write!(f, "unsupported datatype base {base} ({context})")
-            },
+            }
             SqlExportError::IdentifierTooLong { kind, name } => {
                 write!(f, "{kind} identifier too long: {name}")
             }
@@ -300,8 +268,7 @@ impl fmt::Display for SqlExportError {
                     .iter()
                     .map(|t| t.data().as_ffi().to_string())
                     .collect::<Vec<_>>()
-                    .join(", "
-                )
+                    .join(", ")
             ),
             SqlExportError::InternalError { message } => write!(f, "internal error: {message}"),
         }
@@ -420,24 +387,24 @@ pub fn topologically_sorted_tables(
     for (id, table) in tables.iter() {
         let a = id.data().as_ffi();
         for fk in table.fks.values() {
-            if let Some(ref_table_id) = fk.references {
-                if tables.get(ref_table_id).is_some() {
-                    let b = ref_table_id.data().as_ffi();
-                    // add edge b -> a
-                    if let Some(vec) = adj.get_mut(&b) {
-                        vec.push(a);
-                    } else {
-                        return Err(SqlExportError::InternalError {
-                            message: format!("missing adjacency entry for table id {}", b),
-                        });
-                    }
-                    if let Some(ind) = indeg.get_mut(&a) {
-                        *ind += 1;
-                    } else {
-                        return Err(SqlExportError::InternalError {
-                            message: format!("missing indegree entry for table id {}", a),
-                        });
-                    }
+            if let Some(ref_table_id) = fk.references
+                && tables.get(ref_table_id).is_some()
+            {
+                let b = ref_table_id.data().as_ffi();
+                // add edge b -> a
+                if let Some(vec) = adj.get_mut(&b) {
+                    vec.push(a);
+                } else {
+                    return Err(SqlExportError::InternalError {
+                        message: format!("missing adjacency entry for table id {}", b),
+                    });
+                }
+                if let Some(ind) = indeg.get_mut(&a) {
+                    *ind += 1;
+                } else {
+                    return Err(SqlExportError::InternalError {
+                        message: format!("missing indegree entry for table id {}", a),
+                    });
                 }
             }
         }
@@ -467,12 +434,16 @@ pub fn topologically_sorted_tables(
         // Map back to TableId + &Table
         let mut out = Vec::new();
         for num in order_nums {
-            let tid = id_by_num.get(&num).ok_or_else(|| SqlExportError::InternalError {
-                message: format!("missing TableId mapping for numeric id {}", num),
-            })?;
-            let tbl = tables.get(*tid).ok_or_else(|| SqlExportError::InternalError {
-                message: format!("missing table object for id {}", num),
-            })?;
+            let tid = id_by_num
+                .get(&num)
+                .ok_or_else(|| SqlExportError::InternalError {
+                    message: format!("missing TableId mapping for numeric id {}", num),
+                })?;
+            let tbl = tables
+                .get(*tid)
+                .ok_or_else(|| SqlExportError::InternalError {
+                    message: format!("missing table object for id {}", num),
+                })?;
             out.push((*tid, tbl));
         }
         Ok(out)
@@ -480,10 +451,10 @@ pub fn topologically_sorted_tables(
         // Cycle detected: collect remaining ids with indegree > 0
         let mut cyclic = Vec::new();
         for (&k, &d) in &indeg {
-            if d > 0 {
-                if let Some(tid) = id_by_num.get(&k) {
-                    cyclic.push(*tid);
-                }
+            if d > 0
+                && let Some(tid) = id_by_num.get(&k)
+            {
+                cyclic.push(*tid);
             }
         }
         Err(SqlExportError::CyclicForeignKeyDependencies { tables: cyclic })
@@ -704,9 +675,18 @@ pub fn render_column_parts(
     tables: &SlotMap<TableId, Table>,
     domains: &SlotMap<DomainId, Domain>,
     used_constraints: &mut HashSet<String>,
-    type_sql: impl FnOnce(&Table, AttrId, &Attribute, &SlotMap<TableId, Table>, &SlotMap<DomainId, Domain>) -> Result<String, SqlExportError>,
+    type_sql: impl FnOnce(
+        &Table,
+        AttrId,
+        &Attribute,
+        &SlotMap<TableId, Table>,
+        &SlotMap<DomainId, Domain>,
+    ) -> Result<String, SqlExportError>,
 ) -> Result<Vec<String>, SqlExportError> {
-    let mut parts = vec![attr.name.clone(), type_sql(table, attr_id, attr, tables, domains)?];
+    let mut parts = vec![
+        attr.name.clone(),
+        type_sql(table, attr_id, attr, tables, domains)?,
+    ];
 
     let inline_pk = exact_pk_name(table, attr_id);
     if let Some(name) = exact_not_null_name(table, attr_id) {

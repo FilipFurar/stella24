@@ -1,7 +1,9 @@
 // ui/constraints/attribute
 
+use crate::app::{Command, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeCategory, AttributeType};
-use crate::model::datatype::{CharOrByte, DATA_TYPES, DataType};
+use crate::model::datatype::{CharOrByte, DataType};
+use crate::ui::changes::IntoCommands;
 use crate::ui::context::TableUiContext;
 use eframe::epaint::{Color32, Stroke};
 use egui::Ui;
@@ -10,15 +12,16 @@ use slotmap::Key;
 
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 
-/// A struct for storing UI changes per attribute row
-#[derive(Default)]
+/// A struct for storing staged commands from an attribute row.
+#[derive(Default, Debug)]
 pub struct AttributeChanges {
-    pub rename_changed: bool,
-    pub type_changed: bool,
-    pub not_null_changed: bool,
-    pub unique_changed: bool,
-    pub pk_change: Option<bool>,
-    pub delete: bool,
+    pub commands: Vec<Command>,
+}
+
+impl IntoCommands for AttributeChanges {
+    fn into_commands(self) -> Vec<Command> {
+        self.commands
+    }
 }
 
 impl DataType {
@@ -34,16 +37,21 @@ impl DataType {
         ui.horizontal(|ui| {
             ui.label("(");
 
-            if matches!(
-                DATA_TYPES.get(self.base).map(|def| def.name),
-                Some("CHAR") | Some("VARCHAR2")
-            ) {
-                if let Some(param) = self.params.get_mut(0)
-                    && ui
-                        .add(egui::DragValue::new(param).speed(1).range(0..=40_000))
-                        .changed()
-                {
-                    changed = true;
+            if self.param_name(1) == Some("length_semantics") {
+                let size_name = self.param_name(0);
+                let semantics_name = self.param_name(1);
+
+                if let Some(param) = self.params.get_mut(0) {
+                    let mut drag_value =
+                        ui.add(egui::DragValue::new(param).speed(1).range(0..=40_000));
+
+                    if let Some(name) = size_name {
+                        drag_value = drag_value.on_hover_text(name);
+                    }
+
+                    if drag_value.changed() {
+                        changed = true;
+                    }
                 }
 
                 let mut selected = if self.params.get(1).copied().unwrap_or(0) == 1 {
@@ -53,12 +61,17 @@ impl DataType {
                 };
                 let selected_before = selected;
 
-                egui::ComboBox::from_id_salt((id_salt, "length_semantics"))
+                let combo = egui::ComboBox::from_id_salt((id_salt, "length_semantics"))
                     .selected_text(format!("{:?}", selected))
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut selected, CharOrByte::Char, "Char");
                         ui.selectable_value(&mut selected, CharOrByte::Byte, "Byte");
-                    });
+                    })
+                    .response;
+
+                if let Some(name) = semantics_name {
+                    combo.on_hover_text(name);
+                }
 
                 if selected != selected_before {
                     if let Some(semantics) = self.params.get_mut(1) {
@@ -67,12 +80,19 @@ impl DataType {
                     changed = true;
                 }
             } else {
-                for param in self.params.iter_mut() {
-                    if ui
-                        .add(egui::DragValue::new(param).speed(1).range(0..=1_000_000))
-                        .changed()
-                    {
-                        changed = true;
+                for param_index in 0..self.params.len() {
+                    let param_name = self.param_name(param_index);
+                    if let Some(param) = self.params.get_mut(param_index) {
+                        let mut drag_value =
+                            ui.add(egui::DragValue::new(param).speed(1).range(0..=1_000_000));
+
+                        if let Some(name) = param_name {
+                            drag_value = drag_value.on_hover_text(name);
+                        }
+
+                        if drag_value.changed() {
+                            changed = true;
+                        }
                     }
                 }
             }
@@ -90,6 +110,7 @@ impl Attribute {
         &mut self,
         ui: &mut Ui,
         id: AttrId,
+        table_id: TableId,
         ctx: &TableUiContext,
         disable_inline_unique: bool,
     ) -> AttributeChanges {
@@ -108,41 +129,68 @@ impl Attribute {
                         )
                         .changed()
                     {
-                        changes.rename_changed = true;
+                        changes.commands.push(Command::RenameAttribute {
+                            table: table_id,
+                            attr: id,
+                            name: self.name.clone(),
+                        });
                     }
 
                     if let AttributeType::Logical(_) | AttributeType::Domain(_) =
                         &self.attribute_type
                         && self.attribute_type.draw_compact(ui, id, ctx)
                     {
-                        changes.type_changed = true;
+                        changes.commands.push(Command::SetAttributeType {
+                            table: table_id,
+                            attr: id,
+                            attribute_type: self.attribute_type.clone(),
+                        });
                     }
 
                     ui.add_enabled_ui(!self.pk, |ui| {
                         if ui.checkbox(&mut self.not_null, "NN").changed() {
-                            changes.not_null_changed = true;
+                            changes.commands.push(Command::SetAttributeNotNull {
+                                table: table_id,
+                                attr: id,
+                                value: self.not_null,
+                            });
                         }
                     });
 
                     ui.add_enabled_ui(!disable_inline_unique, |ui| {
                         if ui.checkbox(&mut self.unique, "U").changed() {
-                            changes.unique_changed = true;
+                            changes.commands.push(Command::SetAttributeUnique {
+                                table: table_id,
+                                attr: id,
+                                value: self.unique,
+                            });
                         }
                     });
 
                     if self.pk && !self.not_null {
                         self.not_null = true;
-                        changes.not_null_changed = true;
+                        changes.commands.push(Command::SetAttributeNotNull {
+                            table: table_id,
+                            attr: id,
+                            value: self.not_null,
+                        });
                     }
 
                     let mut is_pk = self.pk;
                     if ui.checkbox(&mut is_pk, "🔑").changed() {
                         self.pk = is_pk;
-                        changes.pk_change = Some(is_pk);
+                        changes.commands.push(Command::SetAttributePrimaryKey {
+                            table: table_id,
+                            attr: id,
+                            value: is_pk,
+                        });
                     }
 
                     if ui.button("🗑").clicked() {
-                        changes.delete = true;
+                        changes.commands.push(Command::DeleteAttribute {
+                            table: table_id,
+                            attr: id,
+                        });
                     }
                 });
             });
@@ -154,22 +202,7 @@ impl AttributeType {
     /// Returns the text that should be displayed for each type of attribute
     pub fn display_text(&self, ctx: &TableUiContext) -> String {
         match self {
-            AttributeType::Logical(dt) => {
-                let base_name = DATA_TYPES[dt.base].name;
-                let params = if dt.params.is_empty() {
-                    String::new()
-                } else {
-                    format!(
-                        "({})",
-                        dt.params
-                            .iter()
-                            .map(|p| p.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )
-                };
-                format!("{}{}", base_name, params)
-            }
+            AttributeType::Logical(dt) => dt.display_text(),
             AttributeType::Domain(did) => ctx
                 .domain_name(*did)
                 .map(|name| name.to_string())
@@ -258,19 +291,17 @@ impl AttributeType {
 
             if new_category != current_category {
                 *self = match new_category {
-                    AttributeCategory::Logical => AttributeType::Logical(DataType {
-                        base: 1,
-                        params: vec![],
-                    }),
+                    AttributeCategory::Logical => AttributeType::Logical(
+                        DataType::default_for_dialect(ctx.selected_sql_dialect),
+                    ),
                     AttributeCategory::Domain => ctx
                         .domains
                         .first()
                         .map(|domain| AttributeType::Domain(domain.id))
                         .unwrap_or_else(|| {
-                            AttributeType::Logical(DataType {
-                                base: 1,
-                                params: vec![],
-                            })
+                            AttributeType::Logical(DataType::default_for_dialect(
+                                ctx.selected_sql_dialect,
+                            ))
                         }),
                     AttributeCategory::ForeignKey => AttributeType::ForeignKeyAttribute(id),
                 };
@@ -279,13 +310,16 @@ impl AttributeType {
 
             match self {
                 AttributeType::Logical(dt) => {
+                    let catalog = dt.catalog();
                     egui::ComboBox::from_id_salt(format!("logical_{}", id.data().as_ffi()))
-                        .selected_text(DATA_TYPES[dt.base].name)
+                        .selected_text(dt.type_name())
                         .show_ui(ui, |ui| {
-                            for (i, def) in DATA_TYPES.iter().enumerate() {
-                                if ui.selectable_label(dt.base == i, def.name).clicked() {
-                                    dt.base = i;
-                                    dt.params = vec![0; def.param_count];
+                            for i in 0..catalog.len() {
+                                let Some(name) = catalog.name(i) else {
+                                    continue;
+                                };
+                                if ui.selectable_label(dt.base == i, name).clicked() {
+                                    *dt = DataType::new(ctx.selected_sql_dialect, i);
                                     changed = true;
                                 }
                             }

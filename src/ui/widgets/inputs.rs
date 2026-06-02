@@ -2,12 +2,7 @@ use egui::Ui;
 use std::hash::Hash;
 
 /// Draws a compact labeled single-line text edit and returns whether it changed.
-pub fn labeled_text_edit(
-    ui: &mut Ui,
-    label: &str,
-    value: &mut String,
-    id: impl Hash,
-) -> bool {
+pub fn labeled_text_edit(ui: &mut Ui, label: &str, value: &mut String, id: impl Hash) -> bool {
     let mut changed = false;
 
     ui.horizontal(|ui| {

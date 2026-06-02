@@ -1,6 +1,5 @@
 use stella24::model::attribute::Attribute;
 use stella24::model::constraints::constraint::ForeignKey;
-use stella24::model::datatype::DATA_TYPES;
 use stella24::model::entities::domain::Domain;
 use stella24::model::entities::table::Table;
 
@@ -22,11 +21,13 @@ fn table_add_and_remove_fields_updates_collection() {
 fn built_in_data_types() {
     let d1 = Domain::default();
 
+    // Default domain is Oracle VARCHAR2 with two params (size, length_semantics).
     assert_eq!(d1.data_type.base, 1);
     assert_eq!(d1.data_type.params.len(), 2);
-    assert_eq!(d1.data_type.params[0], 5);
+    // New normalization sets length defaults to 1 for VARCHAR2 size
+    assert_eq!(d1.data_type.params[0], 1);
     assert_eq!(d1.data_type.params[1], 1);
-    assert_eq!(DATA_TYPES[1].name, "VARCHAR2");
+    assert_eq!(d1.data_type.type_name(), "VARCHAR2");
 }
 
 #[test]

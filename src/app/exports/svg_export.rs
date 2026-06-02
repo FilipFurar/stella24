@@ -8,7 +8,6 @@
 use crate::AppStella;
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
-use crate::model::datatype::DATA_TYPES;
 use crate::model::entities::domain::Domain;
 use crate::ui::widgets::crow_foot::{
     Cardinality, CardinalityMax, CardinalityMin, CrowFootEdge, RelationshipKind, build_edges,
@@ -579,22 +578,7 @@ fn format_attribute_row(attr: &Attribute, domains: &SlotMap<DomainId, Domain>) -
     }
 
     let ty = match &attr.attribute_type {
-        AttributeType::Logical(dt) => {
-            let name = DATA_TYPES.get(dt.base).map(|d| d.name).unwrap_or("UNKNOWN");
-            if dt.params.is_empty() {
-                name.to_string()
-            } else {
-                format!(
-                    "{}({})",
-                    name,
-                    dt.params
-                        .iter()
-                        .map(u32::to_string)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            }
-        }
+        AttributeType::Logical(dt) => dt.display_text(),
         AttributeType::Domain(did) => domains
             .get(*did)
             .map(|d| d.name.clone())

@@ -20,17 +20,6 @@ const RED: Color32 = Color32::from_rgb(194, 73, 125);
 const BLUE: Color32 = Color32::from_rgb(75, 67, 185);
 const GREEN: Color32 = Color32::from_rgb(66, 170, 125);
 
-#[derive(Default, Debug)]
-pub struct AttributeRowChanges {
-    pub attr_id: AttrId,
-    pub rename_changed: bool,
-    pub type_changed: bool,
-    pub not_null_changed: bool,
-    pub unique_changed: bool,
-    pub pk_change: Option<bool>,
-    pub delete: bool,
-}
-
 #[derive(Default)]
 pub struct TableChanges {
     pub add_attribute: bool,
@@ -243,7 +232,12 @@ impl Table {
         let mut to_delete: Vec<usize> = Vec::new();
 
         for (i, check) in self.checks.iter_mut().enumerate() {
-            if draw_check(ui, check, ("table_check", table_id.data().as_ffi(), i), "sql") {
+            if draw_check(
+                ui,
+                check,
+                ("table_check", table_id.data().as_ffi(), i),
+                "sql",
+            ) {
                 to_delete.push(i);
             }
         }
@@ -354,49 +348,8 @@ impl Table {
                     }
 
                     let disable_inline_unique = attrs_in_table_uniques.contains(&id);
-                    let changes = attr.draw_attribute(ui, id, ctx, disable_inline_unique);
-
-                    if changes.delete {
-                        result.push(Command::DeleteAttribute {
-                            table: table_id,
-                            attr: id,
-                        });
-                    }
-                    if let Some(value) = changes.pk_change {
-                        result.push(Command::SetAttributePrimaryKey {
-                            table: table_id,
-                            attr: id,
-                            value,
-                        });
-                    }
-                    if changes.rename_changed {
-                        result.push(Command::RenameAttribute {
-                            table: table_id,
-                            attr: id,
-                            name: attr.name.clone(),
-                        });
-                    }
-                    if changes.type_changed {
-                        result.push(Command::SetAttributeType {
-                            table: table_id,
-                            attr: id,
-                            attribute_type: attr.attribute_type.clone(),
-                        });
-                    }
-                    if changes.not_null_changed {
-                        result.push(Command::SetAttributeNotNull {
-                            table: table_id,
-                            attr: id,
-                            value: attr.not_null,
-                        });
-                    }
-                    if changes.unique_changed {
-                        result.push(Command::SetAttributeUnique {
-                            table: table_id,
-                            attr: id,
-                            value: attr.unique,
-                        });
-                    }
+                    let changes = attr.draw_attribute(ui, id, table_id, ctx, disable_inline_unique);
+                    result.extend(changes.into_commands());
                 });
             });
 
@@ -514,7 +467,7 @@ impl Table {
                 changes.add_attribute = true;
                 changes.commands.push(Command::AddAttribute {
                     table: table_id,
-                    attribute: Attribute::default(),
+                    attribute: Attribute::default_for_dialect(ctx.selected_sql_dialect),
                 });
             }
             if ui.button("New FK").clicked() {

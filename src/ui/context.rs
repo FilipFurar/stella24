@@ -1,3 +1,4 @@
+use crate::app::exports::sql::sql_export::SqlDialect;
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::AttrId;
 use crate::model::entities::domain::Domain;
@@ -34,6 +35,8 @@ pub struct TableUiContext {
     pub domains: Vec<DomainLookup>,
     /// The table currently being rendered.
     pub current_table: TableId,
+    /// The active SQL dialect for the project.
+    pub selected_sql_dialect: SqlDialect,
     /// Snapshot of the current table's attributes as `(AttrId, name)` pairs.
     pub current_table_attributes: Vec<(AttrId, String)>,
 }
@@ -44,6 +47,7 @@ impl TableUiContext {
         tables: &slotmap::SlotMap<TableId, Table>,
         domains: &slotmap::SlotMap<DomainId, Domain>,
         current_table: TableId,
+        selected_sql_dialect: SqlDialect,
     ) -> Self {
         let table_lookups = tables
             .iter()
@@ -88,6 +92,7 @@ impl TableUiContext {
             tables: table_lookups,
             domains: domain_lookups,
             current_table,
+            selected_sql_dialect,
             current_table_attributes,
         }
     }

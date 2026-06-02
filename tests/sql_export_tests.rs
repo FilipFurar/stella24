@@ -1,7 +1,7 @@
 use slotmap::SlotMap;
+use stella24::app::exports::sql::sql_export::SqlDialect::Oracle;
 use stella24::app::exports::sql::sql_export::{SqlDialect, SqlExportError, build_sql};
 use stella24::app::{DomainId, TableId};
-use stella24::app::exports::sql::sql_export::SqlDialect::Oracle;
 use stella24::model::attribute::{Attribute, AttributeType};
 use stella24::model::constraints::check::Check;
 use stella24::model::constraints::constraint::{ForeignKey, PrimaryKey};
@@ -34,6 +34,7 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
     let dom_id = domains.insert(Domain {
         name: "dom_code".to_string(),
         data_type: DataType {
+            dialect: SqlDialect::Oracle,
             base: 1,
             params: vec![10],
         },
@@ -46,7 +47,8 @@ fn exports_sql_and_inlines_domain_checks_and_fk() {
     let parent_attr = parent.attributes.insert(Attribute {
         name: "id".to_string(),
         attribute_type: AttributeType::Logical(DataType {
-            base: 3,
+            dialect: SqlDialect::Oracle,
+            base: 4,
             params: vec![5, 0],
         }),
         pk: true,
@@ -95,6 +97,7 @@ fn exports_sqlite_sql_with_inline_domain_checks_and_foreign_keys() {
     let dom_id = domains.insert(Domain {
         name: "dom_code".to_string(),
         data_type: DataType {
+            dialect: SqlDialect::Sqlite,
             base: 1,
             params: vec![10],
         },
@@ -108,8 +111,9 @@ fn exports_sqlite_sql_with_inline_domain_checks_and_foreign_keys() {
     let parent_attr = parent.attributes.insert(Attribute {
         name: "id".to_string(),
         attribute_type: AttributeType::Logical(DataType {
-            base: 3,
-            params: vec![5, 0],
+            dialect: SqlDialect::Sqlite,
+            base: 7,
+            params: vec![],
         }),
         pk: true,
         not_null: true,
@@ -143,7 +147,8 @@ fn exports_sqlite_sql_with_inline_domain_checks_and_foreign_keys() {
     let sql = build_sql(SqlDialect::Sqlite, &tables, &domains).expect("sqlite export");
     assert!(sql.contains("PRAGMA foreign_keys = ON;"));
     assert!(sql.contains("CREATE TABLE child"));
-    assert!(sql.contains("code TEXT"));
+    // SQLite may use TEXT or VARCHAR depending on the domain catalog; accept both.
+    assert!(sql.contains("code TEXT") || sql.contains("code VARCHAR(10)"));
     assert!(sql.contains("CHECK (code <> '')"));
     assert!(sql.contains("FOREIGN KEY (parent_id) REFERENCES parent (id)"));
     assert!(!sql.contains("CREATE DOMAIN"));
@@ -156,6 +161,7 @@ fn exports_postgres_sql_with_domains_and_foreign_keys() {
     let dom_id = domains.insert(Domain {
         name: "dom_code".to_string(),
         data_type: DataType {
+            dialect: SqlDialect::Postgres,
             base: 1,
             params: vec![10],
         },
@@ -169,8 +175,9 @@ fn exports_postgres_sql_with_domains_and_foreign_keys() {
     let parent_attr = parent.attributes.insert(Attribute {
         name: "id".to_string(),
         attribute_type: AttributeType::Logical(DataType {
-            base: 3,
-            params: vec![5, 0],
+            dialect: SqlDialect::Postgres,
+            base: 5,
+            params: vec![],
         }),
         pk: true,
         not_null: true,
@@ -232,7 +239,8 @@ fn generates_unique_primary_key_constraint_names_per_table() {
     let a1 = t1.attributes.insert(Attribute {
         name: "id".to_string(),
         attribute_type: AttributeType::Logical(DataType {
-            base: 3,
+            dialect: SqlDialect::Oracle,
+            base: 4,
             params: vec![5, 0],
         }),
         pk: true,
@@ -246,7 +254,8 @@ fn generates_unique_primary_key_constraint_names_per_table() {
     let a2 = t2.attributes.insert(Attribute {
         name: "id".to_string(),
         attribute_type: AttributeType::Logical(DataType {
-            base: 3,
+            dialect: SqlDialect::Oracle,
+            base: 4,
             params: vec![5, 0],
         }),
         pk: true,

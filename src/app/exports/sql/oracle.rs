@@ -4,13 +4,17 @@
 //! 1. CREATE DOMAIN + CREATE TABLE (no FKs)
 //! 2. ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY
 
-use crate::app::exports::sql::sql_export::{constraint_name_or_fallback, render_check_constraints, render_column_parts, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables, validate_object_names, Export, SqlDialect, SqlExportError};
+use crate::app::exports::sql::sql_export::{
+    Export, SqlDialect, SqlExportError, constraint_name_or_fallback, render_check_constraints,
+    render_column_parts, resolve_referenced_attribute, sorted_attrs, sorted_domains, sorted_tables,
+    validate_object_names,
+};
 use crate::app::{DomainId, TableId};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
-use crate::model::datatype::{DATA_TYPES, DataType};
+use crate::model::datatype::DataType;
 use crate::model::entities::domain::Domain;
 use crate::model::entities::table::Table;
-use slotmap::{SlotMap};
+use slotmap::SlotMap;
 use std::collections::HashSet;
 use std::fmt::Write;
 
@@ -34,21 +38,29 @@ impl Export for OracleDialect {
         validate_object_names(tables, domains)?;
         let mut used_constraints = HashSet::new();
         let mut out = String::new();
-        writeln!(out, "-- stella24 Oracle SQL export").map_err(|_| SqlExportError::WriteError { context: "writing Oracle header".to_string() })?;
-        writeln!(out).map_err(|_| SqlExportError::WriteError { context: "writing Oracle header newline".to_string() })?;
+        writeln!(out, "-- stella24 Oracle SQL export").map_err(|_| SqlExportError::WriteError {
+            context: "writing Oracle header".to_string(),
+        })?;
+        writeln!(out).map_err(|_| SqlExportError::WriteError {
+            context: "writing Oracle header newline".to_string(),
+        })?;
 
         // Phase 1a: Domains
         if !domains.is_empty() {
             for (_, domain) in sorted_domains(domains) {
                 render_domain(&mut out, domain, &mut used_constraints)?;
-                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after domain {}", domain.name) })?;
+                writeln!(out).map_err(|_| SqlExportError::WriteError {
+                    context: format!("writing newline after domain {}", domain.name),
+                })?;
             }
         }
 
         // Phase 1b: Tables (no FKs)
         for (_, table) in sorted_tables(tables) {
             Self::render_table(&mut out, table, tables, domains, &mut used_constraints)?;
-            writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after CREATE TABLE {}", table.title) })?;
+            writeln!(out).map_err(|_| SqlExportError::WriteError {
+                context: format!("writing newline after CREATE TABLE {}", table.title),
+            })?;
         }
 
         // Phase 2: Foreign keys via ALTER TABLE
@@ -60,17 +72,29 @@ impl Export for OracleDialect {
             )?;
             let fk_len = fk_lines.len();
             for fk in fk_lines {
-                writeln!(out, "ALTER TABLE {} ADD {};", table.title, fk).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER TABLE for {}", table.title) })?;
+                writeln!(out, "ALTER TABLE {} ADD {};", table.title, fk).map_err(|_| {
+                    SqlExportError::WriteError {
+                        context: format!("writing ALTER TABLE for {}", table.title),
+                    }
+                })?;
             }
             if fk_len > 0 {
-                writeln!(out).map_err(|_| SqlExportError::WriteError { context: format!("writing newline after ALTER TABLEs for {}", table.title) })?;
+                writeln!(out).map_err(|_| SqlExportError::WriteError {
+                    context: format!("writing newline after ALTER TABLEs for {}", table.title),
+                })?;
             }
         }
 
         Ok(out)
     }
 
-    fn attribute_type_sql(table: &Table, attr_id: AttrId, attr: &Attribute, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>) -> Result<String, SqlExportError> {
+    fn attribute_type_sql(
+        table: &Table,
+        attr_id: AttrId,
+        attr: &Attribute,
+        tables: &SlotMap<TableId, Table>,
+        domains: &SlotMap<DomainId, Domain>,
+    ) -> Result<String, SqlExportError> {
         match &attr.attribute_type {
             AttributeType::Logical(dt) => {
                 oracle_type_sql(dt, &format!("column {}.{}", table.title, attr.name))
@@ -82,7 +106,8 @@ impl Export for OracleDialect {
                 Ok(domain.name.clone())
             }
             AttributeType::ForeignKeyAttribute(_) => {
-                let (_fk, ref_table, referenced_attr) = resolve_referenced_attribute(table, attr_id, tables)?;
+                let (_fk, ref_table, referenced_attr) =
+                    resolve_referenced_attribute(table, attr_id, tables)?;
                 match &referenced_attr.attribute_type {
                     AttributeType::Logical(dt) => oracle_type_sql(
                         dt,
@@ -106,8 +131,18 @@ impl Export for OracleDialect {
         }
     }
 
-    fn render_table(out: &mut String, table: &Table, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<(), SqlExportError> {
-        writeln!(out, "CREATE TABLE {} (", table.title).map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE TABLE header for {}", table.title) })?;
+    fn render_table(
+        out: &mut String,
+        table: &Table,
+        tables: &SlotMap<TableId, Table>,
+        domains: &SlotMap<DomainId, Domain>,
+        used_constraints: &mut HashSet<String>,
+    ) -> Result<(), SqlExportError> {
+        writeln!(out, "CREATE TABLE {} (", table.title).map_err(|_| {
+            SqlExportError::WriteError {
+                context: format!("writing CREATE TABLE header for {}", table.title),
+            }
+        })?;
         let mut lines = Vec::new();
         for (attr_id, attr) in sorted_attrs(table) {
             lines.push(Self::render_column(
@@ -122,13 +157,24 @@ impl Export for OracleDialect {
         lines.extend(Self::render_table_constraints(table, used_constraints)?);
         for (i, line) in lines.iter().enumerate() {
             let comma = if i + 1 == lines.len() { "" } else { "," };
-            writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError { context: format!("writing column line for {}", table.title) })?;
+            writeln!(out, "    {}{}", line, comma).map_err(|_| SqlExportError::WriteError {
+                context: format!("writing column line for {}", table.title),
+            })?;
         }
-        writeln!(out, ");").map_err(|_| SqlExportError::WriteError { context: format!("writing end of CREATE TABLE {}", table.title) })?;
+        writeln!(out, ");").map_err(|_| SqlExportError::WriteError {
+            context: format!("writing end of CREATE TABLE {}", table.title),
+        })?;
         Ok(())
     }
 
-    fn render_column(table: &Table, attr_id: AttrId, attr: &Attribute, tables: &SlotMap<TableId, Table>, domains: &SlotMap<DomainId, Domain>, used_constraints: &mut HashSet<String>) -> Result<String, SqlExportError> {
+    fn render_column(
+        table: &Table,
+        attr_id: AttrId,
+        attr: &Attribute,
+        tables: &SlotMap<TableId, Table>,
+        domains: &SlotMap<DomainId, Domain>,
+        used_constraints: &mut HashSet<String>,
+    ) -> Result<String, SqlExportError> {
         let parts = render_column_parts(
             table,
             attr_id,
@@ -142,7 +188,6 @@ impl Export for OracleDialect {
     }
 }
 
-
 fn render_domain(
     out: &mut String,
     domain: &Domain,
@@ -154,16 +199,27 @@ fn render_domain(
         domain.name,
         oracle_type_sql(&domain.data_type, &format!("domain {}", domain.name))?,
     )
-    .map_err(|_| SqlExportError::WriteError { context: format!("writing CREATE DOMAIN {}", domain.name) })?;
+    .map_err(|_| SqlExportError::WriteError {
+        context: format!("writing CREATE DOMAIN {}", domain.name),
+    })?;
 
     for line in render_check_constraints(
         &domain.check_constraints,
         used_constraints,
         |_, _| format!("domain {}", domain.name),
-        |idx, check| constraint_name_or_fallback(&check.name, &format!("CHK_DOMAIN_{}_{}", domain.name, idx + 1)),
+        |idx, check| {
+            constraint_name_or_fallback(
+                &check.name,
+                &format!("CHK_DOMAIN_{}_{}", domain.name, idx + 1),
+            )
+        },
         |check| Ok(check.condition.clone()),
     )? {
-        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).map_err(|_| SqlExportError::WriteError { context: format!("writing ALTER DOMAIN {}", domain.name) })?;
+        writeln!(out, "ALTER DOMAIN {} ADD {};", domain.name, line).map_err(|_| {
+            SqlExportError::WriteError {
+                context: format!("writing ALTER DOMAIN {}", domain.name),
+            }
+        })?;
     }
 
     Ok(())
@@ -171,17 +227,18 @@ fn render_domain(
 
 /// Map a model `DataType` to an Oracle SQL type string.
 ///
-/// Returns an error when the `base` index does not exist in the global
-/// `DATA_TYPES` table. `context` is used in the error message to aid
+/// Returns an error when the `base` index does not exist in the current
+/// Oracle datatype catalog. `context` is used in the error message to aid
 /// diagnostics.
 fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportError> {
-    let Some(def) = DATA_TYPES.get(dt.base) else {
+    let type_name = dt.type_name();
+    if type_name == "UNKNOWN" {
         return Err(SqlExportError::UnsupportedDataType {
             context: context.to_string(),
             base: dt.base,
         });
-    };
-    let sql = match def.name {
+    }
+    let sql = match type_name {
         // Character types
         "CHAR" => match dt.params.as_slice() {
             [size, char_semantics] => format!(
@@ -228,11 +285,11 @@ fn oracle_type_sql(dt: &DataType, context: &str) -> Result<String, SqlExportErro
         },
 
         // Interval types
-        "INTERVAL_YEAR" => format!(
+        "INTERVAL YEAR TO MONTH" => format!(
             "INTERVAL YEAR({}) TO MONTH",
             dt.params.first().copied().unwrap_or(2)
         ),
-        "INTERVAL_DAY" => match dt.params.as_slice() {
+        "INTERVAL DAY TO SECOND" => match dt.params.as_slice() {
             [day_precision, second_precision] => format!(
                 "INTERVAL DAY({}) TO SECOND({})",
                 day_precision, second_precision

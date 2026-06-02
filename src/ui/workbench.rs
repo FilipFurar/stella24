@@ -8,7 +8,7 @@ use crate::ui::changes::extend_commands;
 use crate::ui::context::TableUiContext;
 use crate::ui::widgets::crow_foot::{build_edges, draw_crow_foot_edge};
 use eframe::emath::{Rect, Vec2, pos2, vec2};
-use egui::{Area, Frame, Id, Order, PointerButton, Sense};
+use egui::{Area, Frame, Id, Order, PointerButton, Sense, Stroke};
 
 const CANVAS_PADDING: f32 = 8.0;
 const DEFAULT_TABLE_SIZE: Vec2 = Vec2::new(300.0, 200.0);
@@ -41,7 +41,7 @@ impl AppStella {
                     .add(
                         egui::Button::new("Table")
                             .min_size(vec2(120.0, 25.0))
-                            .stroke(egui::Stroke::new(1.0, crate::app::BLUE)),
+                            .stroke(Stroke::new(1.0, self.preferences.colors.tables_color)),
                     )
                     .clicked()
                 {
@@ -53,11 +53,14 @@ impl AppStella {
                     .add(
                         egui::Button::new("Domain")
                             .min_size(vec2(120.0, 25.0))
-                            .stroke(egui::Stroke::new(1.0, crate::app::GREEN)),
+                            .stroke(egui::Stroke::new(
+                                1.0,
+                                self.preferences.colors.domains_color,
+                            )),
                     )
                     .clicked()
                 {
-                    let domain = Domain::default();
+                    let domain = Domain::default_for_dialect(self.settings.selected_sql_dialect);
                     self.dispatch(Command::CreateDomain {
                         name: domain.name,
                         data_type: domain.data_type,
@@ -127,7 +130,7 @@ impl AppStella {
                     ui.set_min_size(screen_rect.size());
                     Frame::window(ui.style())
                         .fill(ui.visuals().window_fill())
-                        .stroke(ui.visuals().window_stroke())
+                        .stroke(Stroke::new(1.0, self.preferences.colors.tables_color))
                         .show(ui, |ui| {
                             Frame::new()
                                 .fill(ui.visuals().widgets.noninteractive.bg_fill)
@@ -154,7 +157,12 @@ impl AppStella {
                             ui.add_space(2.0);
                             ui.separator();
 
-                            let ui_ctx = TableUiContext::from_app(&self.tables, &self.domains, id);
+                            let ui_ctx = TableUiContext::from_app(
+                                &self.tables,
+                                &self.domains,
+                                id,
+                                self.settings.selected_sql_dialect,
+                            );
                             let table = self.tables.get_mut(id).expect("table missing");
                             let changes = table.draw(ui, &ui_ctx, id);
                             extend_commands(&mut table_commands, changes);

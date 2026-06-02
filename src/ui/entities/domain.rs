@@ -3,7 +3,7 @@
 use crate::app::Command;
 use crate::app::DomainId;
 use crate::model::constraints::check::Check;
-use crate::model::datatype::{DATA_TYPES, DataType};
+use crate::model::datatype::DataType;
 use crate::model::entities::domain::Domain;
 use crate::ui::changes::IntoCommands;
 use crate::ui::constraints::check::draw_check;
@@ -45,17 +45,18 @@ impl Domain {
             ui.label("Type:");
             let mut data_type_changed = false;
             egui::ComboBox::from_id_salt(format!("type_{}", id.data().as_ffi()))
-                .selected_text(DATA_TYPES[self.data_type.base].name)
+                .selected_text(self.data_type.type_name())
                 .show_ui(ui, |ui| {
-                    for (i, def) in DATA_TYPES.iter().enumerate() {
+                    let catalog = self.data_type.catalog();
+                    for i in 0..catalog.len() {
+                        let Some(name) = catalog.name(i) else {
+                            continue;
+                        };
                         if ui
-                            .selectable_label(self.data_type.base == i, def.name)
+                            .selectable_label(self.data_type.base == i, name)
                             .clicked()
                         {
-                            self.data_type = DataType {
-                                base: i,
-                                params: vec![0; def.param_count],
-                            };
+                            self.data_type = DataType::new(self.data_type.dialect, i);
                             data_type_changed = true;
                         }
                     }

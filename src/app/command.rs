@@ -1,5 +1,5 @@
 use crate::AppStella;
-use crate::app::{DomainId, MAX_HISTORY_STATES, SqlExportModal, SvgExportModal, TableId, UndoItem};
+use crate::app::{DomainId, MAX_HISTORY_STATES, TableId, UndoItem};
 use crate::model::attribute::{AttrId, Attribute, AttributeType};
 use crate::model::constraints::check::Check;
 use crate::model::constraints::constraint::{FkId, ForeignKey, Unique};
@@ -199,9 +199,10 @@ impl AppStella {
                             }
                         }
                         UndoItem::Snapshot(prev_state) => {
-                            self.redo_history
-                                .push(UndoItem::Snapshot(self.clone_without_histories()));
-                            self.restore_snapshot(prev_state);
+                            self.redo_history.push(UndoItem::Snapshot(Box::from(
+                                self.clone_without_histories(),
+                            )));
+                            self.restore_snapshot(*prev_state);
                         }
                     }
                 }
@@ -217,9 +218,10 @@ impl AppStella {
                             }
                         }
                         UndoItem::Snapshot(prev_state) => {
-                            self.undo_history
-                                .push(UndoItem::Snapshot(self.clone_without_histories()));
-                            self.restore_snapshot(prev_state);
+                            self.undo_history.push(UndoItem::Snapshot(Box::from(
+                                self.clone_without_histories(),
+                            )));
+                            self.restore_snapshot(*prev_state);
                         }
                     }
                 }
@@ -236,7 +238,7 @@ impl AppStella {
         } else {
             let snapshot = self.clone_without_histories();
             self.apply_command(cmd);
-            self.push_undo_item(UndoItem::Snapshot(snapshot));
+            self.push_undo_item(UndoItem::Snapshot(Box::from(snapshot)));
         }
     }
 
@@ -249,6 +251,7 @@ impl AppStella {
             Command::NewCanvas => {
                 self.tables.clear();
                 self.domains.clear();
+                self.domain_order.clear();
                 self.workbench_table_layout.clear();
                 self.workbench_table_rects.clear();
                 self.workbench_pan = egui::Vec2::ZERO;
@@ -336,14 +339,16 @@ impl AppStella {
             Command::CreateDomain { name, data_type } => {
                 let mut data_type = data_type;
                 data_type.normalize_params();
-                self.domains.insert(Domain {
+                let id = self.domains.insert(Domain {
                     name,
                     data_type,
                     check_constraints: vec![],
                 });
+                self.domain_order.push(id);
             }
             Command::DeleteDomain { domain } => {
                 self.domains.remove(domain);
+                self.domain_order.retain(|id| *id != domain);
             }
             Command::RenameDomain { domain, name } => {
                 if let Some(d) = self.domains.get_mut(domain) {
@@ -463,17 +468,17 @@ impl AppStella {
         AppStella {
             tables: self.tables.clone(),
             domains: self.domains.clone(),
+            domain_order: self.domain_order.clone(),
+            settings: Default::default(),
+            preferences: Default::default(),
             workbench_table_layout: self.workbench_table_layout.clone(),
             command_queue: CommandQueue::default(),
-            sql_export_modal: SqlExportModal::default(),
-            svg_export_modal: SvgExportModal::default(),
-            project_settings_modal: Default::default(),
-            project_name: "".to_string(),
-            preferences_modal: Default::default(),
-            selected_sql_dialect: self.selected_sql_dialect,
+            modals: Default::default(),
             workbench_table_rects: self.workbench_table_rects.clone(),
             workbench_pan: self.workbench_pan,
             workbench_zoom: self.workbench_zoom,
+            dragged_domain: self.dragged_domain,
+            dragged_domain_from_index: self.dragged_domain_from_index,
             undo_history: Vec::new(),
             redo_history: Vec::new(),
         }
@@ -482,11 +487,15 @@ impl AppStella {
     fn restore_snapshot(&mut self, snapshot: AppStella) {
         self.tables = snapshot.tables;
         self.domains = snapshot.domains;
+        self.domain_order = snapshot.domain_order;
         self.workbench_table_layout = snapshot.workbench_table_layout;
         self.workbench_table_rects = snapshot.workbench_table_rects;
         self.workbench_pan = snapshot.workbench_pan;
         self.workbench_zoom = snapshot.workbench_zoom;
-        self.selected_sql_dialect = snapshot.selected_sql_dialect;
+        self.settings = snapshot.settings;
+        self.preferences = snapshot.preferences;
+        self.dragged_domain = None;
+        self.dragged_domain_from_index = None;
     }
 
     fn push_undo_item(&mut self, item: UndoItem) {
@@ -505,7 +514,7 @@ impl AppStella {
         } else {
             let snapshot = self.clone_without_histories();
             self.apply_command(cmd);
-            Some(UndoItem::Snapshot(snapshot))
+            Some(UndoItem::Snapshot(Box::from(snapshot)))
         }
     }
 
