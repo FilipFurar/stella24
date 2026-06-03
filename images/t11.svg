@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg height="964" viewBox="0 0 1510 964" width="1510" xmlns="http://www.w3.org/2000/svg">
+<g class="relations">
+<g class="relation" data-from-cardinality="0..1" data-kind="non-identifying" data-to-cardinality="1..1">
+<g>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="618" x2="530.53125" y1="278.34375" y2="278.34375"/>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="530.53125" x2="530.53125" y1="278.34375" y2="248.89584"/>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="530.53125" x2="508.53125" y1="248.89584" y2="248.89584"/>
+</g>
+<g>
+<circle cx="611" cy="278.34375" fill="none" r="4" stroke="#606060" stroke-width="1.8"/>
+<line stroke="#606060" stroke-width="1.8" x1="603" x2="603" y1="283.34375" y2="273.34375"/>
+</g>
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="515.53125" x2="515.53125" y1="243.89584" y2="253.89584"/>
+<line stroke="#606060" stroke-width="1.8" x1="523.53125" x2="523.53125" y1="243.89584" y2="253.89584"/>
+</g>
+</g>
+<g class="relation" data-from-cardinality="0..1" data-kind="non-identifying" data-to-cardinality="1..1">
+<g>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="597" x2="530.53125" y1="714.34375" y2="714.34375"/>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="530.53125" x2="530.53125" y1="714.34375" y2="384.7917"/>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="530.53125" x2="508.53125" y1="384.7917" y2="384.7917"/>
+</g>
+<g>
+<circle cx="590" cy="714.34375" fill="none" r="4" stroke="#606060" stroke-width="1.8"/>
+<line stroke="#606060" stroke-width="1.8" x1="582" x2="582" y1="719.34375" y2="709.34375"/>
+</g>
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="515.53125" x2="515.53125" y1="379.7917" y2="389.7917"/>
+<line stroke="#606060" stroke-width="1.8" x1="523.53125" x2="523.53125" y1="379.7917" y2="389.7917"/>
+</g>
+</g>
+<g class="relation" data-from-cardinality="0..N" data-kind="non-identifying" data-to-cardinality="0..1">
+<g>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="1068" x2="994.53125" y1="723.34375" y2="723.34375"/>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="994.53125" x2="994.53125" y1="723.34375" y2="714.34375"/>
+<line stroke="#606060" stroke-dasharray="4 6" stroke-width="1.8" x1="994.53125" x2="972.53125" y1="714.34375" y2="714.34375"/>
+</g>
+<g>
+<circle cx="1061" cy="723.34375" fill="none" r="4" stroke="#606060" stroke-width="1.8"/>
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="1053" x2="1061" y1="723.34375" y2="717.34375"/>
+<line stroke="#606060" stroke-width="1.8" x1="1053" x2="1061" y1="723.34375" y2="723.34375"/>
+<line stroke="#606060" stroke-width="1.8" x1="1053" x2="1061" y1="723.34375" y2="729.34375"/>
+</g>
+</g>
+<g>
+<circle cx="979.53125" cy="714.34375" fill="none" r="4" stroke="#606060" stroke-width="1.8"/>
+<line stroke="#606060" stroke-width="1.8" x1="987.53125" x2="987.53125" y1="709.34375" y2="719.34375"/>
+</g>
+</g>
+<g class="relation" data-from-cardinality="0..N" data-kind="identifying" data-to-cardinality="1..1">
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="1074" x2="1031.4688" y1="272.34375" y2="272.34375"/>
+<line stroke="#606060" stroke-width="1.8" x1="1031.4688" x2="1031.4688" y1="272.34375" y2="278.34375"/>
+<line stroke="#606060" stroke-width="1.8" x1="1031.4688" x2="1009.46875" y1="278.34375" y2="278.34375"/>
+</g>
+<g>
+<circle cx="1067" cy="272.34375" fill="none" r="4" stroke="#606060" stroke-width="1.8"/>
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="1059" x2="1067" y1="272.34375" y2="266.34375"/>
+<line stroke="#606060" stroke-width="1.8" x1="1059" x2="1067" y1="272.34375" y2="272.34375"/>
+<line stroke="#606060" stroke-width="1.8" x1="1059" x2="1067" y1="272.34375" y2="278.34375"/>
+</g>
+</g>
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="1016.46875" x2="1016.46875" y1="273.34375" y2="283.34375"/>
+<line stroke="#606060" stroke-width="1.8" x1="1024.4688" x2="1024.4688" y1="273.34375" y2="283.34375"/>
+</g>
+</g>
+<g class="relation" data-from-cardinality="0..1" data-kind="identifying" data-to-cardinality="1..1">
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="1256.5313" x2="1256.5313" y1="443.6875" y2="465.6875"/>
+<line stroke="#606060" stroke-width="1.8" x1="1256.5313" x2="1259.0625" y1="465.6875" y2="465.6875"/>
+<line stroke="#606060" stroke-width="1.8" x1="1259.0625" x2="1259.0625" y1="465.6875" y2="543"/>
+</g>
+<g>
+<circle cx="1256.5313" cy="450.6875" fill="none" r="4" stroke="#606060" stroke-width="1.8"/>
+<line stroke="#606060" stroke-width="1.8" x1="1261.5313" x2="1251.5313" y1="458.6875" y2="458.6875"/>
+</g>
+<g>
+<line stroke="#606060" stroke-width="1.8" x1="1254.0625" x2="1264.0625" y1="536" y2="536"/>
+<line stroke="#606060" stroke-width="1.8" x1="1254.0625" x2="1264.0625" y1="528" y2="528"/>
+</g>
+</g>
+</g>
+<g class="tables">
+<g class="table" data-id="TableId(1v1)">
+<rect fill="#2b2b2b" height="435.6875" rx="8" stroke="#505050" width="375.53125" x="133" y="99"/>
+<text fill="#f0f0f0" font-family="sans-serif" font-size="30" font-weight="700" transform="scale(0.45)" x="322.22223" y="277.77777">
+os_udaje
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="145" y="153">
+rod_cislo
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="320.76563" y="153">
+NUMBER(7, 0)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="496.53125" y="153">
+PK, NN, U
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="145" y="171">
+meno
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="320.76563" y="171">
+VARCHAR(30)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="496.53125" y="171">
+NN
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="145" y="189">
+priezvisko
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="320.76563" y="189">
+VARCHAR(30)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="496.53125" y="189">
+NN
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="145" y="207">
+adresa
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="320.76563" y="207">
+VARCHAR(60)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="496.53125" y="207">
+NN
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="145" y="225">
+email
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="320.76563" y="225">
+EMAIL
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="496.53125" y="225">
+NN, U
+</text>
+</g>
+<g class="table" data-id="TableId(2v1)">
+<rect fill="#2b2b2b" height="324.6875" rx="8" stroke="#505050" width="391.46875" x="618" y="116"/>
+<text fill="#f0f0f0" font-family="sans-serif" font-size="30" font-weight="700" transform="scale(0.45)" x="1400" y="315.55557">
+student
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="630" y="170">
+id_student
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="813.7344" y="170">
+NUMBER(5, 0)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="997.46875" y="170">
+PK, NN, U
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="630" y="188">
+rod_cislo
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="813.7344" y="188">
+FK
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="997.46875" y="188">
+NN, U
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="630" y="206">
+farba
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="813.7344" y="206">
+FARBA
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="997.46875" y="206">
+NN
+</text>
+<line stroke="#505050" stroke-width="1" x1="626" x2="1001.46875" y1="228" y2="228"/>
+<text dominant-baseline="middle" fill="#bbbbbb" font-family="sans-serif" font-size="11" font-weight="600" text-anchor="start" x="630" y="242">
+Table constraints
+</text>
+<text dominant-baseline="middle" fill="#b8b8b8" font-family="sans-serif" font-size="11" text-anchor="start" x="630" y="258">
+FK ref_os_udaje_student (rod_cislo) -&gt; os_udaje
+</text>
+</g>
+<g class="table" data-id="TableId(3v1)">
+<rect fill="#2b2b2b" height="288.6875" rx="8" stroke="#505050" width="375.53125" x="597" y="570"/>
+<text fill="#f0f0f0" font-family="sans-serif" font-size="30" font-weight="700" transform="scale(0.45)" x="1353.3334" y="1324.4445">
+ucitel
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="609" y="624">
+id_ucitel
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="784.7656" y="624">
+NUMBER(5, 0)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="960.53125" y="624">
+PK, NN, U
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="609" y="642">
+rod_cislo
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="784.7656" y="642">
+FK
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="960.53125" y="642">
+NN, U
+</text>
+<line stroke="#505050" stroke-width="1" x1="605" x2="964.53125" y1="664" y2="664"/>
+<text dominant-baseline="middle" fill="#bbbbbb" font-family="sans-serif" font-size="11" font-weight="600" text-anchor="start" x="609" y="678">
+Table constraints
+</text>
+<text dominant-baseline="middle" fill="#b8b8b8" font-family="sans-serif" font-size="11" text-anchor="start" x="609" y="694">
+FK ref_os_udaje_ucitel (rod_cislo) -&gt; os_udaje
+</text>
+</g>
+<g class="table" data-id="TableId(4v1)">
+<rect fill="#2b2b2b" height="360.6875" rx="8" stroke="#505050" width="382.125" x="1068" y="543"/>
+<text fill="#f0f0f0" font-family="sans-serif" font-size="30" font-weight="700" transform="scale(0.45)" x="2400" y="1264.4445">
+predmet
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="1080" y="597">
+kod_predmetu
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="1259.0625" y="597">
+VARCHAR(5)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="1438.125" y="597">
+PK, NN, U
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="1080" y="615">
+nazov
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="1259.0625" y="615">
+VARCHAR(50)
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="1438.125" y="615">
+NN
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="1080" y="633">
+fakulta
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="1259.0625" y="633">
+skratka_fakulta
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="1438.125" y="633">
+NN
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="1080" y="651">
+id_ucitel
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="1259.0625" y="651">
+FK
+</text>
+<line stroke="#505050" stroke-width="1" x1="1076" x2="1442.125" y1="673" y2="673"/>
+<text dominant-baseline="middle" fill="#bbbbbb" font-family="sans-serif" font-size="11" font-weight="600" text-anchor="start" x="1080" y="687">
+Table constraints
+</text>
+<text dominant-baseline="middle" fill="#b8b8b8" font-family="sans-serif" font-size="11" text-anchor="start" x="1080" y="703">
+FK ref_ucitel (id_ucitel) -&gt; ucitel
+</text>
+</g>
+<g class="table" data-id="TableId(5v1)">
+<rect fill="#2b2b2b" height="342.6875" rx="8" stroke="#505050" width="365.0625" x="1074" y="101"/>
+<text fill="#f0f0f0" font-family="sans-serif" font-size="30" font-weight="700" transform="scale(0.45)" x="2413.3335" y="282.22223">
+zp_predmet
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="1086" y="155">
+id_student
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="1256.5313" y="155">
+FK
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="1427.0625" y="155">
+PK, NN
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="start" x="1086" y="173">
+kod_predmetu
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="middle" x="1256.5313" y="173">
+FK
+</text>
+<text dominant-baseline="middle" fill="#d8d8d8" font-family="sans-serif" font-size="12" text-anchor="end" x="1427.0625" y="173">
+PK, NN, U
+</text>
+<line stroke="#505050" stroke-width="1" x1="1082" x2="1431.0625" y1="195" y2="195"/>
+<text dominant-baseline="middle" fill="#bbbbbb" font-family="sans-serif" font-size="11" font-weight="600" text-anchor="start" x="1086" y="209">
+Table constraints
+</text>
+<text dominant-baseline="middle" fill="#b8b8b8" font-family="sans-serif" font-size="11" text-anchor="start" x="1086" y="225">
+PK (id_student, kod_predmetu)
+</text>
+<text dominant-baseline="middle" fill="#b8b8b8" font-family="sans-serif" font-size="11" text-anchor="start" x="1086" y="241">
+FK ref_student (id_student) -&gt; student
+</text>
+<text dominant-baseline="middle" fill="#b8b8b8" font-family="sans-serif" font-size="11" text-anchor="start" x="1086" y="257">
+FK ref_predmet (kod_predmetu) -&gt; predmet
+</text>
+</g>
+</g>
+</svg>
