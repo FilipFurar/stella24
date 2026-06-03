@@ -191,7 +191,7 @@ Po pridaní FK sa dve tabuľky prepoja a vytvorí sa medzi nimi vzťah. Tabuľky
 <p>Identifikačný (identifying) vzťah je taký, že primárny kľúč rodičovskej tabuľky sa stáva primárnym kľúčom dcérskej tabuľky.
 Z toho vyplýva, že dcérska tabuľka nemôže existovať bez rodičovskej,
 Pre vytvorenie identifikačného vzťahu sa v dcérskej tabuľke zaškrtne príznak PK.</p>
-<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/identifikacny.png" alt="Identifikačný vzťah"></p>
+<p><img src="images/identifikacny.png" alt="Identifikačný vzťah"></p>
 <p>Takýto vzťah sa v ER diagramoch využívajúcich Crow’s foot notáciu reprezentuje ako <strong>plná čiara</strong> medzi tabuľkami.</p>
 <ul>
 <li>
@@ -200,22 +200,22 @@ Pre vytvorenie identifikačného vzťahu sa v dcérskej tabuľke zaškrtne príz
 </ul>
 <p>Primárny kľúč rodičovskej tabuľky prechádza do dcérskej len ako FK (cudzí kľúč) a nestáva sa súčasťou jej PK.
 Dcérska tabuľka dokáže existovať samostatne.</p>
-<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/neidentifikacny.png" alt="Neidentifikačný vzťah"></p>
+<p><img src="images/neidentifikacny.png" alt="Neidentifikačný vzťah"></p>
 <p>Znázorňuje sa <strong>prerušovanou čiarou</strong>.</p>
 <h2 id="kardinalita"><a class="header" href="#kardinalita">Kardinalita</a></h2>
 <p>Kardinalita je integritné obmedzenie vyjadrujúce možné početnosti vo vzťahu.</p>
 <h3 id="1--01"><a class="header" href="#1--01">1 : 0..1</a></h3>
 <p>Vyjadruje vzťah medzi maximálne 1 tabuľkou a maximálne 1 tabuľkou iného alebo rovnakého typu.</p>
 <p>V Crow’s foot notácii sa vyznačuje || na jednej strane a |O na druhej.</p>
-<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/onetoone.png" alt="One to One"></p>
+<p><img src="images/onetoone.png" alt="One to One"></p>
 <h3 id="1--n"><a class="header" href="#1--n">1 : N</a></h3>
 <p>Vyjadruje vzťah medzi maximálne 1 tabuľkou a N tabuľkami iného alebo toho istého typu.</p>
 <p>V Crow’s foot notácii sa vyznačuje stračou nôžkou na jednej strane a || na druhej.</p>
-<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/onetomany.png" alt="One to Many"></p>
+<p><img src="images/onetomany.png" alt="One to Many"></p>
 <h3 id="m--n"><a class="header" href="#m--n">M : N</a></h3>
 <p>Vyjadruje vzťah medzi M tabuľkami jedného typu a N entitami iného, respektíve toho istého typu.</p>
 <p>V ER modeleri potrebujeme na vyjadrenie M:N vzťahu asociatívnu (pomocnú) tabuľku.</p>
-<p><img src="../skola/bakalarka/pouzivatelska-prirucka/obrazky/manytomany.png" alt="Many to Many"></p>
+<p><img src="images/manytomany.png" alt="Many to Many"></p>
 
                     </main>
 
