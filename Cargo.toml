@@ -1,10 +1,9 @@
 [package]
 name = "stella24"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Filip Furár <furar@stud.uniza.sk>"]
 edition = "2024"
 include = ["LICENSE-APACHE", "LICENSE-MIT", "**/*.rs", "Cargo.toml"]
-resolver = "2"
 rust-version = "1.93.1"
 
 [package.metadata.docs.rs]
