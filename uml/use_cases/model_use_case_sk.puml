@@ -2,21 +2,16 @@
 left to right direction
 actor "Používateľ" as user
 rectangle ER_Modeler {
-    usecase "Vytvoriť novú tabuľku" as create_table
-    usecase "Spravovať existujúcu tabuľku" as edit_table
-    usecase "Vytvoriť novú doménu" as create_domain
-        usecase "Spravovať obmedzenia Domény" as manage_constraints_domain
-        usecase "Spravovať CHECK obmedzenie" as manage_check_domain
-        usecase "Spravovať NOT NULL obmedzenie" as manage_notnull_domain
     usecase "Spravovať existujúcu doménu" as edit_domain
+    usecase "Exportovať SQL DDL príkazy" as export_sql
+    usecase "Exportovať diagram do grafickej podoby" as export_svg
+    usecase "Uložiť projekt" as save_project
+    usecase "Načítať projekt" as load_project
 }
 
-user --> create_table
-user --> create_domain
-user --> edit_table
-user --> edit_domain
+user --> export_sql
+user --> export_svg
+user --> save_project
+user --> load_project
 
-edit_domain ..> manage_constraints_domain : <<include>>
-manage_constraints_domain ..> manage_check_domain : <<include>>
-manage_constraints_domain ..> manage_notnull_domain : <<include>>
 @enduml

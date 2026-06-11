@@ -1,0 +1,24 @@
+@startuml
+left to right direction
+actor "Používateľ" as user
+rectangle ER_Modeler {
+    usecase "Vytvoriť novú tabuľku" as create_table
+    usecase "Spravovať existujúcu tabuľku" as edit_table
+        usecase "Spravovať atribúty tabuľky" as manage_attributes_table
+        usecase "Spravovať obmedzenia tabuľky" as manage_constraints_table
+    usecase "Vytvoriť novú doménu" as create_domain
+        usecase "Spravovať obmedzenia Domény" as manage_constraints_domain
+    usecase "Spravovať existujúcu doménu" as edit_domain
+
+}
+
+user --> create_table
+user --> create_domain
+user --> edit_table
+user --> edit_domain
+
+
+edit_table ..> manage_attributes_table : <<include>>
+edit_table ..> manage_constraints_table : <<include>>
+edit_domain ..> manage_constraints_domain : <<include>>
+@enduml
